@@ -21,11 +21,21 @@ from concurrent.futures import ThreadPoolExecutor
 # PDF generation imports
 try:
     from reportlab.lib.pagesizes import letter, A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
+    from reportlab.graphics import renderPDF
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
+    import io
+    import base64
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
@@ -423,11 +433,11 @@ def nurse_analytics(request):
 @permission_classes([IsAuthenticated])
 def generate_analytics_pdf(request):
     """
-    Generate PDF report of analytics findings
+    Generate PDF report of analytics findings with visualizations and doctor information
     """
     if not PDF_AVAILABLE:
         return Response({
-            'error': 'PDF generation not available. Please install reportlab.'
+            'error': 'PDF generation not available. Please install reportlab and matplotlib.'
         }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     
     user_role = request.user.role
@@ -438,18 +448,31 @@ def generate_analytics_pdf(request):
         if user_role == 'doctor' or report_type == 'doctor':
             analytics_data = get_doctor_analytics_data(request.user)
             title = f"Doctor Analytics Report - {request.user.full_name}"
+            doctor_info = {
+                'name': request.user.full_name,
+                'specialization': getattr(request.user.doctor_profile, 'specialization', 'General Practice') if hasattr(request.user, 'doctor_profile') else 'General Practice',
+                'role': 'Doctor'
+            }
         elif user_role == 'nurse' or report_type == 'nurse':
             analytics_data = get_nurse_analytics_data(request.user)
             title = f"Nurse Analytics Report - {request.user.full_name}"
+            # Format nurse info to match expected structure for add_doctor_signature
+            doctor_info = {
+                'name': request.user.full_name,
+                'specialization': getattr(request.user.nurse_profile, 'department', 'General') if hasattr(request.user, 'nurse_profile') else 'General',
+                'role': 'Nurse'
+            }
         else:
             analytics_data = get_full_analytics_data()
             title = "MediSync Analytics Report"
+            doctor_info = None  # Full reports don't have specific doctor info
         
         # Generate PDF
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="analytics_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
         
-        doc = SimpleDocTemplate(response, pagesize=A4)
+        # Create custom page template with doctor info
+        doc = SimpleDocTemplate(response, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
         styles = getSampleStyleSheet()
         story = []
         
@@ -476,8 +499,15 @@ def generate_analytics_pdf(request):
         story.append(Paragraph(f"Generated on: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", meta_style))
         story.append(Spacer(1, 30))
         
-        # Add analytics sections
-        add_analytics_sections(story, analytics_data, styles)
+        # Add analytics sections with visualizations first
+        add_analytics_sections_with_visualizations(story, analytics_data, styles)
+        
+        # Add AI Interpretation section below visualizations
+        add_ai_interpretation_section(story, analytics_data, styles)
+        
+        # Add doctor/nurse information at the bottom right if available
+        if doctor_info:
+            add_doctor_signature(story, doctor_info, styles)
         
         doc.build(story)
         return response
@@ -528,8 +558,8 @@ def get_latest_analytics(analysis_type):
     ).order_by('-created_at').first()
     return result.results if result else None
 
-def add_analytics_sections(story, analytics_data, styles):
-    """Add analytics sections to PDF"""
+def add_analytics_sections_with_visualizations(story, analytics_data, styles):
+    """Add analytics sections to PDF with visualizations"""
     
     # Section headers style
     section_style = ParagraphStyle(
@@ -557,46 +587,80 @@ def add_analytics_sections(story, analytics_data, styles):
         spaceAfter=6
     )
     
-    # 1. Patient Demographics
+    # 1. Patient Demographics with Visualization
     if analytics_data.get('patient_demographics'):
         story.append(Paragraph("1. Patient Demographics", section_style))
         demographics = analytics_data['patient_demographics']
         
+        # Age Distribution Chart
         if 'age_distribution' in demographics:
             story.append(Paragraph("Age Distribution:", subsection_style))
             age_data = demographics['age_distribution']
+            
+            # Create age distribution chart
+            age_chart = create_age_distribution_chart(age_data)
+            if age_chart:
+                story.append(age_chart)
+                story.append(Spacer(1, 10))
+            
+            # Add text data
             for age_group, count in age_data.items():
                 story.append(Paragraph(f"• {age_group}: {count} patients", content_style))
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 15))
         
+        # Gender Distribution Chart
         if 'gender_proportions' in demographics:
             story.append(Paragraph("Gender Distribution:", subsection_style))
             gender_data = demographics['gender_proportions']
+            
+            # Create gender pie chart
+            gender_chart = create_gender_pie_chart(gender_data)
+            if gender_chart:
+                story.append(gender_chart)
+                story.append(Spacer(1, 10))
+            
+            # Add text data
             for gender, percentage in gender_data.items():
                 story.append(Paragraph(f"• {gender}: {percentage}%", content_style))
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 15))
     
-    # 2. Health Trends
+    # 2. Health Trends with Visualization
     if analytics_data.get('health_trends'):
         story.append(Paragraph("2. Patient Health Trends", section_style))
         trends = analytics_data['health_trends']
         
         if 'top_illnesses_by_week' in trends:
             story.append(Paragraph("Top Medical Conditions by Week:", subsection_style))
+            
+            # Create illness trends chart
+            illness_chart = create_illness_trends_chart(trends['top_illnesses_by_week'])
+            if illness_chart:
+                story.append(illness_chart)
+                story.append(Spacer(1, 10))
+            
+            # Add text data
             for illness in trends['top_illnesses_by_week'][:5]:  # Top 5
                 story.append(Paragraph(f"• {illness.get('medical_condition', 'N/A')}: {illness.get('count', 0)} cases", content_style))
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 15))
     
-    # 3. Medication Analysis
+    # 3. Medication Analysis with Visualization
     if analytics_data.get('medication_analysis'):
         story.append(Paragraph("3. Medication Analysis", section_style))
         med_analysis = analytics_data['medication_analysis']
         
         if 'medication_pareto_data' in med_analysis:
             story.append(Paragraph("Most Prescribed Medications:", subsection_style))
+            
+            # Create medication chart
+            med_chart = create_medication_chart(med_analysis['medication_pareto_data'])
+            if med_chart:
+                story.append(med_chart)
+                story.append(Spacer(1, 10))
+            
+            # Add text data
             for med in med_analysis['medication_pareto_data'][:5]:  # Top 5
                 story.append(Paragraph(f"• {med.get('medication', 'N/A')}: {med.get('frequency', 0)} prescriptions", content_style))
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 15))
     
     # 4. Illness Prediction
     if analytics_data.get('illness_prediction'):
@@ -609,9 +673,9 @@ def add_analytics_sections(story, analytics_data, styles):
             story.append(Paragraph(f"Chi-Square Statistic: {prediction['chi_square_statistic']}", content_style))
         if 'p_value' in prediction:
             story.append(Paragraph(f"P-Value: {prediction['p_value']}", content_style))
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 15))
     
-    # 5. Volume Prediction
+    # 5. Volume Prediction with Visualization
     if analytics_data.get('volume_prediction'):
         story.append(Paragraph("5. Patient Volume Prediction", section_style))
         volume = analytics_data['volume_prediction']
@@ -619,20 +683,35 @@ def add_analytics_sections(story, analytics_data, styles):
         if 'evaluation_metrics' in volume:
             metrics = volume['evaluation_metrics']
             story.append(Paragraph("Model Performance:", subsection_style))
+            
+            # Create metrics visualization
+            metrics_chart = create_metrics_chart(metrics)
+            if metrics_chart:
+                story.append(metrics_chart)
+                story.append(Spacer(1, 10))
+            
             story.append(Paragraph(f"• Mean Absolute Error: {metrics.get('mae', 'N/A')}", content_style))
             story.append(Paragraph(f"• Root Mean Square Error: {metrics.get('rmse', 'N/A')}", content_style))
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 15))
     
-    # 6. Surge Prediction
+    # 6. Surge Prediction with Visualization
     if analytics_data.get('surge_prediction'):
         story.append(Paragraph("6. Illness Surge Prediction", section_style))
         surge = analytics_data['surge_prediction']
         
         if 'forecasted_monthly_cases' in surge:
             story.append(Paragraph("Forecasted Cases for Next 6 Months:", subsection_style))
+            
+            # Create forecast chart
+            forecast_chart = create_forecast_chart(surge['forecasted_monthly_cases'])
+            if forecast_chart:
+                story.append(forecast_chart)
+                story.append(Spacer(1, 10))
+            
+            # Add text data
             for forecast in surge['forecasted_monthly_cases'][:3]:  # First 3 months
                 story.append(Paragraph(f"• {forecast.get('date', 'N/A')}: {forecast.get('total_cases', 0)} cases", content_style))
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 15))
     
     # Summary
     story.append(Paragraph("Summary", section_style))
@@ -642,3 +721,339 @@ def add_analytics_sections(story, analytics_data, styles):
         "to support evidence-based decision making and improve patient care outcomes.",
         content_style
     ))
+
+def add_ai_interpretation_section(story, analytics_data, styles):
+    """Add AI Interpretation section below visualizations"""
+    
+    # Section header style
+    section_style = ParagraphStyle(
+        'AISectionHeader',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=12,
+        textColor=colors.darkblue
+    )
+    
+    # Content style
+    content_style = ParagraphStyle(
+        'AIContent',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=8,
+        textColor=colors.black,
+        alignment=TA_LEFT
+    )
+    
+    # Add AI Interpretation section
+    story.append(Spacer(1, 20))
+    story.append(Paragraph("AI Interpretation", section_style))
+    
+    # Generate AI insights based on available data
+    ai_insights = generate_ai_insights(analytics_data)
+    
+    for insight in ai_insights:
+        story.append(Paragraph(f"• {insight}", content_style))
+    
+    story.append(Spacer(1, 20))
+
+def generate_ai_insights(analytics_data):
+    """Generate AI insights based on analytics data"""
+    insights = []
+    
+    # Patient Demographics Insights
+    if analytics_data.get('patient_demographics'):
+        demo_data = analytics_data['patient_demographics']
+        if demo_data and 'age_distribution' in demo_data:
+            age_data = demo_data['age_distribution']
+            if age_data:
+                dominant_age = max(age_data, key=age_data.get)
+                insights.append(f"Patient demographics show a concentration in the {dominant_age} age group, indicating specific healthcare needs for this population segment.")
+    
+    # Health Trends Insights
+    if analytics_data.get('health_trends'):
+        trends_data = analytics_data['health_trends']
+        if trends_data and 'common_conditions' in trends_data:
+            conditions = trends_data['common_conditions']
+            if conditions:
+                top_condition = conditions[0] if conditions else None
+                if top_condition:
+                    insights.append(f"Health trend analysis reveals {top_condition.get('condition', 'common conditions')} as the most prevalent issue, suggesting targeted intervention strategies.")
+    
+    # Medication Analysis Insights (for nurses)
+    if analytics_data.get('medication_analysis'):
+        med_data = analytics_data['medication_analysis']
+        if med_data and 'medication_usage' in med_data:
+            med_usage = med_data['medication_usage']
+            if med_usage:
+                insights.append("Medication analysis indicates patterns in drug utilization that can inform inventory management and patient care protocols.")
+    
+    # Illness Prediction Insights (for doctors)
+    if analytics_data.get('illness_prediction'):
+        illness_data = analytics_data['illness_prediction']
+        if illness_data and 'predicted_conditions' in illness_data:
+            predicted = illness_data['predicted_conditions']
+            if predicted:
+                insights.append("Predictive analytics suggest emerging health patterns that may require proactive healthcare interventions and resource allocation.")
+    
+    # Volume Prediction Insights
+    if analytics_data.get('volume_prediction'):
+        volume_data = analytics_data['volume_prediction']
+        if volume_data and 'predicted_volume' in volume_data:
+            insights.append("Patient volume predictions indicate potential capacity planning needs and resource optimization opportunities.")
+    
+    # Default insights if no specific data
+    if not insights:
+        insights = [
+            "Analytics data indicates ongoing patterns in patient care that require continuous monitoring and evaluation.",
+            "The healthcare system shows consistent trends that can be leveraged for improved patient outcomes.",
+            "Data-driven insights support evidence-based decision making for enhanced healthcare delivery."
+        ]
+    
+    return insights
+
+def add_doctor_signature(story, doctor_info, styles):
+    """Add doctor/nurse name and specialization/department at the bottom right of the PDF"""
+    
+    # Add some space before signature
+    story.append(Spacer(1, 50))
+    
+    # Doctor/Nurse signature style
+    name_style = ParagraphStyle(
+        'Name',
+        parent=styles['Normal'],
+        fontSize=12,
+        alignment=TA_RIGHT,
+        textColor=colors.darkblue,
+        fontName='Helvetica-Bold'
+    )
+    
+    role_spec_style = ParagraphStyle(
+        'RoleSpecialization',
+        parent=styles['Normal'],
+        fontSize=10,
+        alignment=TA_RIGHT,
+        textColor=colors.grey,
+        fontName='Helvetica'
+    )
+    
+    # Add doctor/nurse information
+    if doctor_info.get('role') == 'Doctor':
+        story.append(Paragraph(f"Dr. {doctor_info['name']}", name_style))
+        story.append(Paragraph(f"{doctor_info['specialization']}", role_spec_style))
+    else:  # Nurse
+        story.append(Paragraph(f"{doctor_info['name']}", name_style))
+        story.append(Paragraph(f"{doctor_info['specialization']} Department", role_spec_style))
+
+def create_age_distribution_chart(age_data):
+    """Create age distribution bar chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(8, 4))
+        
+        ages = list(age_data.keys())
+        counts = list(age_data.values())
+        
+        bars = ax.bar(ages, counts, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
+        ax.set_xlabel('Age Groups')
+        ax.set_ylabel('Number of Patients')
+        ax.set_title('Patient Age Distribution')
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{int(height)}', ha='center', va='bottom')
+        
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=6*inch, height=3*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating age distribution chart: {e}")
+        return None
+
+def create_gender_pie_chart(gender_data):
+    """Create gender distribution pie chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(6, 6))
+        
+        genders = list(gender_data.keys())
+        percentages = list(gender_data.values())
+        colors_list = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']
+        
+        wedges, texts, autotexts = ax.pie(percentages, labels=genders, autopct='%1.1f%%',
+                                         colors=colors_list[:len(genders)], startangle=90)
+        
+        ax.set_title('Gender Distribution')
+        
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=4*inch, height=4*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating gender pie chart: {e}")
+        return None
+
+def create_illness_trends_chart(illness_data):
+    """Create illness trends bar chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(10, 5))
+        
+        illnesses = [item.get('medical_condition', 'Unknown')[:20] for item in illness_data[:8]]  # Top 8, truncate names
+        counts = [item.get('count', 0) for item in illness_data[:8]]
+        
+        bars = ax.barh(illnesses, counts, color='#2ca02c')
+        ax.set_xlabel('Number of Cases')
+        ax.set_ylabel('Medical Conditions')
+        ax.set_title('Top Medical Conditions by Frequency')
+        
+        # Add value labels on bars
+        for i, bar in enumerate(bars):
+            width = bar.get_width()
+            ax.text(width, bar.get_y() + bar.get_height()/2.,
+                   f'{int(width)}', ha='left', va='center')
+        
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=7*inch, height=4*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating illness trends chart: {e}")
+        return None
+
+def create_medication_chart(medication_data):
+    """Create medication frequency bar chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(10, 5))
+        
+        medications = [item.get('medication', 'Unknown')[:15] for item in medication_data[:8]]  # Top 8, truncate names
+        frequencies = [item.get('frequency', 0) for item in medication_data[:8]]
+        
+        bars = ax.barh(medications, frequencies, color='#ff7f0e')
+        ax.set_xlabel('Prescription Frequency')
+        ax.set_ylabel('Medications')
+        ax.set_title('Most Prescribed Medications')
+        
+        # Add value labels on bars
+        for i, bar in enumerate(bars):
+            width = bar.get_width()
+            ax.text(width, bar.get_y() + bar.get_height()/2.,
+                   f'{int(width)}', ha='left', va='center')
+        
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=7*inch, height=4*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating medication chart: {e}")
+        return None
+
+def create_metrics_chart(metrics):
+    """Create model performance metrics chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(6, 4))
+        
+        metric_names = ['MAE', 'RMSE']
+        metric_values = [
+            float(metrics.get('mae', 0)),
+            float(metrics.get('rmse', 0))
+        ]
+        
+        bars = ax.bar(metric_names, metric_values, color=['#d62728', '#9467bd'])
+        ax.set_ylabel('Error Value')
+        ax.set_title('Model Performance Metrics')
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{height:.2f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=4*inch, height=3*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating metrics chart: {e}")
+        return None
+
+def create_forecast_chart(forecast_data):
+    """Create forecast line chart"""
+    try:
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(8, 4))
+        
+        dates = [item.get('date', 'Unknown') for item in forecast_data[:6]]
+        cases = [item.get('total_cases', 0) for item in forecast_data[:6]]
+        
+        ax.plot(dates, cases, marker='o', linewidth=2, markersize=6, color='#1f77b4')
+        ax.set_xlabel('Month')
+        ax.set_ylabel('Predicted Cases')
+        ax.set_title('6-Month Illness Surge Forecast')
+        
+        # Add value labels on points
+        for i, (date, case) in enumerate(zip(dates, cases)):
+            ax.annotate(f'{int(case)}', (i, case), textcoords="offset points", 
+                       xytext=(0,10), ha='center')
+        
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+        
+        # Create ReportLab Image
+        img = Image(img_buffer, width=6*inch, height=3*inch)
+        return img
+        
+    except Exception as e:
+        print(f"Error creating forecast chart: {e}")
+        return None

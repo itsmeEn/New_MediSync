@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -361,7 +362,7 @@ def reset_password(request, uidb64, token):
 @permission_classes([IsAuthenticated])
 def get_doctor_patients(request):
     """
-    Get all patients for a doctor (including dummy data for analytics)
+    Get all patients for a doctor with optional search functionality (including dummy data for analytics)
     """
     if request.user.role != 'doctor':
         return Response({
@@ -369,8 +370,24 @@ def get_doctor_patients(request):
         }, status=status.HTTP_403_FORBIDDEN)
     
     try:
+        # Get search parameter
+        search_query = request.GET.get('search', '').strip()
+        
         # Get all patients (including dummy data)
         patients = PatientProfile.objects.select_related('user').all()
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            patients = patients.filter(
+                Q(user__full_name__icontains=search_query) |
+                Q(user__email__icontains=search_query) |
+                Q(medical_condition__icontains=search_query) |
+                Q(blood_type__icontains=search_query) |
+                Q(hospital__icontains=search_query) |
+                Q(insurance_provider__icontains=search_query) |
+                Q(room_number__icontains=search_query) |
+                Q(medication__icontains=search_query)
+            )
         
         # Serialize patient data
         patient_data = []
@@ -416,7 +433,7 @@ def get_doctor_patients(request):
 @permission_classes([IsAuthenticated])
 def get_nurse_patients(request):
     """
-    Get all patients for a nurse (including dummy data for analytics)
+    Get all patients for a nurse with optional search functionality (including dummy data for analytics)
     """
     if request.user.role != 'nurse':
         return Response({
@@ -424,8 +441,24 @@ def get_nurse_patients(request):
         }, status=status.HTTP_403_FORBIDDEN)
     
     try:
+        # Get search parameter
+        search_query = request.GET.get('search', '').strip()
+        
         # Get all patients (including dummy data)
         patients = PatientProfile.objects.select_related('user').all()
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            patients = patients.filter(
+                Q(user__full_name__icontains=search_query) |
+                Q(user__email__icontains=search_query) |
+                Q(medical_condition__icontains=search_query) |
+                Q(blood_type__icontains=search_query) |
+                Q(hospital__icontains=search_query) |
+                Q(insurance_provider__icontains=search_query) |
+                Q(room_number__icontains=search_query) |
+                Q(medication__icontains=search_query)
+            )
         
         # Serialize patient data
         patient_data = []

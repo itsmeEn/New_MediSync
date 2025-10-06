@@ -1,67 +1,27 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-          <div class="search-container">
-            <q-input 
-              outlined
-              dense 
-              v-model="searchText" 
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="searchText">
-                <q-icon name="clear" class="cursor-pointer" @click="searchText = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-        
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn" @click="showNotifications = true">
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{ unreadNotificationsCount }}</q-badge>
-          </q-btn>
-          
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-          
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-          
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-          
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-    </q-header>
+    <NurseHeader
+      @toggle-drawer="toggleRightDrawer"
+      @show-notifications="showNotifications = true"
+      :unread-notifications-count="unreadNotificationsCount"
+      :search-text="searchText"
+      @search-input="onSearchInput"
+      @clear-search="clearSearch"
+      :search-results="searchResults"
+      @select-search-result="selectSearchResult"
+      :get-search-result-icon="getSearchResultIcon"
+      :get-search-result-title="getSearchResultTitle"
+      :get-search-result-subtitle="getSearchResultSubtitle"
+    />
 
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -78,9 +38,13 @@
         <div class="sidebar-user-profile">
           <div class="profile-picture-container">
             <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
+              <img
+                v-if="displayProfilePictureUrl"
+                :src="displayProfilePictureUrl"
+                alt="Profile Picture"
+              />
               <div v-else class="profile-placeholder">
-                {{ userInitials }}
+                {{ displayUserInitials }}
               </div>
             </q-avatar>
             <q-btn
@@ -98,19 +62,19 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
             <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">Nurse</p>
-            <q-chip 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              text-color="white" 
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              text-color="white"
               size="sm"
             >
               {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
@@ -138,10 +102,15 @@
             <q-item-section avatar>
               <q-icon name="assignment" />
             </q-item-section>
-            <q-item-section>Patient Assessment</q-item-section>
+            <q-item-section>Patient Management</q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('nurse-medicine-inventory')" class="nav-item">
+          <q-item
+            clickable
+            v-ripple
+            @click="navigateTo('nurse-medicine-inventory')"
+            class="nav-item"
+          >
             <q-item-section avatar>
               <q-icon name="medication" />
             </q-item-section>
@@ -165,13 +134,7 @@
 
         <!-- Logout Section -->
         <div class="logout-section">
-          <q-btn 
-            color="negative" 
-            label="Logout" 
-            icon="logout" 
-            class="logout-btn"
-            @click="logout"
-          />
+          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -196,7 +159,27 @@
 
         <!-- Main Messaging Card -->
         <div class="main-messaging-section">
-          <q-card class="glassmorphism-card main-messaging-card">
+          <!-- Verification Required Overlay -->
+          <div v-if="userProfile.verification_status !== 'approved'" class="verification-overlay">
+            <q-card class="verification-card">
+              <q-card-section class="verification-content">
+                <q-icon name="warning" size="64px" color="orange" />
+                <h4 class="verification-title">Account Verification Required</h4>
+                <p class="verification-message">
+                  Your account needs to be verified before you can access messaging functionality.
+                  Please contact your administrator to complete the verification process.
+                </p>
+                <q-chip color="negative" text-color="white" size="lg" icon="cancel">
+                  Not Verified
+                </q-chip>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <q-card
+            class="glassmorphism-card main-messaging-card"
+            :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }"
+          >
             <!-- Available Users Section -->
             <q-card-section class="card-header">
               <h5 class="card-title">Available Users</h5>
@@ -208,18 +191,18 @@
                 :loading="loading"
               />
             </q-card-section>
-            
+
             <q-card-section class="card-content">
               <div v-if="loading" class="loading-section">
                 <q-spinner color="primary" size="2em" />
                 <p class="loading-text">Loading users...</p>
               </div>
-              
+
               <div v-else-if="availableUsers.length === 0" class="empty-section">
                 <q-icon name="people" size="48px" color="grey-5" />
                 <p class="empty-text">No users available</p>
               </div>
-              
+
               <div v-else class="users-carousel">
                 <q-carousel
                   v-model="currentSlide"
@@ -249,7 +232,11 @@
                           <q-avatar size="80px" class="user-avatar">
                             <img
                               v-if="user.profile_picture"
-                              :src="user.profile_picture.startsWith('http') ? user.profile_picture : `http://localhost:8000${user.profile_picture}`"
+                              :src="
+                                user.profile_picture.startsWith('http')
+                                  ? user.profile_picture
+                                  : `http://localhost:8000${user.profile_picture}`
+                              "
                               :alt="user.full_name"
                             />
                             <q-icon
@@ -260,20 +247,13 @@
                             />
                           </q-avatar>
                         </div>
-                        
+
                         <div class="avatar-info">
                           <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
                           <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
                         </div>
-                        
-                        <q-btn
-                          flat
-                          round
-                          icon="chat"
-                          color="primary"
-                          size="sm"
-                          class="chat-btn"
-                        />
+
+                        <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
                       </div>
                     </div>
                   </q-carousel-slide>
@@ -286,7 +266,8 @@
               <div class="new-conversation-container">
                 <q-btn
                   class="glassmorphism-btn new-conversation-btn"
-                  @click="showNewConversationDialog = true"
+                  @click="handleNewConversationClick"
+                  :disable="userProfile.verification_status !== 'approved'"
                 >
                   <q-icon name="add" class="btn-icon" />
                   Start New Conversation
@@ -302,16 +283,17 @@
                   color="secondary"
                   icon="add"
                   size="sm"
-                  @click="showNewConversationDialog = true"
+                  @click="handleNewConversationClick"
+                  :disable="userProfile.verification_status !== 'approved'"
                 />
               </div>
-              
+
               <div v-if="conversations.length === 0" class="empty-section">
                 <q-icon name="chat" size="48px" color="grey-5" />
                 <p class="empty-text">No conversations yet</p>
                 <p class="empty-subtext">Start a conversation with a user</p>
               </div>
-              
+
               <div v-else class="conversations-list">
                 <div
                   v-for="conversation in conversations"
@@ -323,18 +305,26 @@
                     <q-avatar size="45px">
                       <img
                         v-if="conversation.other_participant?.profile_picture"
-                        :src="conversation.other_participant.profile_picture.startsWith('http') ? conversation.other_participant.profile_picture : `http://localhost:8000${conversation.other_participant.profile_picture}`"
+                        :src="
+                          conversation.other_participant.profile_picture.startsWith('http')
+                            ? conversation.other_participant.profile_picture
+                            : `http://localhost:8000${conversation.other_participant.profile_picture}`
+                        "
                         :alt="conversation.other_participant.full_name"
                       />
                       <q-icon
                         v-else
-                        :name="conversation.other_participant?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                        :name="
+                          conversation.other_participant?.role === 'doctor'
+                            ? 'medical_services'
+                            : 'local_hospital'
+                        "
                         size="22px"
                         color="white"
                       />
                     </q-avatar>
                   </div>
-                  
+
                   <div class="conversation-info">
                     <h6 class="conversation-name">
                       {{ conversation.other_participant?.full_name || 'Name of Users' }}
@@ -343,7 +333,7 @@
                       {{ conversation.last_message?.content || 'Chat content here' }}
                     </p>
                   </div>
-                  
+
                   <div class="conversation-meta">
                     <span class="conversation-time">
                       {{ formatTime(conversation.last_message?.created_at) }}
@@ -367,19 +357,23 @@
         <q-card class="chat-modal">
           <q-card-section class="chat-header">
             <div class="chat-user-info">
-            <q-avatar size="40px">
-              <img
-                v-if="selectedUser?.profile_picture"
-                :src="selectedUser.profile_picture.startsWith('http') ? selectedUser.profile_picture : `http://localhost:8000${selectedUser.profile_picture}`"
-                :alt="selectedUser.full_name"
-              />
-              <q-icon
-                v-else
-                :name="selectedUser?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
-                size="20px"
-                color="white"
-              />
-            </q-avatar>
+              <q-avatar size="40px">
+                <img
+                  v-if="selectedUser?.profile_picture"
+                  :src="
+                    selectedUser.profile_picture.startsWith('http')
+                      ? selectedUser.profile_picture
+                      : `http://localhost:8000${selectedUser.profile_picture}`
+                  "
+                  :alt="selectedUser.full_name"
+                />
+                <q-icon
+                  v-else
+                  :name="selectedUser?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                  size="20px"
+                  color="white"
+                />
+              </q-avatar>
               <div class="chat-user-details">
                 <h6 class="text-h6 text-white q-mb-none">
                   {{ selectedUser?.full_name || 'Unknown User' }}
@@ -398,7 +392,7 @@
               <p class="text-grey-6">No messages yet</p>
               <p class="text-grey-6 text-caption">Start the conversation by sending a message</p>
             </div>
-            
+
             <div
               v-for="message in messages"
               :key="message.id"
@@ -410,12 +404,18 @@
                   <q-avatar size="32px">
                     <img
                       v-if="message.sender.profile_picture"
-                      :src="message.sender.profile_picture.startsWith('http') ? message.sender.profile_picture : `http://localhost:8000${message.sender.profile_picture}`"
+                      :src="
+                        message.sender.profile_picture.startsWith('http')
+                          ? message.sender.profile_picture
+                          : `http://localhost:8000${message.sender.profile_picture}`
+                      "
                       :alt="message.sender.full_name"
                     />
                     <q-icon
                       v-else
-                      :name="message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                      :name="
+                        message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'
+                      "
                       size="16px"
                       color="white"
                     />
@@ -427,26 +427,11 @@
                     {{ formatTime(message.created_at) }}
                   </span>
                 </div>
-                
+
                 <div class="message-body">
                   <p v-if="message.content" class="message-text">
                     {{ message.content }}
                   </p>
-                  
-                  <!-- File attachment display -->
-                  <div v-if="message.file_attachment" class="file-attachment">
-                    <q-btn
-                      flat
-                      dense
-                      icon="attach_file"
-                      :label="message.file_name || 'Download File'"
-                      @click="downloadFile(message)"
-                      class="file-download-btn"
-                    />
-                    <span v-if="message.file_size" class="file-size">
-                      ({{ formatFileSize(message.file_size) }})
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -461,16 +446,6 @@
                 :disable="!selectedUser"
                 class="message-input"
               >
-                <template v-slot:prepend>
-                  <q-btn
-                    flat
-                    round
-                    icon="attach_file"
-                    color="primary"
-                    @click="() => fileInput?.click()"
-                    :disable="!selectedUser"
-                  />
-                </template>
                 <template v-slot:append>
                   <q-btn
                     flat
@@ -482,13 +457,6 @@
                   />
                 </template>
               </q-input>
-              <input
-                ref="fileInput"
-                type="file"
-                accept="image/*,.pdf,.doc,.docx,.txt"
-                style="display: none"
-                @change="handleFileUpload"
-              />
             </div>
           </q-card-section>
         </q-card>
@@ -496,36 +464,38 @@
 
       <!-- Notifications Modal -->
       <q-dialog v-model="showNotifications" persistent>
-        <q-card style="width: 400px; max-width: 90vw;">
+        <q-card style="width: 400px; max-width: 90vw">
           <q-card-section class="row items-center q-pb-none">
             <div class="text-h6">Notifications</div>
             <q-space />
             <q-btn icon="close" flat round dense v-close-popup />
           </q-card-section>
-          
+
           <q-card-section>
             <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
               No notifications yet
             </div>
             <div v-else>
               <q-list>
-                <q-item 
-                  v-for="notification in notifications" 
+                <q-item
+                  v-for="notification in notifications"
                   :key="notification.id"
                   clickable
                   @click="handleNotificationClick(notification)"
-                  :class="{ 'unread': !notification.isRead }"
+                  :class="{ unread: !notification.isRead }"
                 >
                   <q-item-section avatar>
-                    <q-icon 
-                      :name="notification.type === 'message' ? 'message' : 'info'" 
+                    <q-icon
+                      :name="notification.type === 'message' ? 'message' : 'info'"
                       :color="notification.type === 'message' ? 'primary' : 'grey'"
                     />
                   </q-item-section>
                   <q-item-section>
                     <q-item-label>{{ notification.title }}</q-item-label>
                     <q-item-label caption>{{ notification.message }}</q-item-label>
-                    <q-item-label caption class="text-grey-5">{{ formatTime(notification.created_at) }}</q-item-label>
+                    <q-item-label caption class="text-grey-5">{{
+                      formatTime(notification.created_at)
+                    }}</q-item-label>
                   </q-item-section>
                   <q-item-section side v-if="!notification.isRead">
                     <q-badge color="red" rounded />
@@ -534,7 +504,7 @@
               </q-list>
             </div>
           </q-card-section>
-          
+
           <q-card-actions align="right" v-if="notifications.length > 0">
             <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
             <q-btn flat label="Close" color="primary" v-close-popup />
@@ -546,624 +516,896 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
-import { api } from 'boot/axios'
+import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
+import { api } from 'boot/axios';
+import NurseHeader from '../components/NurseHeader.vue';
 
 // Types
 interface User {
-  id: number
-  full_name: string
-  role: string
-  profile_picture?: string
-  is_active?: boolean
+  id: number;
+  full_name: string;
+  role: string;
+  profile_picture?: string;
+  is_active?: boolean;
 }
 
 interface Message {
-  id: number
-  sender: User
-  content: string
-  created_at: string
-  file_attachment?: string
-  file_name?: string
-  file_size?: number
+  id: number;
+  sender: User;
+  content: string;
+  created_at: string;
 }
 
 interface Conversation {
-  id: number
-  other_participant?: User
-  last_message?: Message
-  unread_count: number
+  id: number;
+  other_participant?: User;
+  last_message?: Message;
+  unread_count: number;
 }
 
 // Reactive data
-const $q = useQuasar()
-const router = useRouter()
-const rightDrawerOpen = ref(false)
-const loading = ref(false)
-const searchText = ref('')
-const currentTime = ref('')
+const $q = useQuasar();
+const router = useRouter();
+const rightDrawerOpen = ref(false);
+const loading = ref(false);
+const searchText = ref('');
+const currentTime = ref('');
 
 // Notification system
-const showNotifications = ref(false)
-const notifications = ref<Notification[]>([])
+const showNotifications = ref(false);
+const notifications = ref<Notification[]>([]);
 
 interface Notification {
-  id: number
-  title: string
-  message: string
-  type: 'message' | 'system'
-  isRead: boolean
-  created_at: string
-  sender_id?: number
-  conversation_id?: number
+  id: number | string;
+  title: string;
+  message: string;
+  type: 'message' | 'system';
+  isRead: boolean;
+  created_at: string;
+  sender_id?: number | undefined;
+  conversation_id?: number | undefined;
 }
-const availableUsers = ref<User[]>([])
-const conversations = ref<Conversation[]>([])
-const messages = ref<Message[]>([])
-const currentUser = ref<User>({ id: 0, full_name: '', role: '' })
-const selectedUser = ref<User | null>(null)
-const selectedConversation = ref<Conversation | null>(null)
-const showChatModal = ref(false)
-const showNewConversationDialog = ref(false)
-const newMessage = ref('')
-const profileFileInput = ref<HTMLInputElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-const currentSlide = ref(0)
+
+// Raw notification data from backend
+interface RawNotification {
+  id: number;
+  message?: {
+    sender?: {
+      full_name?: string;
+      id?: number;
+    };
+    content?: string;
+    conversation?: {
+      id?: number;
+    };
+  };
+  is_sent?: boolean;
+  created_at: string;
+}
+
+// Medicine data interface
+interface MedicineData {
+  stock_quantity: number;
+  minimum_stock: number;
+  name?: string;
+}
+const availableUsers = ref<User[]>([]);
+const conversations = ref<Conversation[]>([]);
+const messages = ref<Message[]>([]);
+const currentUser = ref<User>({ id: 0, full_name: '', role: '' });
+const selectedUser = ref<User | null>(null);
+const selectedConversation = ref<Conversation | null>(null);
+const showChatModal = ref(false);
+const showNewConversationDialog = ref(false);
+const newMessage = ref('');
+const profileFileInput = ref<HTMLInputElement | null>(null);
+const currentSlide = ref(0);
+
+// Search functionality
+// Search result interfaces
+interface PatientData {
+  id: string | number;
+  full_name?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+interface DoctorData {
+  id: string | number;
+  full_name?: string;
+  name?: string;
+  specialization?: string;
+  [key: string]: unknown;
+}
+
+interface MedicineData {
+  id: string | number;
+  name?: string;
+  [key: string]: unknown;
+}
+
+type SearchResultData = PatientData | DoctorData | MedicineData;
+
+const searchResults = ref<
+  Array<{
+    type: 'patient' | 'doctor' | 'medicine';
+    data: SearchResultData;
+  }>
+>([]);
+
+// Location data
+const locationData = ref<{
+  city: string;
+  country: string;
+} | null>(null);
+const locationLoading = ref(false);
+const locationError = ref(false);
 
 // Weather data
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
+  temperature: number;
+  condition: string;
+  location: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
 
 // User profile
 const userProfile = ref<{
-  full_name: string
-  specialization?: string
-  role: string
-  profile_picture: string | null
-  verification_status: string
+  full_name: string;
+  specialization?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
 }>({
   full_name: 'Loading...',
   role: 'nurse',
   profile_picture: null,
-  verification_status: 'not_submitted'
-})
+  verification_status: 'not_submitted',
+});
 
 // Computed
-const userInitials = computed(() => {
-  const name = currentUser.value.full_name || ''
-  return name.split(' ').map(n => n[0]).join('').toUpperCase()
-})
+const displayUserInitials = computed(() => {
+  // Use userProfile.full_name as primary source, fallback to currentUser
+  const name = userProfile.value.full_name || currentUser.value.full_name || '';
+  if (!name || name === 'Loading...') {
+    return 'NU'; // Default for Nurse User
+  }
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+});
 
 const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter(n => !n.isRead).length
-})
+  return notifications.value.filter((n) => !n.isRead).length;
+});
 
-const profilePictureUrl = computed(() => {
-  if (!currentUser.value.profile_picture) {
-    return null
+const displayProfilePictureUrl = computed(() => {
+  // Use userProfile.profile_picture as primary source, fallback to currentUser
+  const profilePicture = userProfile.value.profile_picture || currentUser.value.profile_picture;
+
+  if (!profilePicture) {
+    return null;
   }
-  
+
   // If it's already a full URL, return as is
-  if (currentUser.value.profile_picture.startsWith('http')) {
-    return currentUser.value.profile_picture
+  if (profilePicture.startsWith('http')) {
+    return profilePicture;
   }
-  
+
   // Otherwise, construct the full URL
-  return `http://localhost:8000${currentUser.value.profile_picture}`
-})
+  return `http://localhost:8000${profilePicture}`;
+});
 
 const userGroups = computed(() => {
-  const groups = []
-  const usersPerSlide = 6 // Show 6 users per slide
-  
+  const groups = [];
+  const usersPerSlide = 6; // Show 6 users per slide
+
   for (let i = 0; i < availableUsers.value.length; i += usersPerSlide) {
-    groups.push(availableUsers.value.slice(i, i + usersPerSlide))
+    groups.push(availableUsers.value.slice(i, i + usersPerSlide));
   }
-  
-  return groups
-})
+
+  return groups;
+});
 
 // Methods
 const getCurrentUser = (): void => {
   try {
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      currentUser.value = JSON.parse(userData)
-      console.log('👤 Current user loaded:', currentUser.value)
+      currentUser.value = JSON.parse(userData);
+      console.log('👤 Current user loaded:', currentUser.value);
     } else {
-      console.error('❌ No user data found in localStorage')
+      console.error('❌ No user data found in localStorage');
     }
   } catch (error) {
-    console.error('❌ Error parsing user data:', error)
+    console.error('❌ Error parsing user data:', error);
   }
-}
+};
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user // The API returns nested user data
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user; // The API returns nested user data
+
     // Check localStorage for updated profile picture
-    const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
-    
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+
     userProfile.value = {
       full_name: userData.full_name,
       role: userData.role,
       profile_picture: storedUser.profile_picture || userData.profile_picture || null,
-      verification_status: userData.verification_status
-    }
-    
-    console.log('👤 User profile loaded:', userProfile.value)
+      verification_status: userData.verification_status,
+    };
+
+    console.log('👤 User profile loaded:', userProfile.value);
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
-    
+    console.error('Failed to fetch user profile:', error);
+
     // Fallback to localStorage
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      const user = JSON.parse(userData)
+      const user = JSON.parse(userData);
       userProfile.value = {
         full_name: user.full_name,
         role: user.role,
         profile_picture: user.profile_picture || null,
-        verification_status: user.verification_status || 'not_submitted'
-      }
+        verification_status: user.verification_status || 'not_submitted',
+      };
     }
   }
-}
+};
 
 // Profile picture upload functions
 const triggerFileUpload = () => {
-  profileFileInput.value?.click()
-}
-
-
-const handleFileUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 10MB',
-        position: 'top',
-        timeout: 3000
-      })
-      return
-    }
-    
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('content', `📎 ${file.name}`)
-      
-      if (!selectedUser.value) return
-      
-      let conversation = conversations.value.find(c => 
-        c.other_participant?.id === selectedUser.value?.id
-      )
-      
-      if (!conversation) {
-        const response = await api.post('/operations/messaging/conversations/create/', {
-          other_user_id: selectedUser.value.id
-        })
-        conversation = response.data as Conversation
-        conversations.value.unshift(conversation)
-      }
-      
-      if (conversation) {
-        await api.post(`/operations/messaging/conversations/${conversation.id}/send/`, formData)
-        
-        await loadMessagesForUser(selectedUser.value.id)
-        await loadConversations()
-        
-        $q.notify({
-          type: 'positive',
-          message: 'File sent successfully'
-        })
-      }
-    } catch (error) {
-      console.error('❌ Error sending file:', error)
-      $q.notify({
-        type: 'negative',
-        message: 'Failed to send file'
-      })
-    }
-    
-    // Clear the file input
-    target.value = ''
-  }
-}
+  profileFileInput.value?.click();
+};
 
 const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
+    const file = target.files[0];
+
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       $q.notify({
         type: 'negative',
         message: 'Please select a valid image file (JPG, PNG)',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       $q.notify({
         type: 'negative',
         message: 'File size must be less than 5MB',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData)
-      
-      // Update both currentUser and userProfile
-      currentUser.value.profile_picture = response.data.user.profile_picture
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/users/profile/update/picture/', formData);
+
+      // Update both currentUser and userProfile for immediate display
+      const newProfilePicture = response.data.user.profile_picture;
+      currentUser.value.profile_picture = newProfilePicture;
+      userProfile.value.profile_picture = newProfilePicture;
+
       // Store the updated profile picture in localStorage for cross-page sync
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
-      storedUser.profile_picture = response.data.user.profile_picture
-      localStorage.setItem('user', JSON.stringify(storedUser))
-      
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      storedUser.profile_picture = newProfilePicture;
+      localStorage.setItem('user', JSON.stringify(storedUser));
+
+      // Force reactivity update by creating new object references
+      currentUser.value = { ...currentUser.value, profile_picture: newProfilePicture };
+      userProfile.value = { ...userProfile.value, profile_picture: newProfilePicture };
+
       // Show success toast
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
-        timeout: 3000
-      })
-      
+        timeout: 3000,
+      });
+
       // Clear the file input
-      target.value = ''
+      target.value = '';
     } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error)
-      
-      let errorMessage = 'Failed to upload profile picture. Please try again.'
-      
+      console.error('Profile picture upload failed:', error);
+
+      let errorMessage = 'Failed to upload profile picture. Please try again.';
+
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { data?: { profile_picture?: string[], detail?: string } } }
+        const axiosError = error as {
+          response?: { data?: { profile_picture?: string[]; detail?: string } };
+        };
         if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0]
+          errorMessage = axiosError.response.data.profile_picture[0];
         } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail
+          errorMessage = axiosError.response.data.detail;
         }
       }
-      
+
       $q.notify({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
     }
   }
-}
+};
 
 const loadAvailableUsers = async (): Promise<void> => {
   try {
-    loading.value = true
-    console.log('📞 Loading available users...')
-    
-    const response = await api.get('/operations/messaging/available-users/')
-    availableUsers.value = response.data
-    console.log('✅ Available users loaded:', availableUsers.value)
-    console.log('📊 Total users found:', availableUsers.value.length)
-    
+    loading.value = true;
+    console.log('📞 Loading available users...');
+
+    const response = await api.get('/operations/messaging/available-users/');
+    availableUsers.value = response.data;
+    console.log('✅ Available users loaded:', availableUsers.value);
+    console.log('📊 Total users found:', availableUsers.value.length);
+
     // Log each user's verification status
     availableUsers.value.forEach((user: User) => {
-      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`)
-    })
+      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`);
+    });
   } catch (error) {
-    console.error('❌ Error loading available users:', error)
+    console.error('❌ Error loading available users:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to load users'
-    })
+      message: 'Failed to load users',
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const loadConversations = async (): Promise<void> => {
   try {
-    console.log('📞 Loading conversations...')
-    
-    const response = await api.get('/operations/messaging/conversations/')
-    conversations.value = response.data
-    console.log('✅ Conversations loaded:', conversations.value)
+    console.log('📞 Loading conversations...');
+
+    const response = await api.get('/operations/messaging/conversations/');
+    conversations.value = response.data;
+    console.log('✅ Conversations loaded:', conversations.value);
   } catch (error) {
-    console.error('❌ Error loading conversations:', error)
+    console.error('❌ Error loading conversations:', error);
   }
-}
+};
 
 const startConversation = (user: User): void => {
-  selectedUser.value = user
-  showChatModal.value = true
-  void loadMessagesForUser(user.id)
-}
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to access messaging',
+      position: 'top',
+    });
+    return;
+  }
+
+  selectedUser.value = user;
+  showChatModal.value = true;
+  void loadMessagesForUser(user.id);
+};
 
 const selectConversation = (conversation: Conversation): void => {
-  selectedConversation.value = conversation
-  if (conversation.other_participant) {
-    selectedUser.value = conversation.other_participant
-    showChatModal.value = true
-    void loadMessagesForUser(conversation.other_participant.id)
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to access messaging',
+      position: 'top',
+    });
+    return;
   }
-}
+
+  selectedConversation.value = conversation;
+  if (conversation.other_participant) {
+    selectedUser.value = conversation.other_participant;
+    showChatModal.value = true;
+    void loadMessagesForUser(conversation.other_participant.id);
+  }
+};
 
 const loadMessagesForUser = async (userId: number): Promise<void> => {
   try {
-    console.log('📞 Loading messages for user:', userId)
-    
-    const conversation = conversations.value.find(c => 
-      c.other_participant?.id === userId
-    )
-    
+    console.log('📞 Loading messages for user:', userId);
+
+    const conversation = conversations.value.find((c) => c.other_participant?.id === userId);
+
     if (conversation) {
-      const response = await api.get(`/operations/messaging/conversations/${conversation.id}/messages/`)
-      messages.value = response.data
-      console.log('✅ Messages loaded:', messages.value)
+      const response = await api.get(
+        `/operations/messaging/conversations/${conversation.id}/messages/`,
+      );
+      messages.value = response.data;
+      console.log('✅ Messages loaded:', messages.value);
     } else {
-      messages.value = []
-      console.log('ℹ️ No conversation found, starting fresh')
+      messages.value = [];
+      console.log('ℹ️ No conversation found, starting fresh');
     }
   } catch (error) {
-    console.error('❌ Error loading messages:', error)
-    messages.value = []
+    console.error('❌ Error loading messages:', error);
+    messages.value = [];
   }
-}
+};
 
 const sendMessage = async (): Promise<void> => {
-  if (!newMessage.value.trim() || !selectedUser.value) return
+  if (!newMessage.value.trim() || !selectedUser.value) return;
 
-  try {
-    console.log('📤 Sending message:', newMessage.value)
-    
-    let conversation = conversations.value.find(c => 
-      c.other_participant?.id === selectedUser.value?.id
-    )
-    
-    if (!conversation) {
-      console.log('📝 Creating new conversation with user:', selectedUser.value.id)
-      const response = await api.post('/operations/messaging/conversations/create/', {
-        other_user_id: selectedUser.value.id
-      })
-      console.log('✅ Conversation created:', response.data)
-      conversation = response.data as Conversation
-      conversations.value.unshift(conversation)
-    }
-    
-    if (conversation) {
-      await api.post(`/operations/messaging/conversations/${conversation.id}/send/`, {
-        content: newMessage.value
-      })
-      
-      newMessage.value = ''
-      await loadMessagesForUser(selectedUser.value.id)
-      await loadConversations()
-      
-      $q.notify({
-        type: 'positive',
-        message: 'Message sent successfully'
-      })
-    }
-  } catch (error: unknown) {
-    console.error('Error sending message:', error)
-    const axiosError = error as { response?: { data?: { error?: string }; status?: number }; message?: string }
-    console.error('Error details:', axiosError.response?.data)
-    console.error('Error status:', axiosError.response?.status)
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
     $q.notify({
       type: 'negative',
-      message: `Failed to send message: ${axiosError.response?.data?.error || axiosError.message || 'Unknown error'}`
-    })
+      message: 'Account verification required to send messages',
+      position: 'top',
+    });
+    return;
   }
-}
+
+  try {
+    console.log('📤 Sending message:', newMessage.value);
+
+    let conversation = conversations.value.find(
+      (c) => c.other_participant?.id === selectedUser.value?.id,
+    );
+
+    if (!conversation) {
+      console.log('📝 Creating new conversation with user:', selectedUser.value.id);
+      const response = await api.post('/operations/messaging/conversations/create/', {
+        other_user_id: selectedUser.value.id,
+      });
+      console.log('✅ Conversation created:', response.data);
+      conversation = response.data as Conversation;
+      conversations.value.unshift(conversation);
+    }
+
+    if (conversation) {
+      await api.post(`/operations/messaging/conversations/${conversation.id}/send/`, {
+        content: newMessage.value,
+      });
+
+      newMessage.value = '';
+      await loadMessagesForUser(selectedUser.value.id);
+      await loadConversations();
+
+      $q.notify({
+        type: 'positive',
+        message: 'Message sent successfully',
+      });
+    }
+  } catch (error: unknown) {
+    console.error('Error sending message:', error);
+    const axiosError = error as {
+      response?: { data?: { error?: string }; status?: number };
+      message?: string;
+    };
+    console.error('Error details:', axiosError.response?.data);
+    console.error('Error status:', axiosError.response?.status);
+    $q.notify({
+      type: 'negative',
+      message: `Failed to send message: ${axiosError.response?.data?.error || axiosError.message || 'Unknown error'}`,
+    });
+  }
+};
+
+const handleNewConversationClick = (): void => {
+  // Check if user is verified before allowing new conversations
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to start new conversations',
+      position: 'top',
+    });
+    return;
+  }
+
+  showNewConversationDialog.value = true;
+};
 
 const formatTime = (dateString?: string): string => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 const toggleRightDrawer = (): void => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const navigateTo = (route: string): void => {
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   switch (route) {
     case 'nurse-dashboard':
-      void router.push('/nurse-dashboard')
-      break
+      void router.push('/nurse-dashboard');
+      break;
     case 'patient-assessment':
-      void router.push('/nurse-patient-assessment')
-      break
+      void router.push('/nurse-patient-assessment');
+      break;
     case 'nurse-messaging':
       // Already on messaging page
-      break
+      break;
     case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory')
-      break
+      void router.push('/nurse-medicine-inventory');
+      break;
     case 'nurse-analytics':
-      void router.push('/nurse-analytics')
-      break
+      void router.push('/nurse-analytics');
+      break;
     case 'nurse-settings':
-      void router.push('/nurse-settings')
-      break
+      void router.push('/nurse-settings');
+      break;
   }
-}
+};
 
 const logout = (): void => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
 const updateTime = (): void => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('en-US', { 
-    hour12: true, 
-    hour: 'numeric', 
-    minute: '2-digit', 
-    second: '2-digit' 
-  })
-}
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString('en-US', {
+    hour12: true,
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
 
 // Notification functions
 const loadNotifications = async (): Promise<void> => {
   try {
-    const response = await api.get('/operations/messaging/notifications/')
-    notifications.value = response.data
+    console.log('📬 Loading notifications...');
+
+    // Load message notifications
+    const messageResponse = await api.get('/operations/messaging/notifications/');
+    const messageNotifications = messageResponse.data || [];
+
+    // Load system notifications (medicine stock alerts, analytics alerts)
+    const systemNotifications = await loadSystemNotifications();
+
+    // Combine and format all notifications
+    const allNotifications = [
+      ...formatMessageNotifications(messageNotifications),
+      ...systemNotifications,
+    ];
+
+    // Sort by creation date (newest first)
+    notifications.value = allNotifications.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    console.log('✅ Notifications loaded:', notifications.value.length);
   } catch (error: unknown) {
-    console.error('Error loading notifications:', error)
+    console.error('❌ Error loading notifications:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load notifications',
+    });
   }
-}
+};
+
+// Format message notifications from backend
+const formatMessageNotifications = (rawNotifications: RawNotification[]): Notification[] => {
+  return rawNotifications.map((notif) => ({
+    id: notif.id,
+    title: `New message from ${notif.message?.sender?.full_name || 'Unknown'}`,
+    message: notif.message?.content || 'You have a new message',
+    type: 'message' as const,
+    isRead: notif.is_sent || false,
+    created_at: notif.created_at,
+    sender_id: notif.message?.sender?.id,
+    conversation_id: notif.message?.conversation?.id,
+  }));
+};
+
+// Load system notifications (medicine stock, analytics alerts)
+const loadSystemNotifications = async (): Promise<Notification[]> => {
+  const systemNotifications: Notification[] = [];
+
+  try {
+    // Check for low medicine stock
+    const medicineResponse = await api.get('/operations/medicine-inventory/');
+    const medicines = medicineResponse.data || [];
+
+    const lowStockMedicines = medicines.filter(
+      (med: MedicineData) => med.stock_quantity <= med.minimum_stock,
+    );
+
+    if (lowStockMedicines.length > 0) {
+      systemNotifications.push({
+        id: `low-stock-${Date.now()}`,
+        title: 'Low Medicine Stock Alert',
+        message: `${lowStockMedicines.length} medicine(s) are running low on stock`,
+        type: 'system',
+        isRead: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    // Check for analytics alerts (if any)
+    // This could be expanded based on your analytics requirements
+  } catch (error) {
+    console.error('Error loading system notifications:', error);
+  }
+
+  return systemNotifications;
+};
 
 const handleNotificationClick = (notification: Notification): void => {
   // Mark as read
-  notification.isRead = true
-  
+  notification.isRead = true;
+
   // If it's a message notification, open the chat
   if (notification.type === 'message' && notification.conversation_id) {
-    showNotifications.value = false
+    showNotifications.value = false;
     // Find and open the conversation
-    const conversation = conversations.value.find(c => c.id === notification.conversation_id)
+    const conversation = conversations.value.find((c) => c.id === notification.conversation_id);
     if (conversation && conversation.other_participant) {
-      selectedUser.value = conversation.other_participant
-      showChatModal.value = true
-      void loadMessagesForUser(conversation.other_participant.id)
+      selectedUser.value = conversation.other_participant;
+      showChatModal.value = true;
+      void loadMessagesForUser(conversation.other_participant.id);
     }
   }
-}
+};
 
-const markAllNotificationsRead = (): void => {
-  notifications.value.forEach(notification => {
-    notification.isRead = true
-  })
-  $q.notify({
-    type: 'positive',
-    message: 'All notifications marked as read'
-  })
-}
-
-// File download functions
-const downloadFile = (message: Message): void => {
-  if (!message.file_attachment) return
-  
+const markAllNotificationsRead = async (): Promise<void> => {
   try {
-    const fileUrl = message.file_attachment.startsWith('http') 
-      ? message.file_attachment 
-      : `http://localhost:8000${message.file_attachment}`
-    
-    // Create a temporary link to download the file
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = message.file_name || 'download'
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
+    // Mark all notifications as read locally
+    notifications.value.forEach((notification) => {
+      notification.isRead = true;
+    });
+
+    // Mark message notifications as read on backend
+    const messageNotifications = notifications.value.filter((n) => n.type === 'message');
+    for (const notification of messageNotifications) {
+      try {
+        await api.post(`/operations/messaging/notifications/${notification.id}/mark-sent/`);
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+
+    // Update the notification count
+    await loadNotifications();
+
     $q.notify({
       type: 'positive',
-      message: 'File download started'
-    })
-  } catch (error: unknown) {
-    console.error('Error downloading file:', error)
+      message: 'All notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to download file'
-    })
+      message: 'Failed to mark notifications as read',
+    });
   }
-}
+};
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-// Weather icon mapping
-const getWeatherIcon = (condition: string): string => {
-  const iconMap: { [key: string]: string } = {
-    'sunny': 'wb_sunny',
-    'cloudy': 'cloud',
-    'rainy': 'grain',
-    'stormy': 'thunderstorm',
-    'snowy': 'ac_unit',
-    'foggy': 'foggy'
+// Search functionality methods
+const onSearchInput = async (value: string | number | null): Promise<void> => {
+  const searchValue = String(value || '');
+  if (!searchValue || searchValue.length < 2) {
+    searchResults.value = [];
+    return;
   }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+
+  try {
+    // Search for patients, doctors, and medicines using correct endpoints
+    const [patientsResponse, doctorsResponse, medicinesResponse] = await Promise.all([
+      api.get(`/users/nurse/patients/?search=${encodeURIComponent(searchValue)}`),
+      api.get(`/operations/available-doctors/?search=${encodeURIComponent(searchValue)}`),
+      api.get(`/operations/medicine-inventory/?search=${encodeURIComponent(searchValue)}`),
+    ]);
+
+    const results = [
+      ...(patientsResponse.data.patients || []).map((item: PatientData) => ({
+        type: 'patient' as const,
+        data: item,
+      })),
+      ...(doctorsResponse.data || []).map((item: DoctorData) => ({
+        type: 'doctor' as const,
+        data: item,
+      })),
+      ...(medicinesResponse.data || []).map((item: MedicineData) => ({
+        type: 'medicine' as const,
+        data: item,
+      })),
+    ];
+
+    searchResults.value = results.slice(0, 10); // Limit to 10 results
+  } catch (error) {
+    console.error('Search error:', error);
+    searchResults.value = [];
+  }
+};
+
+const clearSearch = (): void => {
+  searchText.value = '';
+  searchResults.value = [];
+};
+
+const selectSearchResult = (result: { type: string; data: SearchResultData }): void => {
+  // Handle search result selection based on type
+  switch (result.type) {
+    case 'patient':
+      // Navigate to patient details or start conversation
+      console.log('Selected patient:', result.data);
+      break;
+    case 'doctor':
+      // Start conversation with doctor
+      if (result.data && result.type === 'doctor') {
+        const doctorData = result.data as DoctorData;
+        selectedUser.value = {
+          id: Number(doctorData.id),
+          full_name: doctorData.full_name || doctorData.name || 'Unknown Doctor',
+          role: 'doctor',
+          profile_picture: (doctorData as Record<string, unknown>).profile_picture as string,
+          is_active: true,
+        };
+        showChatModal.value = true;
+        void loadMessagesForUser(Number(doctorData.id));
+      }
+      break;
+    case 'medicine':
+      // Navigate to medicine inventory
+      void router.push('/nurse-medicine-inventory');
+      break;
+  }
+  clearSearch();
+};
+
+const getSearchResultIcon = (type: string): string => {
+  switch (type) {
+    case 'patient':
+      return 'person';
+    case 'doctor':
+      return 'medical_services';
+    case 'medicine':
+      return 'medication';
+    default:
+      return 'search';
+  }
+};
+
+const getSearchResultTitle = (result: { type: string; data: SearchResultData }): string => {
+  switch (result.type) {
+    case 'patient': {
+      const patientData = result.data as PatientData;
+      return patientData.full_name || patientData.name || 'Unknown';
+    }
+    case 'doctor': {
+      const doctorData = result.data as DoctorData;
+      return doctorData.full_name || doctorData.name || 'Unknown';
+    }
+    case 'medicine': {
+      const medicineData = result.data as MedicineData;
+      return medicineData.name || 'Unknown Medicine';
+    }
+    default:
+      return 'Unknown';
+  }
+};
+
+const getSearchResultSubtitle = (result: { type: string; data: SearchResultData }): string => {
+  switch (result.type) {
+    case 'patient':
+      return `Patient ID: ${result.data.id}`;
+    case 'doctor': {
+      const doctorData = result.data as DoctorData;
+      const specialization = (doctorData as Record<string, unknown>).specialization;
+      return `Doctor - ${typeof specialization === 'string' ? specialization : 'General'}`;
+    }
+    case 'medicine': {
+      const medicineData = result.data as MedicineData;
+      const stockQuantity = (medicineData as Record<string, unknown>).stock_quantity;
+      return `Stock: ${typeof stockQuantity === 'number' ? stockQuantity : 0}`;
+    }
+    default:
+      return '';
+  }
+};
+
+// Location functionality
+const fetchLocation = async (): Promise<void> => {
+  locationLoading.value = true;
+  locationError.value = false;
+
+  try {
+    // Mock location data - replace with actual geolocation API
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    locationData.value = {
+      city: 'Mandaluyong City',
+      country: 'Philippines',
+    };
+  } catch (error) {
+    console.error('Failed to fetch location:', error);
+    locationError.value = true;
+  } finally {
+    locationLoading.value = false;
+  }
+};
 
 // Fetch weather data
 const fetchWeatherData = async (): Promise<void> => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
     // Mock weather data - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     weatherData.value = {
       temperature: 28,
       condition: 'sunny',
-      location: 'Mandaluyong City'
-    }
+      location: 'Mandaluyong City',
+    };
   } catch (error) {
-    console.error('Failed to fetch weather data:', error)
-    weatherError.value = true
+    console.error('Failed to fetch weather data:', error);
+    weatherError.value = true;
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 // Lifecycle
 onMounted(() => {
-  console.log('🚀 NurseMessaging component mounted')
-  getCurrentUser()
-  void fetchUserProfile()
-  updateTime()
-  setInterval(updateTime, 1000)
-  void loadAvailableUsers()
-  void loadConversations()
-  void loadNotifications()
-  void fetchWeatherData()
-  
+  console.log('NurseMessaging component mounted');
+  getCurrentUser();
+  void fetchUserProfile();
+  updateTime();
+  setInterval(updateTime, 1000);
+  void loadAvailableUsers();
+  void loadConversations();
+  void loadNotifications();
+  void fetchWeatherData();
+  void fetchLocation();
+
   // Refresh user profile every 30 seconds to check for verification status updates
   setInterval(() => {
-    void fetchUserProfile()
-  }, 30000)
-})
+    void fetchUserProfile();
+  }, 30000);
+
+  // More frequent verification status check (every 10 seconds)
+  setInterval(() => {
+    void fetchUserProfile();
+  }, 10000);
+});
+
+// Storage event handler for profile picture sync
+const handleStorageChange = (e: StorageEvent) => {
+  if (e.key === 'profile_picture' && e.newValue) {
+    userProfile.value.profile_picture = e.newValue;
+    console.log('Profile picture updated from storage event:', e.newValue);
+  }
+};
+
+// Listen for storage changes to sync profile picture across components
+window.addEventListener('storage', handleStorageChange);
+
+onUnmounted(() => {
+  // Clean up storage event listener
+  window.removeEventListener('storage', handleStorageChange);
+});
 </script>
 
 <style scoped>
-/* Import the same styles as DoctorDashboard */
 /* Prototype Header Styles */
 
 .header-toolbar {
@@ -1191,6 +1433,7 @@ onMounted(() => {
 .search-container {
   width: 100%;
   max-width: 500px;
+  position: relative;
 }
 
 .search-input {
@@ -1198,8 +1441,72 @@ onMounted(() => {
   border-radius: 8px;
 }
 
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
 .notification-btn {
   color: white;
+}
+
+/* Pill-style displays for time, weather, and location */
+.time-pill,
+.weather-pill,
+.location-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.time-pill:hover,
+.weather-pill:hover,
+.location-pill:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.time-text,
+.weather-text,
+.location-text {
+  white-space: nowrap;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .header-right {
+    gap: 12px;
+  }
+
+  .time-pill,
+  .weather-pill,
+  .location-pill {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .time-text,
+  .weather-text,
+  .location-text {
+    display: none;
+  }
 }
 
 /* Notification styles */
@@ -1212,7 +1519,10 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.time-display, .weather-display, .weather-loading, .weather-error {
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1224,6 +1534,7 @@ onMounted(() => {
 .prototype-sidebar {
   background: white;
   border-right: 1px solid #e0e0e0;
+  position: relative;
 }
 
 .sidebar-content {
@@ -1270,14 +1581,55 @@ onMounted(() => {
 
 .upload-btn {
   position: absolute;
-  bottom: -5px;
-  right: -5px;
+  bottom: 0px;
+  right: 0px;
   background: #1e7668 !important;
   border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
   padding: 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: 2px solid white !important;
+  transition: all 0.3s ease !important;
+}
+
+.upload-btn:hover {
+  background: #286660 !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Responsive design for different screen sizes */
+@media (max-width: 768px) {
+  .profile-picture-container {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .upload-btn {
+    width: 24px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-picture-container {
+    width: 45px !important;
+    height: 45px !important;
+  }
+
+  .upload-btn {
+    width: 22px !important;
+    height: 22px !important;
+    min-height: 22px !important;
+  }
+
+  .profile-avatar,
+  .profile-placeholder {
+    font-size: 14px !important;
+  }
 }
 
 .verified-badge {
@@ -1310,14 +1662,16 @@ onMounted(() => {
 .profile-placeholder {
   width: 100%;
   height: 100%;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  background: #286660;
-  color: white;
+  background: #286660 !important;
+  color: white !important;
   font-weight: 600;
   font-size: 1.5rem;
   border-radius: 50%;
+  position: relative;
+  z-index: 1;
 }
 
 .user-name {
@@ -1358,8 +1712,13 @@ onMounted(() => {
 }
 
 .logout-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   padding: 20px;
   border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
 }
 
 .logout-btn {
@@ -1450,8 +1809,60 @@ onMounted(() => {
   flex-direction: column;
 }
 
+/* Verification Overlay */
+.verification-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+}
+
+.verification-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  margin: 20px;
+}
+
+.verification-content {
+  text-align: center;
+  padding: 40px 30px;
+}
+
+.verification-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin: 20px 0 16px 0;
+}
+
+.verification-message {
+  font-size: 1rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.disabled-content {
+  opacity: 0.3;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
 /* Main Messaging Section */
 .main-messaging-section {
+  position: relative;
   margin-bottom: 24px;
 }
 
@@ -1501,7 +1912,6 @@ onMounted(() => {
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-
 .user-info {
   flex: 1;
   display: flex;
@@ -1524,7 +1934,6 @@ onMounted(() => {
   margin: 0;
   text-align: center;
 }
-
 
 .chat-btn {
   margin-top: 8px;
@@ -1730,34 +2139,6 @@ onMounted(() => {
   color: white !important;
 }
 
-/* File attachment styles */
-.file-attachment {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.file-download-btn {
-  color: #286660 !important;
-  text-decoration: none;
-}
-
-.own-message .file-download-btn {
-  color: white !important;
-}
-
-.file-size {
-  font-size: 0.8em;
-  color: #666;
-  margin-left: 8px;
-}
-
-.own-message .file-size {
-  color: rgba(255, 255, 255, 0.8);
-}
-
 .message-header {
   display: flex;
   align-items: center;
@@ -1954,7 +2335,6 @@ onMounted(() => {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-
 .avatar-info {
   text-align: center;
   margin-bottom: 10px;
@@ -1978,7 +2358,6 @@ onMounted(() => {
   font-weight: 500;
 }
 
-
 .chat-btn {
   position: absolute;
   top: 10px;
@@ -1991,31 +2370,192 @@ onMounted(() => {
   background: rgba(25, 118, 210, 0.2);
 }
 
+/* Ensure mobile header is always visible on mobile devices */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Force header visibility on iOS */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Responsive Design - Mobile and Web Support */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Mobile header positioning */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Desktop Header Layout */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Global Modal Safe Area Support */
+@media (max-width: 768px) {
+  :deep(.q-dialog) {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 20px) max(env(safe-area-inset-right), 8px)
+      max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px) !important;
+    margin: 0 !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding-top: max(env(safe-area-inset-top), 20px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
+    ) !important;
+    width: 100% !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 8px) - max(env(safe-area-inset-right), 8px)
+    ) !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 24px) max(env(safe-area-inset-right), 4px)
+      max(env(safe-area-inset-bottom), 4px) max(env(safe-area-inset-left), 4px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
+    ) !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 4px) - max(env(safe-area-inset-right), 4px)
+    ) !important;
+  }
+}
+
+/* Modal Close Button Styles */
+.modal-close-btn {
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+/* Desktop close button styling */
+@media (min-width: 769px) {
+  .modal-close-btn {
+    padding: 6px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 18px;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+  }
+}
+
+/* Mobile close button styling */
+@media (max-width: 768px) {
+  .modal-close-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-close-btn {
+    padding: 10px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 22px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .users-row {
     gap: 15px;
   }
-  
+
   .user-avatar-card {
     min-width: 100px;
     padding: 12px;
   }
-  
+
   .user-avatar {
     width: 60px !important;
     height: 60px !important;
   }
-  
+
   .avatar-name {
     font-size: 12px;
     max-width: 80px;
   }
-  
+
   .avatar-role {
     font-size: 10px;
   }
-  
+
   .avatar-status {
     font-size: 10px;
   }

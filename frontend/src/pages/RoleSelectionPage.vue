@@ -7,25 +7,25 @@
         </div>
 
         <div class="role-options">
-          <button 
-            class="role-btn" 
-            :class="{ 'selected': selectedRole === 'doctor' }" 
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'doctor' }"
             @click="selectRole('doctor')"
           >
             Doctor
           </button>
 
-          <button 
-            class="role-btn" 
-            :class="{ 'selected': selectedRole === 'nurse' }" 
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'nurse' }"
             @click="selectRole('nurse')"
           >
             Nurse
           </button>
 
-          <button 
-            class="role-btn" 
-            :class="{ 'selected': selectedRole === 'patient' }" 
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'patient' }"
             @click="selectRole('patient')"
           >
             Patient
@@ -33,12 +33,7 @@
         </div>
 
         <div class="role-actions" v-if="selectedRole">
-          <button 
-            class="continue-btn" 
-            @click="continueToRegistration"
-          >
-            Continue
-          </button>
+          <button class="continue-btn" @click="continueToRegistration">Continue</button>
         </div>
       </div>
     </div>
@@ -46,21 +41,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
-const selectedRole = ref('')
+const router = useRouter();
+const selectedRole = ref('');
 
 const selectRole = (role: string) => {
-  selectedRole.value = role
-}
+  selectedRole.value = role;
+};
 
 const continueToRegistration = () => {
   if (selectedRole.value) {
-    void router.push(`/register/${selectedRole.value}`)
+    void router.push(`/register/${selectedRole.value}`);
   }
-}
+};
 </script>
 
 <style scoped>
@@ -82,7 +77,12 @@ const continueToRegistration = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(248, 249, 250, 0.15) 50%, rgba(240, 242, 245, 0.08) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(248, 249, 250, 0.15) 50%,
+    rgba(240, 242, 245, 0.08) 100%
+  );
   z-index: 0;
   pointer-events: none;
 }
@@ -101,7 +101,9 @@ const continueToRegistration = () => {
 .role-selection-card {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.15),
+    0 8px 16px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 40px;
@@ -186,18 +188,69 @@ const continueToRegistration = () => {
 }
 
 @media (max-width: 768px) {
+  .role-selection-page {
+    padding: 8px;
+    min-height: 100vh;
+    padding-top: max(8px, var(--safe-area-inset-top));
+    padding-bottom: max(8px, var(--safe-area-inset-bottom));
+    padding-left: max(8px, var(--safe-area-inset-left));
+    padding-right: max(8px, var(--safe-area-inset-right));
+  }
+
+  .role-selection-container {
+    max-width: 100%;
+  }
+
   .role-selection-card {
-    padding: 20px;
-    margin: 10px;
+    padding: 16px;
+    margin: 0;
+    border-radius: 12px;
   }
-  
+
+  .role-header {
+    margin-bottom: 20px;
+  }
+
   .role-header h1 {
-    font-size: 24px;
+    font-size: 20px;
+    margin-bottom: 8px;
   }
-  
+
+  .role-header p {
+    font-size: 13px;
+  }
+
+  .role-options {
+    gap: 12px;
+  }
+
   .role-btn {
     width: 100%;
-    max-width: 300px;
+    padding: 16px;
+    font-size: 14px;
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .role-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .role-name {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .role-description {
+    font-size: 12px;
+  }
+
+  .continue-btn {
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    margin-top: 20px;
   }
 }
 </style>

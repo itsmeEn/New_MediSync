@@ -157,6 +157,60 @@ def doctor_notifications(request):
             'error': f'Failed to fetch notifications: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def mark_notification_as_read(request, notification_id):
+    """
+    Mark a specific notification as read
+    """
+    try:
+        doctor = request.user
+        
+        notification = Notification.objects.filter(
+            id=notification_id,
+            user=doctor
+        ).first()
+        
+        if not notification:
+            return Response({
+                'error': 'Notification not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        notification.is_read = True
+        notification.save()
+        
+        return Response({
+            'message': 'Notification marked as read'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Failed to mark notification as read: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_all_notifications_read(request):
+    """
+    Mark all notifications as read for the current doctor
+    """
+    try:
+        doctor = request.user
+        
+        updated_count = Notification.objects.filter(
+            user=doctor,
+            is_read=False
+        ).update(is_read=True)
+        
+        return Response({
+            'message': f'{updated_count} notifications marked as read'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'error': f'Failed to mark notifications as read: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def doctor_pending_assessments(request):
@@ -295,6 +349,12 @@ def doctor_create_appointment(request):
             appointment_date=appointment_date,
             appointment_type=appointment_type,
             status='scheduled'
+        )
+        
+        # Create notification for the doctor about the new appointment
+        Notification.objects.create(
+            user=doctor,
+            message=f"New appointment scheduled with {patient_name} on {appointment_date}"
         )
         
         return Response({
@@ -545,18 +605,28 @@ def add_reaction(request, message_id):
 @permission_classes([IsAuthenticated])
 def get_available_users(request):
     """
-    Get list of doctors and nurses available for messaging
+    Get list of doctors and nurses available for messaging with optional search functionality
     """
     try:
         user = request.user
+        search_query = request.GET.get('search', '').strip()
         
         # Get all doctors and nurses except current user
-        # Include verified users for messaging
+        # Include users who are either admin-approved or self-verified
         available_users = User.objects.filter(
             role__in=['doctor', 'nurse'],
-            is_active=True,
-            verification_status='approved'
+            is_active=True
+        ).filter(
+            Q(verification_status='approved') | Q(is_verified=True)
         ).exclude(id=user.id)
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            available_users = available_users.filter(
+                Q(full_name__icontains=search_query) |
+                Q(email__icontains=search_query) |
+                Q(role__icontains=search_query)
+            )
         
         serializer = UserSerializer(available_users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -669,7 +739,7 @@ def mark_message_as_read(request, message_id):
 @permission_classes([IsAuthenticated])
 def get_medicine_inventory(request):
     """
-    Get medicine inventory for the current nurse
+    Get medicine inventory for the current nurse with optional search functionality
     """
     try:
         user = request.user
@@ -680,11 +750,24 @@ def get_medicine_inventory(request):
                 'error': 'Access denied. Only nurses can view medicine inventory.'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Get search parameter
+        search_query = request.GET.get('search', '').strip()
+        
         # Get medicine inventory for the current nurse
         from .models import MedicineInventory
         inventory = MedicineInventory.objects.filter(
             inventory__user=user
-        ).order_by('medicine_name')
+        )
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            inventory = inventory.filter(
+                Q(medicine_name__icontains=search_query) |
+                Q(batch_number__icontains=search_query) |
+                Q(manufacturer__icontains=search_query)
+            )
+        
+        inventory = inventory.order_by('medicine_name')
         
         from .serializers import MedicineInventorySerializer
         serializer = MedicineInventorySerializer(inventory, many=True)
@@ -867,7 +950,7 @@ def nurse_queue_patients(request):
 @permission_classes([IsAuthenticated])
 def get_available_doctors(request):
     """
-    Get available doctors by specialization
+    Get available doctors by specialization with optional search functionality
     """
     try:
         user = request.user
@@ -879,6 +962,7 @@ def get_available_doctors(request):
             }, status=status.HTTP_403_FORBIDDEN)
         
         specialization = request.GET.get('specialization', '')
+        search_query = request.GET.get('search', '').strip()
         
         # Get doctors with the specified specialization
         from backend.users.models import GeneralDoctorProfile
@@ -890,6 +974,14 @@ def get_available_doctors(request):
         
         if specialization:
             doctors_query = doctors_query.filter(specialization__icontains=specialization)
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            doctors_query = doctors_query.filter(
+                Q(user__full_name__icontains=search_query) |
+                Q(specialization__icontains=search_query) |
+                Q(department__icontains=search_query)
+            )
         
         doctors = doctors_query.select_related('user')
         

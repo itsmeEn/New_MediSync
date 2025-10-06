@@ -1,20 +1,62 @@
 <template>
   <q-layout view="hHh Lpr fFf">
+    <q-header elevated class="prototype-header safe-area-top">
+      <!-- Mobile Header Layout -->
+      <div class="mobile-header-layout">
+        <!-- Top Row: Menu, Time, Weather, Notifications -->
+        <div class="header-top-row">
+          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
 
-    <q-header elevated class="prototype-header">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-        <div class="search-container">
-          <q-input 
+          <div class="header-info">
+            <!-- Time Display -->
+            <div class="time-display">
+              <q-icon name="schedule" size="sm" />
+              <span class="time-text">{{ currentTime }}</span>
+            </div>
+
+            <!-- Weather Display -->
+            <div class="weather-display" v-if="weatherData">
+              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
+              <span class="weather-text">{{ weatherData.temperature }}°C</span>
+              <span class="weather-location">{{ weatherData.location }}</span>
+            </div>
+
+            <!-- Loading Weather -->
+            <div class="weather-loading" v-else-if="weatherLoading">
+              <q-spinner size="sm" />
+              <span class="weather-text">Loading...</span>
+            </div>
+
+            <!-- Weather Error -->
+            <div class="weather-error" v-else-if="weatherError">
+              <q-icon name="error" size="sm" />
+              <span class="weather-text">Weather Update</span>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
+          </q-btn>
+        </div>
+
+        <!-- Bottom Row: Search Bar -->
+        <div class="header-bottom-row">
+          <div class="search-container">
+            <q-input
               outlined
-            dense 
-            v-model="text" 
+              dense
+              v-model="text"
               placeholder="Search Patient, symptoms and Appointments"
-            class="search-input"
+              class="search-input"
               bg-color="white"
             >
               <template v-slot:prepend>
@@ -22,47 +64,21 @@
               </template>
               <template v-slot:append v-if="text">
                 <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-            </template>
-          </q-input>
+              </template>
+            </q-input>
           </div>
         </div>
-        
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn">
-            <q-badge color="red" floating>1</q-badge>
-          </q-btn>
-          
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-          
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-          
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-          
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
+      </div>
     </q-header>
 
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -99,17 +115,19 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile?.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile?.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
             <h6 class="user-name">{{ userProfile?.full_name || 'Loading...' }}</h6>
-            <p class="user-role">{{ userProfile?.specialization || 'Loading specialization...' }}</p>
-            <q-chip 
+            <p class="user-role">
+              {{ userProfile?.specialization || 'Loading specialization...' }}
+            </p>
+            <q-chip
               :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
               text-color="white"
               size="sm"
@@ -166,13 +184,7 @@
 
         <!-- Logout Section -->
         <div class="logout-section">
-          <q-btn
-            color="negative"
-            icon="logout"
-            label="Logout"
-            class="logout-btn"
-            @click="logout"
-          />
+          <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -196,15 +208,19 @@
             <q-card class="settings-card">
               <q-card-section>
                 <h6 class="text-h6 q-mb-lg text-center">Settings</h6>
-                
+
                 <!-- Profile Information Section -->
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Profile Information</h6>
-                  
+
                   <div class="profile-section">
                     <div class="profile-picture-container">
                       <q-avatar size="120px" class="profile-avatar">
-                        <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
+                        <img
+                          v-if="profilePictureUrl"
+                          :src="profilePictureUrl"
+                          alt="Profile Picture"
+                        />
                         <div v-else class="profile-placeholder">
                           {{ userInitials }}
                         </div>
@@ -225,7 +241,7 @@
                         @change="handleProfilePictureUpload"
                       />
                     </div>
-                    
+
                     <div class="profile-form">
                       <div class="row q-gutter-md">
                         <div class="col-12">
@@ -297,7 +313,7 @@
                 <!-- Security Settings Section -->
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Security Settings</h6>
-                  
+
                   <div class="row q-gutter-md">
                     <div class="col-12">
                       <q-input
@@ -305,7 +321,7 @@
                         label="Current Password"
                         type="password"
                         outlined
-                        :rules="[val => !!val || 'Current password is required']"
+                        :rules="[(val) => !!val || 'Current password is required']"
                         class="large-input"
                       />
                     </div>
@@ -316,8 +332,8 @@
                         type="password"
                         outlined
                         :rules="[
-                          val => !!val || 'New password is required',
-                          val => val.length >= 8 || 'Password must be at least 8 characters'
+                          (val) => !!val || 'New password is required',
+                          (val) => val.length >= 8 || 'Password must be at least 8 characters',
                         ]"
                         class="large-input"
                       />
@@ -329,8 +345,8 @@
                         type="password"
                         outlined
                         :rules="[
-                          val => !!val || 'Please confirm your password',
-                          val => val === securityForm.newPassword || 'Passwords do not match'
+                          (val) => !!val || 'Please confirm your password',
+                          (val) => val === securityForm.newPassword || 'Passwords do not match',
                         ]"
                         class="large-input"
                       />
@@ -351,50 +367,52 @@
                 <!-- Notification Preferences Section -->
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Notification Preferences</h6>
-                  
+
                   <div class="notification-settings">
                     <div class="notification-item">
                       <div class="notification-info">
                         <div class="notification-title">Patient Alerts</div>
-                        <div class="notification-description">Receive notifications for patient emergencies and urgent care needs</div>
+                        <div class="notification-description">
+                          Receive notifications for patient emergencies and urgent care needs
+                        </div>
                       </div>
-                      <q-toggle
-                        v-model="notificationSettings.patientAlerts"
-                        color="primary"
-                      />
+                      <q-toggle v-model="notificationSettings.patientAlerts" color="primary" />
                     </div>
-                    
+
                     <div class="notification-item">
                       <div class="notification-info">
                         <div class="notification-title">Appointment Reminders</div>
-                        <div class="notification-description">Get reminded about upcoming appointments and schedule changes</div>
+                        <div class="notification-description">
+                          Get reminded about upcoming appointments and schedule changes
+                        </div>
                       </div>
                       <q-toggle
                         v-model="notificationSettings.appointmentReminders"
                         color="primary"
                       />
                     </div>
-                    
+
                     <div class="notification-item">
                       <div class="notification-info">
                         <div class="notification-title">Message Notifications</div>
-                        <div class="notification-description">Notifications for new messages from patients and colleagues</div>
+                        <div class="notification-description">
+                          Notifications for new messages from patients and colleagues
+                        </div>
                       </div>
                       <q-toggle
                         v-model="notificationSettings.messageNotifications"
                         color="primary"
                       />
                     </div>
-                    
+
                     <div class="notification-item">
                       <div class="notification-info">
                         <div class="notification-title">Analytics Updates</div>
-                        <div class="notification-description">Weekly analytics reports and predictive insights</div>
+                        <div class="notification-description">
+                          Weekly analytics reports and predictive insights
+                        </div>
                       </div>
-                      <q-toggle
-                        v-model="notificationSettings.analyticsUpdates"
-                        color="primary"
-                      />
+                      <q-toggle v-model="notificationSettings.analyticsUpdates" color="primary" />
                     </div>
                   </div>
                 </div>
@@ -404,7 +422,7 @@
                 <!-- Account Status Section -->
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Account Status</h6>
-                  
+
                   <div class="row q-gutter-md">
                     <div class="col-12 col-md-6">
                       <div class="status-item">
@@ -445,36 +463,30 @@
                 <!-- Quick Actions Section -->
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Quick Actions</h6>
-                  
-                  <div class="row q-gutter-md justify-center">
-                    <div class="col-12 col-md-3">
-                      <q-btn
-                        color="primary"
-                        label="Save Changes"
-                        icon="save"
-                        class="full-width large-button"
-                        @click="saveSettings"
-                        :loading="saving"
-                      />
-                    </div>
-                    <div class="col-12 col-md-3">
-                      <q-btn
-                        color="secondary"
-                        label="Export Data"
-                        icon="download"
-                        class="full-width large-button"
-                        @click="exportData"
-                      />
-                    </div>
-                    <div class="col-12 col-md-3">
-                      <q-btn
-                        color="accent"
-                        label="Backup Settings"
-                        icon="backup"
-                        class="full-width large-button"
-                        @click="backupSettings"
-                      />
-                    </div>
+
+                  <div class="quick-actions-container">
+                    <q-btn
+                      color="primary"
+                      label="Save Changes"
+                      icon="save"
+                      class="large-button"
+                      @click="saveSettings"
+                      :loading="saving"
+                    />
+                    <q-btn
+                      color="secondary"
+                      label="Export Data"
+                      icon="download"
+                      class="large-button"
+                      @click="exportData"
+                    />
+                    <q-btn
+                      color="accent"
+                      label="Backup Settings"
+                      icon="backup"
+                      class="large-button"
+                      @click="backupSettings"
+                    />
                   </div>
                 </div>
               </q-card-section>
@@ -483,29 +495,74 @@
         </div>
       </div>
     </q-page-container>
+
+    <!-- Notifications Modal -->
+    <q-dialog v-model="showNotifications" persistent>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
+            No notifications yet
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item
+                v-for="notification in notifications"
+                :key="notification.id"
+                clickable
+                @click="handleNotificationClick(notification)"
+                :class="{ unread: !notification.is_read }"
+              >
+                <q-item-section avatar>
+                  <q-icon name="info" color="primary" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ notification.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{
+                    formatTime(notification.created_at)
+                  }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="!notification.is_read">
+                  <q-badge color="red" rounded />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="notifications.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
 // import { AxiosError } from 'axios' // Unused import
 
 // Reactive data
-const rightDrawerOpen = ref(false)
-const text = ref('')
+const rightDrawerOpen = ref(false);
+const text = ref('');
+const showNotifications = ref(false);
 // const loading = ref(false) // Unused variable
 
 // Header functions
 const toggleRightDrawer = () => {
-  console.log('Toggle drawer called, current state:', rightDrawerOpen.value)
-  rightDrawerOpen.value = !rightDrawerOpen.value
-  console.log('New state:', rightDrawerOpen.value)
-}
-
-
+  console.log('Toggle drawer called, current state:', rightDrawerOpen.value);
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+  console.log('New state:', rightDrawerOpen.value);
+};
 
 // User profile data
 const userProfile = ref({
@@ -516,22 +573,40 @@ const userProfile = ref({
   specialization: '',
   role: '',
   profile_picture: '',
-  verification_status: 'approved'
-})
+  verification_status: 'approved',
+});
 
 // Real-time data
-const currentTime = ref('')
+const currentTime = ref('');
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
-const timeInterval = ref<ReturnType<typeof setInterval> | null>(null)
+  temperature: number;
+  condition: string;
+  location: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
+const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
+
+// Notification system
+const notifications = ref<
+  {
+    id: number;
+    message: string;
+    is_read: boolean;
+    created_at: string;
+  }[]
+>([]);
+
+// Notification interface
+interface Notification {
+  id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
 
 // Loading states
-const saving = ref(false)
+const saving = ref(false);
 
 // Form data
 const profileForm = ref({
@@ -540,29 +615,29 @@ const profileForm = ref({
   phone: '',
   specialization: '',
   licenseNumber: '',
-  bio: ''
-})
+  bio: '',
+});
 
 const securityForm = ref({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
-  twoFactorAuth: false
-})
+  twoFactorAuth: false,
+});
 
 const notificationSettings = ref({
   patientAlerts: true,
   appointmentReminders: true,
   messageNotifications: true,
-  analyticsUpdates: true
-})
+  analyticsUpdates: true,
+});
 
 // Account status
 const accountStatus = ref({
   verified: true,
   lastLogin: '2024-01-15 10:30 AM',
-  memberSince: '2023-06-15'
-})
+  memberSince: '2023-06-15',
+});
 
 // Options
 const specializationOptions = [
@@ -577,203 +652,203 @@ const specializationOptions = [
   { label: 'Psychiatry', value: 'psychiatry' },
   { label: 'Radiology', value: 'radiology' },
   { label: 'Surgery', value: 'surgery' },
-  { label: 'Other', value: 'other' }
-]
+  { label: 'Other', value: 'other' },
+];
 
 // File input reference for profile picture upload
-const fileInput = ref<HTMLInputElement | null>(null)
-
+const fileInput = ref<HTMLInputElement | null>(null);
 
 // Computed properties
 const userInitials = computed(() => {
   if (!userProfile.value.first_name || !userProfile.value.last_name) {
-    return 'DR'
+    return 'DR';
   }
-  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase()
-})
+  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
+});
 
 const profilePictureUrl = computed(() => {
   if (!userProfile.value.profile_picture) {
-    return null
+    return null;
   }
-  
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture
-  }
-  
-  return `http://localhost:8000${userProfile.value.profile_picture}`
-})
 
+  if (userProfile.value.profile_picture.startsWith('http')) {
+    return userProfile.value.profile_picture;
+  }
+
+  return `http://localhost:8000${userProfile.value.profile_picture}`;
+});
 
 // Router and Quasar
-const router = useRouter()
+const router = useRouter();
 // const route = useRoute() // Unused variable
-const $q = useQuasar()
+const $q = useQuasar();
 
 // Methods
 
 const navigateTo = (route: string) => {
   // Close drawer first
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   // Navigate to different sections
   switch (route) {
     case 'doctor-dashboard':
-      void router.push('/doctor-dashboard')
-      break
+      void router.push('/doctor-dashboard');
+      break;
     case 'appointments':
-      void router.push('/doctor-appointments')
-      break
+      void router.push('/doctor-appointments');
+      break;
     case 'messaging':
-      void router.push('/doctor-messaging')
-      break
+      void router.push('/doctor-messaging');
+      break;
     case 'patients':
-      void router.push('/doctor-patient-management')
-      break
+      void router.push('/doctor-patient-management');
+      break;
     case 'analytics':
-      void router.push('/doctor-predictive-analytics')
-      break
+      void router.push('/doctor-predictive-analytics');
+      break;
     case 'settings':
       // Already on settings page
-      break
+      break;
     default:
-      void router.push(`/${route}`)
+      void router.push(`/${route}`);
   }
-}
+};
 
 const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
 // Profile picture upload functions
 const triggerFileUpload = () => {
-  fileInput.value?.click()
-}
+  fileInput.value?.click();
+};
 
 const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
+    const file = target.files[0];
+
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       $q.notify({
         type: 'negative',
         message: 'Please select a valid image file (JPG, PNG)',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       $q.notify({
         type: 'negative',
         message: 'File size must be less than 5MB',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData)
-      
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/users/profile/update/picture/', formData);
+
+      userProfile.value.profile_picture = response.data.user.profile_picture;
+
       // Store the updated profile picture in localStorage for cross-page sync
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}')
-      currentUser.profile_picture = response.data.user.profile_picture
-      localStorage.setItem('user', JSON.stringify(currentUser))
-      
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      currentUser.profile_picture = response.data.user.profile_picture;
+      localStorage.setItem('user', JSON.stringify(currentUser));
+
       // Show success toast
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
-        timeout: 3000
-      })
-      
+        timeout: 3000,
+      });
+
       // Clear the file input
-      target.value = ''
+      target.value = '';
     } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error)
-      
-      let errorMessage = 'Failed to upload profile picture. Please try again.'
-      
+      console.error('Profile picture upload failed:', error);
+
+      let errorMessage = 'Failed to upload profile picture. Please try again.';
+
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { data?: { profile_picture?: string[], detail?: string } } }
+        const axiosError = error as {
+          response?: { data?: { profile_picture?: string[]; detail?: string } };
+        };
         if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0]
+          errorMessage = axiosError.response.data.profile_picture[0];
         } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail
+          errorMessage = axiosError.response.data.detail;
         }
       }
-      
+
       $q.notify({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
     }
   }
-}
+};
 
 // Real-time functions
 const updateTime = () => {
-  const now = new Date()
+  const now = new Date();
   currentTime.value = now.toLocaleTimeString('en-US', {
     hour12: true,
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
-  })
-}
+    second: '2-digit',
+  });
+};
 
 const fetchWeather = async () => {
   if (!navigator.geolocation) {
-    weatherError.value = true
-    return
+    weatherError.value = true;
+    return;
   }
 
-  weatherLoading.value = true
-  weatherError.value = false
+  weatherLoading.value = true;
+  weatherError.value = false;
 
   try {
     const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject)
-    })
+      navigator.geolocation.getCurrentPosition(resolve, reject);
+    });
 
-    const { latitude, longitude } = position.coords
-    const apiKey = 'YOUR_OPENWEATHER_API_KEY' // Replace with actual API key
+    const { latitude, longitude } = position.coords;
+    const apiKey = 'YOUR_OPENWEATHER_API_KEY'; // Replace with actual API key
     const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`
-    )
+      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`,
+    );
 
-    if (!response.ok) throw new Error('Weather API request failed')
+    if (!response.ok) throw new Error('Weather API request failed');
 
-    const data = await response.json()
+    const data = await response.json();
     weatherData.value = {
       temperature: Math.round(data.main.temp),
       condition: data.weather[0].main.toLowerCase(),
-      location: data.name
-    }
+      location: data.name,
+    };
   } catch (error) {
-    console.error('Weather fetch error:', error)
-    weatherError.value = true
+    console.error('Weather fetch error:', error);
+    weatherError.value = true;
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 const getWeatherIcon = (condition: string): string => {
   const iconMap: Record<string, string> = {
@@ -791,14 +866,13 @@ const getWeatherIcon = (condition: string): string => {
     sand: 'cloud',
     ash: 'cloud',
     squall: 'air',
-    tornado: 'air'
-  }
-  return iconMap[condition] || 'wb_sunny'
-}
-
+    tornado: 'air',
+  };
+  return iconMap[condition] || 'wb_sunny';
+};
 
 const saveSettings = async () => {
-  saving.value = true
+  saving.value = true;
 
   try {
     // Save profile information
@@ -807,17 +881,17 @@ const saveSettings = async () => {
       phone: profileForm.value.phone,
       bio: profileForm.value.bio,
       doctor_profile: {
-        specialization: profileForm.value.specialization
-      }
-    })
+        specialization: profileForm.value.specialization,
+      },
+    });
 
     // Save notification preferences
     await api.put('/users/notification-preferences/', {
       patient_alerts: notificationSettings.value.patientAlerts,
       appointment_reminders: notificationSettings.value.appointmentReminders,
       message_notifications: notificationSettings.value.messageNotifications,
-      analytics_updates: notificationSettings.value.analyticsUpdates
-    })
+      analytics_updates: notificationSettings.value.analyticsUpdates,
+    });
 
     // Save security settings if password is being changed
     if (securityForm.value.newPassword) {
@@ -825,51 +899,50 @@ const saveSettings = async () => {
         $q.notify({
           type: 'negative',
           message: 'New passwords do not match',
-          position: 'top'
-        })
-        return
+          position: 'top',
+        });
+        return;
       }
 
       await api.put('/users/change-password/', {
         current_password: securityForm.value.currentPassword,
-        new_password: securityForm.value.newPassword
-      })
+        new_password: securityForm.value.newPassword,
+      });
 
       // Reset password fields
-      securityForm.value.currentPassword = ''
-      securityForm.value.newPassword = ''
-      securityForm.value.confirmPassword = ''
+      securityForm.value.currentPassword = '';
+      securityForm.value.newPassword = '';
+      securityForm.value.confirmPassword = '';
     }
 
     $q.notify({
       type: 'positive',
       message: 'Settings saved successfully!',
-      position: 'top'
-    })
-
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Error saving settings:', error)
+    console.error('Error saving settings:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to save settings. Please try again.',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 
 const exportData = async () => {
   try {
     $q.loading.show({
       message: 'Exporting profile data...',
-      spinnerColor: 'primary'
-    })
-    
+      spinnerColor: 'primary',
+    });
+
     // Fetch complete profile data
-    const profileResponse = await api.get('/users/profile/')
-    const profileData = profileResponse.data.user
-    
+    const profileResponse = await api.get('/users/profile/');
+    const profileData = profileResponse.data.user;
+
     // Create export data object
     const exportData = {
       profileInformation: {
@@ -881,141 +954,147 @@ const exportData = async () => {
         bio: profileData.bio || 'Not provided',
         verificationStatus: profileData.verification_status,
         memberSince: accountStatus.value.memberSince,
-        lastLogin: accountStatus.value.lastLogin
+        lastLogin: accountStatus.value.lastLogin,
       },
       exportDate: new Date().toISOString(),
       exportType: 'Doctor Profile Information',
-      exportedBy: profileData.full_name
-    }
-    
+      exportedBy: profileData.full_name,
+    };
+
     // Create and download JSON file
-    const dataStr = JSON.stringify(exportData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `doctor-profile-export-${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `doctor-profile-export-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     $q.notify({
       type: 'positive',
       message: 'Profile data exported successfully!',
       position: 'top',
-      timeout: 3000
-    })
-    
+      timeout: 3000,
+    });
   } catch (error) {
-    console.error('Export failed:', error)
+    console.error('Export failed:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to export data. Please try again.',
       position: 'top',
-      timeout: 4000
-    })
+      timeout: 4000,
+    });
   } finally {
-    $q.loading.hide()
+    $q.loading.hide();
   }
-}
+};
 
 const backupSettings = async () => {
   try {
     $q.loading.show({
       message: 'Backing up patient management data...',
-      spinnerColor: 'primary'
-    })
-    
+      spinnerColor: 'primary',
+    });
+
     // Fetch patient management data
-    const patientsResponse = await api.get('/operations/patients/')
-    const appointmentsResponse = await api.get('/operations/appointments/')
-    
+    const patientsResponse = await api.get('/operations/patients/');
+    const appointmentsResponse = await api.get('/operations/appointments/');
+
     // Create backup data object
     const backupData = {
       patientManagement: {
         patients: patientsResponse.data.results || patientsResponse.data,
         appointments: appointmentsResponse.data.results || appointmentsResponse.data,
         totalPatients: patientsResponse.data.count || 0,
-        totalAppointments: appointmentsResponse.data.count || 0
+        totalAppointments: appointmentsResponse.data.count || 0,
       },
       backupDate: new Date().toISOString(),
       backupType: 'Patient Management Data',
-      backedUpBy: userProfile.value.full_name
-    }
-    
+      backedUpBy: userProfile.value.full_name,
+    };
+
     // Create and download JSON file
-    const dataStr = JSON.stringify(backupData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `doctor-patient-management-backup-${new Date().toISOString().split('T')[0]}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    
+    const dataStr = JSON.stringify(backupData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `doctor-patient-management-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
     $q.notify({
       type: 'positive',
       message: 'Patient management data backed up successfully!',
       position: 'top',
-      timeout: 3000
-    })
-    
+      timeout: 3000,
+    });
   } catch (error) {
-    console.error('Backup failed:', error)
+    console.error('Backup failed:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to backup data. Please try again.',
       position: 'top',
-      timeout: 4000
-    })
+      timeout: 4000,
+    });
   } finally {
-    $q.loading.hide()
+    $q.loading.hide();
   }
-}
+};
 
 // Verification status helpers
 const getVerificationColor = (status: string | undefined) => {
   switch (status) {
+    case 'approved':
     case 'verified':
-      return 'positive'
+      return 'positive';
     case 'pending':
     case 'for_review':
-      return 'warning'
+      return 'warning';
     case 'declined':
-      return 'negative'
+    case 'rejected':
+      return 'negative';
     default:
-      return 'warning'
+      return 'warning';
   }
-}
+};
 
 const getVerificationLabel = (status: string | undefined) => {
   switch (status) {
+    case 'approved':
     case 'verified':
-      return 'Verified'
+      return 'Verified';
     case 'pending':
-      return 'Pending'
+      return 'Pending';
     case 'for_review':
-      return 'For Review'
+      return 'For Review';
     case 'declined':
-      return 'Declined'
+    case 'rejected':
+      return 'Declined';
     default:
-      return 'Unverified'
+      return 'Unverified';
   }
-}
+};
 
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user || response.data
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user || response.data;
+
     // Check localStorage for updated profile picture
-    const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
-    
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+
+    // Check if verification status has changed
+    const previousStatus = userProfile.value.verification_status;
+    const newStatus = userData.verification_status;
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -1024,64 +1103,158 @@ const fetchUserProfile = async () => {
       specialization: userData.doctor_profile?.specialization || userData.specialization,
       role: userData.role,
       profile_picture: storedUser.profile_picture || userData.profile_picture || null,
-      verification_status: userData.verification_status
+      verification_status: userData.verification_status,
+    };
+
+    // Show notification if verification status changed to approved
+    if (previousStatus !== newStatus && newStatus === 'approved') {
+      $q.notify({
+        type: 'positive',
+        message: '🎉 Your account has been verified!',
+        position: 'top',
+        timeout: 5000,
+        actions: [{ label: 'Dismiss', color: 'white' }],
+      });
+    }
+
+    // Update localStorage with new verification status
+    if (storedUser) {
+      storedUser.verification_status = newStatus;
+      localStorage.setItem('user', JSON.stringify(storedUser));
     }
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
+    console.error('Failed to fetch user profile:', error);
   }
-}
+};
 
 // Load user profile data
 const loadUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user;
+
     profileForm.value = {
       fullName: userData.full_name || '',
       email: userData.email || '',
       phone: userData.phone || '',
       specialization: userData.doctor_profile?.specialization || '',
       licenseNumber: userData.doctor_profile?.license_number || '',
-      bio: userData.bio || ''
-    }
-    
+      bio: userData.bio || '',
+    };
   } catch (error) {
-    console.error('Failed to load user profile:', error)
-    
+    console.error('Failed to load user profile:', error);
+
     // Fallback to localStorage
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      const user = JSON.parse(userData)
+      const user = JSON.parse(userData);
       profileForm.value = {
         fullName: user.full_name || '',
         email: user.email || '',
         phone: user.phone || '',
         specialization: user.doctor_profile?.specialization || '',
         licenseNumber: user.doctor_profile?.license_number || '',
-        bio: user.bio || ''
-      }
+        bio: user.bio || '',
+      };
     }
   }
-}
-
+};
 
 // Lifecycle hooks
+// Notification functions
+const unreadNotificationsCount = computed(() => {
+  return notifications.value.filter((n) => !n.is_read).length;
+});
+
+const loadNotifications = async (): Promise<void> => {
+  try {
+    console.log('📬 Loading doctor notifications...');
+
+    const response = await api.get('/operations/notifications/');
+    notifications.value = response.data || [];
+
+    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+  } catch (error: unknown) {
+    console.error('❌ Error loading doctor notifications:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load notifications',
+    });
+  }
+};
+
+const handleNotificationClick = (notification: Notification): void => {
+  // Mark as read
+  notification.is_read = true;
+
+  // Update on backend
+  void markNotificationAsRead(notification.id);
+};
+
+const markNotificationAsRead = async (notificationId: number): Promise<void> => {
+  try {
+    await api.patch(`/operations/notifications/${notificationId}/mark-read/`);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+};
+
+const markAllNotificationsRead = async (): Promise<void> => {
+  try {
+    // Mark all notifications as read locally
+    notifications.value.forEach((notification) => {
+      notification.is_read = true;
+    });
+
+    // Mark all notifications as read on backend
+    await api.post('/operations/notifications/mark-all-read/');
+
+    $q.notify({
+      type: 'positive',
+      message: 'All notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to mark notifications as read',
+    });
+  }
+};
+
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 onMounted(() => {
-  void loadUserProfile()
-  void fetchUserProfile()
-  
+  void loadUserProfile();
+  void fetchUserProfile();
+
+  // Load notifications
+  void loadNotifications();
+
   // Initialize real-time features
-  updateTime()
-  timeInterval.value = setInterval(updateTime, 1000)
-  void fetchWeather()
-})
+  updateTime();
+  timeInterval.value = setInterval(updateTime, 1000);
+  void fetchWeather();
+
+  // Refresh notifications every 30 seconds
+  setInterval(() => void loadNotifications(), 30000);
+
+  // Refresh user profile every 10 seconds to check for verification status updates
+  setInterval(() => void fetchUserProfile(), 10000);
+});
 
 onUnmounted(() => {
   if (timeInterval.value) {
-    clearInterval(timeInterval.value)
+    clearInterval(timeInterval.value);
   }
-})
+});
 </script>
 
 <style scoped>
@@ -1283,6 +1456,78 @@ onUnmounted(() => {
   width: 100%;
 }
 
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
 /* Prototype Header Styles */
 .prototype-header {
   background: #286660;
@@ -1325,7 +1570,10 @@ onUnmounted(() => {
   color: white;
 }
 
-.time-display, .weather-display, .weather-loading, .weather-error {
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1423,7 +1671,6 @@ onUnmounted(() => {
 }
 
 /* Duplicate CSS removed - using standardized styles above */
-
 
 .logout-btn {
   width: 100%;
@@ -1599,6 +1846,7 @@ onUnmounted(() => {
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid #e0e0e0;
+  width: 100%;
 }
 
 .status-item:last-child {
@@ -1608,6 +1856,7 @@ onUnmounted(() => {
 .status-label {
   font-weight: 500;
   color: #666;
+  flex: 1;
 }
 
 .status-value {
@@ -1619,6 +1868,10 @@ onUnmounted(() => {
   font-weight: 600;
   color: #333;
   text-align: right;
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 /* Large Input Styles */
@@ -1650,36 +1903,235 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
+/* Quick Actions Container */
+.quick-actions-container {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* Large Button Styles */
 .large-button {
   min-height: 48px;
   font-size: 16px;
   font-weight: 600;
   padding: 12px 24px;
+  min-width: 200px;
+  max-width: 200px;
+  flex: 1;
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    padding: 0 16px;
+    min-height: 56px;
+    padding-top: max(env(safe-area-inset-top), 4px);
+  }
+
+  /* Mobile Header Layout */
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+
+  .q-page-container {
+    padding: 8px;
+  }
+
+  .q-card {
+    margin: 8px 0;
+    border-radius: 12px;
+  }
+
+  .q-card__section {
+    padding: 16px;
+  }
+
   .profile-section {
     flex-direction: column;
     text-align: center;
+    gap: 16px;
   }
-  
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .profile-info h6 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .profile-info .text-caption {
+    font-size: 13px;
+  }
+
+  .form-section {
+    margin-bottom: 16px;
+  }
+
+  .form-section h6 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .q-field {
+    margin-bottom: 12px;
+  }
+
+  .q-field__label {
+    font-size: 14px;
+  }
+
+  .q-field__control {
+    font-size: 14px;
+  }
+
   .notification-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 8px;
+    padding: 12px;
   }
-  
+
   .notification-info {
     margin-right: 0;
   }
-  
+
+  .notification-info .q-item-label {
+    font-size: 14px;
+  }
+
+  .notification-info .q-item-label--caption {
+    font-size: 12px;
+  }
+
   .status-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+    padding: 12px;
+  }
+
+  .q-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .q-tab {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .q-tab-panel {
+    padding: 16px 0;
   }
 }
 
+/* Notification styles */
+.unread {
+  background-color: rgba(25, 118, 210, 0.05);
+  border-left: 3px solid #1976d2;
+}
+
+.unread .q-item-label {
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .header-toolbar {
+    padding: 0 12px;
+    min-height: 52px;
+    padding-top: max(env(safe-area-inset-top), 6px);
+  }
+
+  /* Mobile Header Layout - Extra Small */
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
+  }
+
+  .header-bottom-row {
+    padding: 0 8px 4px;
+  }
+
+  .header-info {
+    gap: 6px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+}
 </style>

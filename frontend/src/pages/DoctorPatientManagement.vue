@@ -1,17 +1,60 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
-        <!-- Left side - Search bar -->
-        <div class="header-left">
+    <q-header elevated class="prototype-header safe-area-top">
+      <!-- Mobile Header Layout -->
+      <div class="mobile-header-layout">
+        <!-- Top Row: Menu, Time, Weather, Notifications -->
+        <div class="header-top-row">
+          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+
+          <div class="header-info">
+            <!-- Time Display -->
+            <div class="time-display">
+              <q-icon name="schedule" size="sm" />
+              <span class="time-text">{{ currentTime }}</span>
+            </div>
+
+            <!-- Weather Display -->
+            <div class="weather-display" v-if="weatherData">
+              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
+              <span class="weather-text">{{ weatherData.temperature }}°C</span>
+              <span class="weather-location">{{ weatherData.location }}</span>
+            </div>
+
+            <!-- Loading Weather -->
+            <div class="weather-loading" v-else-if="weatherLoading">
+              <q-spinner size="sm" />
+              <span class="weather-text">Loading...</span>
+            </div>
+
+            <!-- Weather Error -->
+            <div class="weather-error" v-else-if="weatherError">
+              <q-icon name="error" size="sm" />
+              <span class="weather-text">Weather Update</span>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
+          </q-btn>
+        </div>
+
+        <!-- Bottom Row: Search Bar -->
+        <div class="header-bottom-row">
           <div class="search-container">
-            <q-input 
+            <q-input
               outlined
-              dense 
-              v-model="searchText" 
+              dense
+              v-model="searchText"
               placeholder="Search Patient, symptoms and Appointments"
               class="search-input"
               bg-color="white"
@@ -25,44 +68,18 @@
             </q-input>
           </div>
         </div>
-        
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn">
-            <q-badge color="red" floating>{{ unreadCount }}</q-badge>
-          </q-btn>
-          
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-          
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-          
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading...</span>
-          </div>
-          
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather unavailable</span>
-          </div>
-        </div>
-      </q-toolbar>
+      </div>
     </q-header>
 
     <!-- Sidebar -->
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -99,19 +116,19 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
             <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              text-color="white" 
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              text-color="white"
               size="sm"
             >
               {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
@@ -166,13 +183,7 @@
 
         <!-- Logout Section -->
         <div class="logout-section">
-          <q-btn
-            color="negative"
-            icon="logout"
-            label="Logout"
-            class="logout-btn"
-            @click="logout"
-          />
+          <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -209,18 +220,18 @@
                 :loading="loading"
               />
             </q-card-section>
-            
+
             <q-card-section class="card-content">
               <div v-if="loading" class="loading-section">
                 <q-spinner color="primary" size="2em" />
                 <p class="loading-text">Loading patients...</p>
               </div>
-              
+
               <div v-else-if="patients.length === 0" class="empty-section">
                 <q-icon name="people" size="48px" color="grey-5" />
                 <p class="empty-text">No patients found</p>
               </div>
-              
+
               <div v-else class="patients-list">
                 <div
                   v-for="patient in filteredPatients"
@@ -232,37 +243,31 @@
                     <q-avatar size="50px">
                       <img
                         v-if="patient.profile_picture"
-                        :src="patient.profile_picture.startsWith('http') ? patient.profile_picture : `http://localhost:8000${patient.profile_picture}`"
+                        :src="
+                          patient.profile_picture.startsWith('http')
+                            ? patient.profile_picture
+                            : `http://localhost:8000${patient.profile_picture}`
+                        "
                         :alt="patient.full_name"
                       />
-                      <q-icon
-                        v-else
-                        name="person"
-                        size="25px"
-                        color="white"
-                      />
+                      <q-icon v-else name="person" size="25px" color="white" />
                     </q-avatar>
                   </div>
-                  
+
                   <div class="patient-info">
                     <h6 class="patient-name">{{ patient.full_name }}</h6>
                     <p class="patient-details">
-                      Age: {{ patient.age || 'N/A' }} | 
-                      {{ patient.gender || 'N/A' }} | 
+                      Age: {{ patient.age || 'N/A' }} | {{ patient.gender || 'N/A' }} |
                       {{ patient.blood_type || 'N/A' }}
                     </p>
-                    <p class="patient-condition">{{ patient.medical_condition || 'No condition specified' }}</p>
+                    <p class="patient-condition">
+                      {{ patient.medical_condition || 'No condition specified' }}
+                    </p>
                     <div class="patient-status">
-                      <q-chip
-                        :color="patient.is_dummy ? 'orange' : 'primary'"
-                        text-color="white"
-                        size="sm"
-                      >
-                        {{ patient.is_dummy ? 'Dummy Data' : 'Real Patient' }}
-                      </q-chip>
+                      <q-chip color="primary" text-color="white" size="sm"> Patient </q-chip>
                     </div>
                   </div>
-                  
+
                   <div class="patient-actions">
                     <q-btn
                       flat
@@ -291,20 +296,12 @@
             <q-card-section class="card-header">
               <h5 class="card-title">Patient Statistics</h5>
             </q-card-section>
-            
+
             <q-card-section class="card-content">
               <div class="stats-grid">
                 <div class="stat-item">
                   <div class="stat-number">{{ patients.length }}</div>
                   <div class="stat-label">Total Patients</div>
-                </div>
-                <div class="stat-item">
-                  <div class="stat-number">{{ realPatientsCount }}</div>
-                  <div class="stat-label">Real Patients</div>
-                </div>
-                <div class="stat-item">
-                  <div class="stat-number">{{ dummyPatientsCount }}</div>
-                  <div class="stat-label">Dummy Data</div>
                 </div>
                 <div class="stat-item">
                   <div class="stat-number">{{ activePatientsCount }}</div>
@@ -316,280 +313,450 @@
         </div>
       </div>
     </q-page-container>
+
+    <!-- Notifications Modal -->
+    <q-dialog v-model="showNotifications" persistent>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
+            No notifications yet
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item
+                v-for="notification in notifications"
+                :key="notification.id"
+                clickable
+                @click="handleNotificationClick(notification)"
+                :class="{ unread: !notification.is_read }"
+              >
+                <q-item-section avatar>
+                  <q-icon name="info" color="primary" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ notification.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{
+                    formatTime(notification.created_at)
+                  }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="!notification.is_read">
+                  <q-badge color="red" rounded />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="notifications.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
-import { api } from 'boot/axios'
+import { ref, onMounted, computed } from 'vue';
+import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
+import { api } from 'boot/axios';
 
 // Types
 interface Patient {
-  id: number
-  user_id: number
-  full_name: string
-  email: string
-  age: number | null
-  gender: string
-  blood_type: string
-  medical_condition: string
-  hospital: string
-  insurance_provider: string
-  billing_amount: number | null
-  room_number: string
-  admission_type: string
-  date_of_admission: string
-  discharge_date: string
-  medication: string
-  test_results: string
-  is_dummy: boolean
-  assigned_doctor: string | null
-  profile_picture?: string | null
+  id: number;
+  user_id: number;
+  full_name: string;
+  email: string;
+  age: number | null;
+  gender: string;
+  blood_type: string;
+  medical_condition: string;
+  hospital: string;
+  insurance_provider: string;
+  billing_amount: number | null;
+  room_number: string;
+  admission_type: string;
+  date_of_admission: string;
+  discharge_date: string;
+  medication: string;
+  test_results: string;
+  assigned_doctor: string | null;
+  profile_picture?: string | null;
 }
 
 // Reactive data
-const $q = useQuasar()
-const router = useRouter()
-const rightDrawerOpen = ref(false)
-const loading = ref(false)
-const searchText = ref('')
-const currentTime = ref('')
-const patients = ref<Patient[]>([])
-const selectedPatient = ref<Patient | null>(null)
+const $q = useQuasar();
+const router = useRouter();
+const rightDrawerOpen = ref(false);
+const loading = ref(false);
+const searchText = ref('');
+const currentTime = ref('');
+const patients = ref<Patient[]>([]);
+const selectedPatient = ref<Patient | null>(null);
+const showNotifications = ref(false);
 
 // User profile data
 const userProfile = ref<{
-  full_name: string
-  specialization?: string
-  role: string
-  profile_picture: string | null
-  verification_status: string
+  full_name: string;
+  specialization?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
 }>({
   full_name: 'Loading...',
   specialization: 'Loading specialization...',
   role: 'doctor',
   profile_picture: null,
-  verification_status: 'not_submitted'
-})
+  verification_status: 'not_submitted',
+});
 
 // Weather data
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
+  temperature: number;
+  condition: string;
+  location: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
+
+// Notification system
+const notifications = ref<
+  {
+    id: number;
+    message: string;
+    is_read: boolean;
+    created_at: string;
+  }[]
+>([]);
+
+// Notification interface
+interface Notification {
+  id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
 
 // Profile picture handling
 const userInitials = computed(() => {
-  const name = userProfile.value.full_name || 'User'
-  return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase()
-})
+  const name = userProfile.value.full_name || 'User';
+  return name
+    .split(' ')
+    .map((n) => n.charAt(0))
+    .join('')
+    .toUpperCase();
+});
 
 const triggerFileUpload = () => {
-  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
   if (fileInput) {
-    fileInput.click()
+    fileInput.click();
   }
-}
+};
 
 const handleProfilePictureUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
+    const file = target.files[0];
     // Handle file upload logic here
-    console.log('File selected:', file.name)
+    console.log('File selected:', file.name);
   }
-}
+};
 
 // Computed properties
-const unreadCount = computed(() => 0) // Placeholder for unread count
 
 const profilePictureUrl = computed(() => {
   if (!userProfile.value.profile_picture) {
-    return null
+    return null;
   }
-  
+
   if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture
+    return userProfile.value.profile_picture;
   }
-  
-  return `http://localhost:8000${userProfile.value.profile_picture}`
-})
+
+  return `http://localhost:8000${userProfile.value.profile_picture}`;
+});
 
 const filteredPatients = computed(() => {
-  if (!searchText.value) return patients.value
-  
-  const search = searchText.value.toLowerCase()
-  return patients.value.filter(patient => 
-    patient.full_name.toLowerCase().includes(search) ||
-    patient.medical_condition.toLowerCase().includes(search) ||
-    patient.hospital.toLowerCase().includes(search)
-  )
-})
+  if (!searchText.value) return patients.value;
 
-const realPatientsCount = computed(() => 
-  patients.value.filter(p => !p.is_dummy).length
-)
+  const search = searchText.value.toLowerCase();
+  return patients.value.filter(
+    (patient) =>
+      patient.full_name.toLowerCase().includes(search) ||
+      patient.medical_condition.toLowerCase().includes(search) ||
+      patient.hospital.toLowerCase().includes(search),
+  );
+});
 
-const dummyPatientsCount = computed(() => 
-  patients.value.filter(p => p.is_dummy).length
-)
-
-const activePatientsCount = computed(() => 
-  patients.value.filter(p => p.discharge_date === null || p.discharge_date === '').length
-)
+const activePatientsCount = computed(
+  () => patients.value.filter((p) => p.discharge_date === null || p.discharge_date === '').length,
+);
 
 // Methods
 const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const updateTime = () => {
   currentTime.value = new Date().toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
-  })
-}
+    second: '2-digit',
+  });
+};
 
 const getWeatherIcon = (condition: string): string => {
   const iconMap: { [key: string]: string } = {
-    'sunny': 'wb_sunny',
-    'cloudy': 'cloud',
-    'rainy': 'grain',
-    'stormy': 'thunderstorm',
-    'snowy': 'ac_unit',
-    'foggy': 'foggy'
-  }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+    sunny: 'wb_sunny',
+    cloudy: 'cloud',
+    rainy: 'grain',
+    stormy: 'thunderstorm',
+    snowy: 'ac_unit',
+    foggy: 'foggy',
+  };
+  return iconMap[condition.toLowerCase()] || 'wb_sunny';
+};
 
 const fetchWeatherData = async (): Promise<void> => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     weatherData.value = {
       temperature: 28,
       condition: 'sunny',
-      location: 'Mandaluyong City'
-    }
+      location: 'Mandaluyong City',
+    };
   } catch (error) {
-    console.error('Failed to fetch weather data:', error)
-    weatherError.value = true
+    console.error('Failed to fetch weather data:', error);
+    weatherError.value = true;
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 const loadPatients = async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    const response = await api.get('/users/doctor/patients/')
+    const response = await api.get('/users/doctor/patients/');
     if (response.data.success) {
-      patients.value = response.data.patients
-      console.log('Patients loaded:', patients.value.length)
+      patients.value = response.data.patients;
+      console.log('Patients loaded:', patients.value.length);
     }
   } catch (error) {
-    console.error('Failed to load patients:', error)
+    console.error('Failed to load patients:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load patients',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const selectPatient = (patient: Patient) => {
-  selectedPatient.value = patient
-  console.log('Selected patient:', patient)
-}
+  selectedPatient.value = patient;
+  console.log('Selected patient:', patient);
+};
 
 const viewPatientDetails = (patient: Patient) => {
   $q.notify({
     type: 'info',
     message: `Viewing details for ${patient.full_name}`,
-    position: 'top'
-  })
-}
+    position: 'top',
+  });
+};
 
 const editPatient = (patient: Patient) => {
   $q.notify({
     type: 'info',
     message: `Editing ${patient.full_name}`,
-    position: 'top'
-  })
-}
+    position: 'top',
+  });
+};
 
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user;
+
     userProfile.value = {
       full_name: userData.full_name,
       specialization: userData.doctor_profile?.specialization,
       role: userData.role,
       profile_picture: userData.profile_picture || null,
-      verification_status: userData.verification_status
-    }
+      verification_status: userData.verification_status,
+    };
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
+    console.error('Failed to fetch user profile:', error);
   }
-}
+};
 
 const navigateTo = (route: string) => {
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   switch (route) {
     case 'doctor-dashboard':
-      void router.push('/doctor-dashboard')
-      break
+      void router.push('/doctor-dashboard');
+      break;
     case 'appointments':
-      void router.push('/doctor-appointments')
-      break
+      void router.push('/doctor-appointments');
+      break;
     case 'messaging':
-      void router.push('/doctor-messaging')
-      break
+      void router.push('/doctor-messaging');
+      break;
     case 'patients':
       // Already on patient management
-      break
+      break;
     case 'analytics':
-      void router.push('/doctor-predictive-analytics')
-      break
+      void router.push('/doctor-predictive-analytics');
+      break;
     case 'settings':
-      void router.push('/doctor-settings')
-      break
+      void router.push('/doctor-settings');
+      break;
   }
-}
+};
 
 const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
 // Lifecycle
+// Notification functions
+const unreadNotificationsCount = computed(() => {
+  return notifications.value.filter((n) => !n.is_read).length;
+});
+
+const loadNotifications = async (): Promise<void> => {
+  try {
+    console.log('📬 Loading doctor notifications...');
+
+    const response = await api.get('/operations/notifications/');
+    notifications.value = response.data || [];
+
+    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+  } catch (error: unknown) {
+    console.error('❌ Error loading doctor notifications:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load notifications',
+    });
+  }
+};
+
+const handleNotificationClick = (notification: Notification): void => {
+  // Mark as read
+  notification.is_read = true;
+
+  // Update on backend
+  void markNotificationAsRead(notification.id);
+};
+
+const markNotificationAsRead = async (notificationId: number): Promise<void> => {
+  try {
+    await api.patch(`/operations/notifications/${notificationId}/mark-read/`);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+};
+
+const markAllNotificationsRead = async (): Promise<void> => {
+  try {
+    // Mark all notifications as read locally
+    notifications.value.forEach((notification) => {
+      notification.is_read = true;
+    });
+
+    // Mark all notifications as read on backend
+    await api.post('/operations/notifications/mark-all-read/');
+
+    $q.notify({
+      type: 'positive',
+      message: 'All notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to mark notifications as read',
+    });
+  }
+};
+
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
 onMounted(() => {
-  console.log('🚀 DoctorPatientManagement component mounted')
-  void fetchUserProfile()
-  updateTime()
-  setInterval(updateTime, 1000)
-  void loadPatients()
-  void fetchWeatherData()
-})
+  console.log('🚀 DoctorPatientManagement component mounted');
+  void fetchUserProfile();
+  void loadNotifications();
+  updateTime();
+  setInterval(updateTime, 1000);
+  void loadPatients();
+  void fetchWeatherData();
+
+  // Refresh notifications every 30 seconds
+  setInterval(() => void loadNotifications(), 30000);
+});
 </script>
 
 <style scoped>
 /* Import the same styles as DoctorDashboard */
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
 /* Prototype Header Styles */
 .prototype-header {
   background: #286660;
@@ -632,14 +799,19 @@ onMounted(() => {
   color: white;
 }
 
-.time-display, .weather-display, .weather-loading, .weather-error {
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 8px;
   color: white;
 }
 
-.time-text, .weather-text, .weather-location {
+.time-text,
+.weather-text,
+.weather-location {
   font-size: 14px;
   font-weight: 500;
 }
@@ -980,7 +1152,8 @@ onMounted(() => {
 }
 
 /* Loading and Empty States */
-.loading-section, .empty-section {
+.loading-section,
+.empty-section {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -989,39 +1162,194 @@ onMounted(() => {
   color: #666;
 }
 
-.loading-text, .empty-text {
+.loading-text,
+.empty-text {
   margin-top: 15px;
   font-size: 14px;
 }
 
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    padding: 0 16px;
+    min-height: 56px;
+    padding-top: max(env(safe-area-inset-top), 4px);
+  }
+
+  /* Mobile Header Layout */
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+
+  .q-page-container {
+    padding: 8px;
+  }
+
+  .q-card {
+    margin: 8px 0;
+    border-radius: 12px;
+  }
+
+  .q-card__section {
+    padding: 16px;
+  }
+
   .management-cards-grid {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 12px;
   }
-  
+
   .greeting-content {
     flex-direction: column;
     text-align: center;
-    gap: 16px;
+    gap: 12px;
+    padding: 16px;
   }
-  
+
   .greeting-title {
-    font-size: 2rem;
+    font-size: 1.5rem;
+    margin-bottom: 8px;
   }
-  
+
+  .greeting-subtitle {
+    font-size: 13px;
+  }
+
   .stats-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
-  
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+  }
+
   .patient-card {
     flex-direction: column;
     text-align: center;
+    padding: 16px;
   }
-  
+
+  .patient-info h6 {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .patient-info .text-caption {
+    font-size: 12px;
+  }
+
   .patient-actions {
     justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .q-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .q-field {
+    margin-bottom: 12px;
+  }
+
+  .q-field__label {
+    font-size: 14px;
+  }
+
+  .q-field__control {
+    font-size: 14px;
   }
 }
 
@@ -1076,5 +1404,64 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   font-size: 12px;
+}
+
+/* Notification styles */
+.unread {
+  background-color: rgba(25, 118, 210, 0.05);
+  border-left: 3px solid #1976d2;
+}
+
+.unread .q-item-label {
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .header-toolbar {
+    padding: 0 12px;
+    min-height: 52px;
+    padding-top: max(env(safe-area-inset-top), 6px);
+  }
+
+  /* Mobile Header Layout - Extra Small */
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
+  }
+
+  .header-bottom-row {
+    padding: 0 8px 4px;
+  }
+
+  .header-info {
+    gap: 6px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
 }
 </style>

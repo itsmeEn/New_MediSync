@@ -1,17 +1,17 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header">
+    <q-header elevated class="prototype-header safe-area-top">
       <q-toolbar class="header-toolbar">
         <!-- Menu button to open sidebar -->
         <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
+
         <!-- Left side - Search bar -->
         <div class="header-left">
           <div class="search-container">
-            <q-input 
+            <q-input
               outlined
-              dense 
-              v-model="searchText" 
+              dense
+              v-model="searchText"
               placeholder="Search Patient, symptoms and Appointments"
               class="search-input"
               bg-color="white"
@@ -25,33 +25,41 @@
             </q-input>
           </div>
         </div>
-        
+
         <!-- Right side - Notifications, Time, Weather -->
         <div class="header-right">
           <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn" @click="showNotifications = true">
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{ unreadNotificationsCount }}</q-badge>
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
           </q-btn>
-          
+
           <!-- Time Display -->
           <div class="time-display">
             <q-icon name="schedule" size="md" />
             <span class="time-text">{{ currentTime }}</span>
           </div>
-          
+
           <!-- Weather Display -->
           <div class="weather-display" v-if="weatherData">
             <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
             <span class="weather-text">{{ weatherData.temperature }}°C</span>
             <span class="weather-location">{{ weatherData.location }}</span>
           </div>
-          
+
           <!-- Loading Weather -->
           <div class="weather-loading" v-else-if="weatherLoading">
             <q-spinner size="sm" />
             <span class="weather-text">Loading weather...</span>
           </div>
-          
+
           <!-- Weather Error -->
           <div class="weather-error" v-else-if="weatherError">
             <q-icon name="error" size="sm" />
@@ -59,9 +67,85 @@
           </div>
         </div>
       </q-toolbar>
+
+      <!-- Mobile Header Layout -->
+      <div class="mobile-header-layout">
+        <!-- Top Row: Menu, Time, Weather, Notifications -->
+        <div class="header-top-row">
+          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+
+          <div class="header-info">
+            <!-- Time Display -->
+            <div class="time-display">
+              <q-icon name="schedule" size="sm" />
+              <span class="time-text">{{ currentTime }}</span>
+            </div>
+
+            <!-- Weather Display -->
+            <div class="weather-display" v-if="weatherData">
+              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
+              <span class="weather-text">{{ weatherData.temperature }}°C</span>
+              <span class="weather-location">{{ weatherData.location }}</span>
+            </div>
+
+            <!-- Loading Weather -->
+            <div class="weather-loading" v-else-if="weatherLoading">
+              <q-spinner size="sm" />
+              <span class="weather-text">Loading...</span>
+            </div>
+
+            <!-- Weather Error -->
+            <div class="weather-error" v-else-if="weatherError">
+              <q-icon name="error" size="sm" />
+              <span class="weather-text">Weather Update</span>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
+          </q-btn>
+        </div>
+
+        <!-- Bottom Row: Search Bar -->
+        <div class="header-bottom-row">
+          <div class="search-container">
+            <q-input
+              outlined
+              dense
+              v-model="searchText"
+              placeholder="Search Patient, symptoms and Appointments"
+              class="search-input"
+              bg-color="white"
+            >
+              <template v-slot:prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+              <template v-slot:append v-if="searchText">
+                <q-icon name="clear" class="cursor-pointer" @click="searchText = ''" />
+              </template>
+            </q-input>
+          </div>
+        </div>
+      </div>
     </q-header>
 
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -98,19 +182,19 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
             <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              text-color="white" 
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              text-color="white"
               size="sm"
             >
               {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
@@ -165,13 +249,7 @@
 
         <!-- Logout Section -->
         <div class="logout-section">
-          <q-btn 
-            color="negative" 
-            label="Logout" 
-            icon="logout" 
-            class="logout-btn"
-            @click="logout"
-          />
+          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -208,18 +286,18 @@
                 :loading="loading"
               />
             </q-card-section>
-            
+
             <q-card-section class="card-content">
               <div v-if="loading" class="loading-section">
                 <q-spinner color="primary" size="2em" />
                 <p class="loading-text">Loading users...</p>
               </div>
-              
+
               <div v-else-if="availableUsers.length === 0" class="empty-section">
                 <q-icon name="people" size="48px" color="grey-5" />
                 <p class="empty-text">No users available</p>
               </div>
-              
+
               <div v-else class="users-carousel">
                 <q-carousel
                   v-model="currentSlide"
@@ -249,7 +327,11 @@
                           <q-avatar size="80px" class="user-avatar">
                             <img
                               v-if="user.profile_picture"
-                              :src="user.profile_picture.startsWith('http') ? user.profile_picture : `http://localhost:8000${user.profile_picture}`"
+                              :src="
+                                user.profile_picture.startsWith('http')
+                                  ? user.profile_picture
+                                  : `http://localhost:8000${user.profile_picture}`
+                              "
                               :alt="user.full_name"
                             />
                             <q-icon
@@ -260,20 +342,13 @@
                             />
                           </q-avatar>
                         </div>
-                        
+
                         <div class="avatar-info">
                           <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
                           <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
                         </div>
-                        
-                        <q-btn
-                          flat
-                          round
-                          icon="chat"
-                          color="primary"
-                          size="sm"
-                          class="chat-btn"
-                        />
+
+                        <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
                       </div>
                     </div>
                   </q-carousel-slide>
@@ -305,13 +380,13 @@
                   @click="showNewConversationDialog = true"
                 />
               </div>
-              
+
               <div v-if="conversations.length === 0" class="empty-section">
                 <q-icon name="chat" size="48px" color="grey-5" />
                 <p class="empty-text">No conversations yet</p>
                 <p class="empty-subtext">Start a conversation with a user</p>
               </div>
-              
+
               <div v-else class="conversations-list">
                 <div
                   v-for="conversation in conversations"
@@ -323,18 +398,26 @@
                     <q-avatar size="45px">
                       <img
                         v-if="conversation.other_participant?.profile_picture"
-                        :src="conversation.other_participant.profile_picture.startsWith('http') ? conversation.other_participant.profile_picture : `http://localhost:8000${conversation.other_participant.profile_picture}`"
+                        :src="
+                          conversation.other_participant.profile_picture.startsWith('http')
+                            ? conversation.other_participant.profile_picture
+                            : `http://localhost:8000${conversation.other_participant.profile_picture}`
+                        "
                         :alt="conversation.other_participant.full_name"
                       />
                       <q-icon
                         v-else
-                        :name="conversation.other_participant?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                        :name="
+                          conversation.other_participant?.role === 'doctor'
+                            ? 'medical_services'
+                            : 'local_hospital'
+                        "
                         size="22px"
                         color="white"
                       />
                     </q-avatar>
                   </div>
-                  
+
                   <div class="conversation-info">
                     <h6 class="conversation-name">
                       {{ conversation.other_participant?.full_name || 'Name of Users' }}
@@ -343,7 +426,7 @@
                       {{ conversation.last_message?.content || 'Chat content here' }}
                     </p>
                   </div>
-                  
+
                   <div class="conversation-meta">
                     <span class="conversation-time">
                       {{ formatTime(conversation.last_message?.created_at) }}
@@ -367,19 +450,23 @@
         <q-card class="chat-modal">
           <q-card-section class="chat-header">
             <div class="chat-user-info">
-            <q-avatar size="40px">
-              <img
-                v-if="selectedUser?.profile_picture"
-                :src="selectedUser.profile_picture.startsWith('http') ? selectedUser.profile_picture : `http://localhost:8000${selectedUser.profile_picture}`"
-                :alt="selectedUser.full_name"
-              />
-              <q-icon
-                v-else
-                :name="selectedUser?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
-                size="20px"
-                color="white"
-              />
-            </q-avatar>
+              <q-avatar size="40px">
+                <img
+                  v-if="selectedUser?.profile_picture"
+                  :src="
+                    selectedUser.profile_picture.startsWith('http')
+                      ? selectedUser.profile_picture
+                      : `http://localhost:8000${selectedUser.profile_picture}`
+                  "
+                  :alt="selectedUser.full_name"
+                />
+                <q-icon
+                  v-else
+                  :name="selectedUser?.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                  size="20px"
+                  color="white"
+                />
+              </q-avatar>
               <div class="chat-user-details">
                 <h6 class="text-h6 text-white q-mb-none">
                   {{ selectedUser?.full_name || 'Unknown User' }}
@@ -398,7 +485,7 @@
               <p class="text-grey-6">No messages yet</p>
               <p class="text-grey-6 text-caption">Start the conversation by sending a message</p>
             </div>
-            
+
             <div
               v-for="message in messages"
               :key="message.id"
@@ -410,12 +497,18 @@
                   <q-avatar size="32px">
                     <img
                       v-if="message.sender.profile_picture"
-                      :src="message.sender.profile_picture.startsWith('http') ? message.sender.profile_picture : `http://localhost:8000${message.sender.profile_picture}`"
+                      :src="
+                        message.sender.profile_picture.startsWith('http')
+                          ? message.sender.profile_picture
+                          : `http://localhost:8000${message.sender.profile_picture}`
+                      "
                       :alt="message.sender.full_name"
                     />
                     <q-icon
                       v-else
-                      :name="message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                      :name="
+                        message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'
+                      "
                       size="16px"
                       color="white"
                     />
@@ -427,26 +520,11 @@
                     {{ formatTime(message.created_at) }}
                   </span>
                 </div>
-                
+
                 <div class="message-body">
                   <p v-if="message.content" class="message-text">
                     {{ message.content }}
                   </p>
-                  
-                  <!-- File attachment display -->
-                  <div v-if="message.file_attachment" class="file-attachment">
-                    <q-btn
-                      flat
-                      dense
-                      icon="attach_file"
-                      :label="message.file_name || 'Download File'"
-                      @click="downloadFile(message)"
-                      class="file-download-btn"
-                    />
-                    <span v-if="message.file_size" class="file-size">
-                      ({{ formatFileSize(message.file_size) }})
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -461,16 +539,6 @@
                 :disable="!selectedUser"
                 class="message-input"
               >
-                <template v-slot:prepend>
-                  <q-btn
-                    flat
-                    round
-                    icon="attach_file"
-                    color="primary"
-                    @click="() => fileInput?.click()"
-                    :disable="!selectedUser"
-                  />
-                </template>
                 <template v-slot:append>
                   <q-btn
                     flat
@@ -482,13 +550,6 @@
                   />
                 </template>
               </q-input>
-              <input
-                ref="fileInput"
-                type="file"
-                accept="image/*,.pdf,.doc,.docx,.txt"
-                style="display: none"
-                @change="handleFileUpload"
-              />
             </div>
           </q-card-section>
         </q-card>
@@ -496,36 +557,38 @@
 
       <!-- Notifications Modal -->
       <q-dialog v-model="showNotifications" persistent>
-        <q-card style="width: 400px; max-width: 90vw;">
+        <q-card style="width: 400px; max-width: 90vw">
           <q-card-section class="row items-center q-pb-none">
             <div class="text-h6">Notifications</div>
             <q-space />
             <q-btn icon="close" flat round dense v-close-popup />
           </q-card-section>
-          
+
           <q-card-section>
             <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
               No notifications yet
             </div>
             <div v-else>
               <q-list>
-                <q-item 
-                  v-for="notification in notifications" 
+                <q-item
+                  v-for="notification in notifications"
                   :key="notification.id"
                   clickable
                   @click="handleNotificationClick(notification)"
-                  :class="{ 'unread': !notification.isRead }"
+                  :class="{ unread: !notification.isRead }"
                 >
                   <q-item-section avatar>
-                    <q-icon 
-                      :name="notification.type === 'message' ? 'message' : 'info'" 
+                    <q-icon
+                      :name="notification.type === 'message' ? 'message' : 'info'"
                       :color="notification.type === 'message' ? 'primary' : 'grey'"
                     />
                   </q-item-section>
                   <q-item-section>
                     <q-item-label>{{ notification.title }}</q-item-label>
                     <q-item-label caption>{{ notification.message }}</q-item-label>
-                    <q-item-label caption class="text-grey-5">{{ formatTime(notification.created_at) }}</q-item-label>
+                    <q-item-label caption class="text-grey-5">{{
+                      formatTime(notification.created_at)
+                    }}</q-item-label>
                   </q-item-section>
                   <q-item-section side v-if="!notification.isRead">
                     <q-badge color="red" rounded />
@@ -534,7 +597,7 @@
               </q-list>
             </div>
           </q-card-section>
-          
+
           <q-card-actions align="right" v-if="notifications.length > 0">
             <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
             <q-btn flat label="Close" color="primary" v-close-popup />
@@ -546,623 +609,529 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRouter } from 'vue-router'
-import { api } from 'boot/axios'
+import { ref, onMounted, computed } from 'vue';
+import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
+import { api } from 'boot/axios';
 
 // Types
 interface User {
-  id: number
-  full_name: string
-  role: string
-  profile_picture?: string
-  is_active?: boolean
+  id: number;
+  full_name: string;
+  role: string;
+  profile_picture?: string;
+  is_active?: boolean;
 }
 
 interface Message {
-  id: number
-  sender: User
-  content: string
-  created_at: string
-  file_attachment?: string
-  file_name?: string
-  file_size?: number
+  id: number;
+  sender: User;
+  content: string;
+  created_at: string;
 }
 
 interface Conversation {
-  id: number
-  other_participant?: User
-  last_message?: Message
-  unread_count: number
+  id: number;
+  other_participant?: User;
+  last_message?: Message;
+  unread_count: number;
 }
 
 // Reactive data
-const $q = useQuasar()
-const router = useRouter()
-const rightDrawerOpen = ref(false)
-const loading = ref(false)
-const searchText = ref('')
-const currentTime = ref('')
+const $q = useQuasar();
+const router = useRouter();
+const rightDrawerOpen = ref(false);
+const loading = ref(false);
+const searchText = ref('');
+const currentTime = ref('');
 
 // Notification system
-const showNotifications = ref(false)
-const notifications = ref<Notification[]>([])
+const showNotifications = ref(false);
+const notifications = ref<Notification[]>([]);
 
 interface Notification {
-  id: number
-  title: string
-  message: string
-  type: 'message' | 'system'
-  isRead: boolean
-  created_at: string
-  sender_id?: number
-  conversation_id?: number
+  id: number;
+  title: string;
+  message: string;
+  type: 'message' | 'system';
+  isRead: boolean;
+  created_at: string;
+  sender_id?: number;
+  conversation_id?: number;
 }
-const availableUsers = ref<User[]>([])
-const conversations = ref<Conversation[]>([])
-const messages = ref<Message[]>([])
-const currentUser = ref<User>({ id: 0, full_name: '', role: '' })
-const selectedUser = ref<User | null>(null)
-const selectedConversation = ref<Conversation | null>(null)
-const showChatModal = ref(false)
-const showNewConversationDialog = ref(false)
-const newMessage = ref('')
-const profileFileInput = ref<HTMLInputElement | null>(null)
-const fileInput = ref<HTMLInputElement | null>(null)
-const currentSlide = ref(0)
+const availableUsers = ref<User[]>([]);
+const conversations = ref<Conversation[]>([]);
+const messages = ref<Message[]>([]);
+const currentUser = ref<User>({ id: 0, full_name: '', role: '' });
+const selectedUser = ref<User | null>(null);
+const selectedConversation = ref<Conversation | null>(null);
+const showChatModal = ref(false);
+const showNewConversationDialog = ref(false);
+const newMessage = ref('');
+const profileFileInput = ref<HTMLInputElement | null>(null);
+const currentSlide = ref(0);
 
 // Weather data
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
+  temperature: number;
+  condition: string;
+  location: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
 
 // User profile
 const userProfile = ref<{
-  full_name: string
-  specialization?: string
-  role: string
-  profile_picture: string | null
-  verification_status: string
+  full_name: string;
+  specialization?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
 }>({
   full_name: 'Loading...',
   specialization: 'Loading specialization...',
   role: 'doctor',
   profile_picture: null,
-  verification_status: 'not_submitted'
-})
+  verification_status: 'not_submitted',
+});
 
 // Computed
 const userInitials = computed(() => {
-  const name = currentUser.value.full_name || ''
-  return name.split(' ').map(n => n[0]).join('').toUpperCase()
-})
+  const name = currentUser.value.full_name || '';
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+});
 
 const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter(n => !n.isRead).length
-})
+  return notifications.value.filter((n) => !n.isRead).length;
+});
 
 const profilePictureUrl = computed(() => {
   if (!currentUser.value.profile_picture) {
-    return null
+    return null;
   }
-  
+
   // If it's already a full URL, return as is
   if (currentUser.value.profile_picture.startsWith('http')) {
-    return currentUser.value.profile_picture
+    return currentUser.value.profile_picture;
   }
-  
+
   // Otherwise, construct the full URL
-  return `http://localhost:8000${currentUser.value.profile_picture}`
-})
+  return `http://localhost:8000${currentUser.value.profile_picture}`;
+});
 
 const userGroups = computed(() => {
-  const groups = []
-  const usersPerSlide = 6 // Show 6 users per slide
-  
+  const groups = [];
+  const usersPerSlide = 6; // Show 6 users per slide
+
   for (let i = 0; i < availableUsers.value.length; i += usersPerSlide) {
-    groups.push(availableUsers.value.slice(i, i + usersPerSlide))
+    groups.push(availableUsers.value.slice(i, i + usersPerSlide));
   }
-  
-  return groups
-})
+
+  return groups;
+});
 
 // Methods
 const getCurrentUser = (): void => {
   try {
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      currentUser.value = JSON.parse(userData)
-      console.log('👤 Current user loaded:', currentUser.value)
+      currentUser.value = JSON.parse(userData);
+      console.log('👤 Current user loaded:', currentUser.value);
     } else {
-      console.error('❌ No user data found in localStorage')
+      console.error('❌ No user data found in localStorage');
     }
   } catch (error) {
-    console.error('❌ Error parsing user data:', error)
+    console.error('❌ Error parsing user data:', error);
   }
-}
+};
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user // The API returns nested user data
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user; // The API returns nested user data
+
     // Check localStorage for updated profile picture
-    const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
-    
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+
     userProfile.value = {
       full_name: userData.full_name,
       specialization: userData.doctor_profile?.specialization,
       role: userData.role,
       profile_picture: storedUser.profile_picture || userData.profile_picture || null,
-      verification_status: userData.verification_status
-    }
-    
-    console.log('👤 User profile loaded:', userProfile.value)
+      verification_status: userData.verification_status,
+    };
+
+    console.log('👤 User profile loaded:', userProfile.value);
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
-    
+    console.error('Failed to fetch user profile:', error);
+
     // Fallback to localStorage
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      const user = JSON.parse(userData)
+      const user = JSON.parse(userData);
       userProfile.value = {
         full_name: user.full_name,
         specialization: user.doctor_profile?.specialization,
         role: user.role,
         profile_picture: user.profile_picture || null,
-        verification_status: user.verification_status || 'not_submitted'
-      }
+        verification_status: user.verification_status || 'not_submitted',
+      };
     }
   }
-}
+};
 
 // Profile picture upload functions
 const triggerFileUpload = () => {
-  profileFileInput.value?.click()
-}
-
-
-const handleFileUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 10MB',
-        position: 'top',
-        timeout: 3000
-      })
-      return
-    }
-    
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('content', `📎 ${file.name}`)
-      
-      if (!selectedUser.value) return
-      
-      let conversation = conversations.value.find(c => 
-        c.other_participant?.id === selectedUser.value?.id
-      )
-      
-      if (!conversation) {
-        const response = await api.post('/operations/messaging/conversations/create/', {
-          other_user_id: selectedUser.value.id
-        })
-        conversation = response.data as Conversation
-        conversations.value.unshift(conversation)
-      }
-      
-      if (conversation) {
-        await api.post(`/operations/messaging/conversations/${conversation.id}/send/`, formData)
-        
-        await loadMessagesForUser(selectedUser.value.id)
-        await loadConversations()
-        
-        $q.notify({
-          type: 'positive',
-          message: 'File sent successfully'
-        })
-      }
-    } catch (error) {
-      console.error('❌ Error sending file:', error)
-      $q.notify({
-        type: 'negative',
-        message: 'Failed to send file'
-      })
-    }
-    
-    // Clear the file input
-    target.value = ''
-  }
-}
+  profileFileInput.value?.click();
+};
 
 const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
+    const file = target.files[0];
+
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       $q.notify({
         type: 'negative',
         message: 'Please select a valid image file (JPG, PNG)',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       $q.notify({
         type: 'negative',
         message: 'File size must be less than 5MB',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData)
-      
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/users/profile/update/picture/', formData);
+
       // Update both currentUser and userProfile
-      currentUser.value.profile_picture = response.data.user.profile_picture
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
+      currentUser.value.profile_picture = response.data.user.profile_picture;
+      userProfile.value.profile_picture = response.data.user.profile_picture;
+
       // Store the updated profile picture in localStorage for cross-page sync
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}')
-      storedUser.profile_picture = response.data.user.profile_picture
-      localStorage.setItem('user', JSON.stringify(storedUser))
-      
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      storedUser.profile_picture = response.data.user.profile_picture;
+      localStorage.setItem('user', JSON.stringify(storedUser));
+
       // Show success toast
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
-        timeout: 3000
-      })
-      
+        timeout: 3000,
+      });
+
       // Clear the file input
-      target.value = ''
+      target.value = '';
     } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error)
-      
-      let errorMessage = 'Failed to upload profile picture. Please try again.'
-      
+      console.error('Profile picture upload failed:', error);
+
+      let errorMessage = 'Failed to upload profile picture. Please try again.';
+
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { data?: { profile_picture?: string[], detail?: string } } }
+        const axiosError = error as {
+          response?: { data?: { profile_picture?: string[]; detail?: string } };
+        };
         if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0]
+          errorMessage = axiosError.response.data.profile_picture[0];
         } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail
+          errorMessage = axiosError.response.data.detail;
         }
       }
-      
+
       $q.notify({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
     }
   }
-}
+};
 
 const loadAvailableUsers = async (): Promise<void> => {
   try {
-    loading.value = true
-    console.log('📞 Loading available users...')
-    
-    const response = await api.get('/operations/messaging/available-users/')
-    availableUsers.value = response.data
-    console.log('✅ Available users loaded:', availableUsers.value)
-    console.log('📊 Total users found:', availableUsers.value.length)
-    
+    loading.value = true;
+    console.log('📞 Loading available users...');
+
+    const response = await api.get('/operations/messaging/available-users/');
+    availableUsers.value = response.data;
+    console.log('✅ Available users loaded:', availableUsers.value);
+    console.log('📊 Total users found:', availableUsers.value.length);
+
     // Log each user's verification status
     availableUsers.value.forEach((user: User) => {
-      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`)
-    })
+      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`);
+    });
   } catch (error) {
-    console.error('❌ Error loading available users:', error)
+    console.error('❌ Error loading available users:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to load users'
-    })
+      message: 'Failed to load users',
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const loadConversations = async (): Promise<void> => {
   try {
-    console.log('📞 Loading conversations...')
-    
-    const response = await api.get('/operations/messaging/conversations/')
-    conversations.value = response.data
-    console.log('✅ Conversations loaded:', conversations.value)
+    console.log('📞 Loading conversations...');
+
+    const response = await api.get('/operations/messaging/conversations/');
+    conversations.value = response.data;
+    console.log('✅ Conversations loaded:', conversations.value);
   } catch (error) {
-    console.error('❌ Error loading conversations:', error)
+    console.error('❌ Error loading conversations:', error);
   }
-}
+};
 
 const startConversation = (user: User): void => {
-  selectedUser.value = user
-  showChatModal.value = true
-  void loadMessagesForUser(user.id)
-}
+  selectedUser.value = user;
+  showChatModal.value = true;
+  void loadMessagesForUser(user.id);
+};
 
 const selectConversation = (conversation: Conversation): void => {
-  selectedConversation.value = conversation
+  selectedConversation.value = conversation;
   if (conversation.other_participant) {
-    selectedUser.value = conversation.other_participant
-    showChatModal.value = true
-    void loadMessagesForUser(conversation.other_participant.id)
+    selectedUser.value = conversation.other_participant;
+    showChatModal.value = true;
+    void loadMessagesForUser(conversation.other_participant.id);
   }
-}
+};
 
 const loadMessagesForUser = async (userId: number): Promise<void> => {
   try {
-    console.log('📞 Loading messages for user:', userId)
-    
-    const conversation = conversations.value.find(c => 
-      c.other_participant?.id === userId
-    )
-    
+    console.log('📞 Loading messages for user:', userId);
+
+    const conversation = conversations.value.find((c) => c.other_participant?.id === userId);
+
     if (conversation) {
-      const response = await api.get(`/operations/messaging/conversations/${conversation.id}/messages/`)
-      messages.value = response.data
-      console.log('✅ Messages loaded:', messages.value)
+      const response = await api.get(
+        `/operations/messaging/conversations/${conversation.id}/messages/`,
+      );
+      messages.value = response.data;
+      console.log('✅ Messages loaded:', messages.value);
     } else {
-      messages.value = []
-      console.log('ℹ️ No conversation found, starting fresh')
+      messages.value = [];
+      console.log('ℹ️ No conversation found, starting fresh');
     }
   } catch (error) {
-    console.error('❌ Error loading messages:', error)
-    messages.value = []
+    console.error('❌ Error loading messages:', error);
+    messages.value = [];
   }
-}
+};
 
 const sendMessage = async (): Promise<void> => {
-  if (!newMessage.value.trim() || !selectedUser.value) return
+  if (!newMessage.value.trim() || !selectedUser.value) return;
 
   try {
-    console.log('📤 Sending message:', newMessage.value)
-    
-    let conversation = conversations.value.find(c => 
-      c.other_participant?.id === selectedUser.value?.id
-    )
-    
+    console.log('📤 Sending message:', newMessage.value);
+
+    let conversation = conversations.value.find(
+      (c) => c.other_participant?.id === selectedUser.value?.id,
+    );
+
     if (!conversation) {
-      console.log('📝 Creating new conversation with user:', selectedUser.value.id)
+      console.log('📝 Creating new conversation with user:', selectedUser.value.id);
       const response = await api.post('/operations/messaging/conversations/create/', {
-        other_user_id: selectedUser.value.id
-      })
-      console.log('✅ Conversation created:', response.data)
-      conversation = response.data as Conversation
-      conversations.value.unshift(conversation)
+        other_user_id: selectedUser.value.id,
+      });
+      console.log('✅ Conversation created:', response.data);
+      conversation = response.data as Conversation;
+      conversations.value.unshift(conversation);
     }
-    
+
     if (conversation) {
       await api.post(`/operations/messaging/conversations/${conversation.id}/send/`, {
-        content: newMessage.value
-      })
-      
-      newMessage.value = ''
-      await loadMessagesForUser(selectedUser.value.id)
-      await loadConversations()
-      
+        content: newMessage.value,
+      });
+
+      newMessage.value = '';
+      await loadMessagesForUser(selectedUser.value.id);
+      await loadConversations();
+
       $q.notify({
         type: 'positive',
-        message: 'Message sent successfully'
-      })
+        message: 'Message sent successfully',
+      });
     }
   } catch (error: unknown) {
-    console.error('Error sending message:', error)
-    const axiosError = error as { response?: { data?: { error?: string }; status?: number }; message?: string }
-    console.error('Error details:', axiosError.response?.data)
-    console.error('Error status:', axiosError.response?.status)
+    console.error('Error sending message:', error);
+    const axiosError = error as {
+      response?: { data?: { error?: string }; status?: number };
+      message?: string;
+    };
+    console.error('Error details:', axiosError.response?.data);
+    console.error('Error status:', axiosError.response?.status);
     $q.notify({
       type: 'negative',
-      message: `Failed to send message: ${axiosError.response?.data?.error || axiosError.message || 'Unknown error'}`
-    })
+      message: `Failed to send message: ${axiosError.response?.data?.error || axiosError.message || 'Unknown error'}`,
+    });
   }
-}
+};
 
 const formatTime = (dateString?: string): string => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 const toggleRightDrawer = (): void => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const navigateTo = (route: string): void => {
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   switch (route) {
     case 'doctor-dashboard':
-      void router.push('/doctor-dashboard')
-      break
+      void router.push('/doctor-dashboard');
+      break;
     case 'appointments':
-      void router.push('/doctor-appointments')
-      break
+      void router.push('/doctor-appointments');
+      break;
     case 'messaging':
       // Already on messaging page
-      break
+      break;
     case 'patients':
-      void router.push('/doctor-patient-management')
-      break
+      void router.push('/doctor-patient-management');
+      break;
     case 'analytics':
-      void router.push('/doctor-predictive-analytics')
-      break
+      void router.push('/doctor-predictive-analytics');
+      break;
     case 'settings':
-      void router.push('/doctor-settings')
-      break
+      void router.push('/doctor-settings');
+      break;
   }
-}
+};
 
 const logout = (): void => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
 const updateTime = (): void => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('en-US', { 
-    hour12: true, 
-    hour: 'numeric', 
-    minute: '2-digit', 
-    second: '2-digit' 
-  })
-}
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString('en-US', {
+    hour12: true,
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+};
 
 // Notification functions
 const loadNotifications = async (): Promise<void> => {
   try {
-    const response = await api.get('/operations/messaging/notifications/')
-    notifications.value = response.data
+    const response = await api.get('/operations/messaging/notifications/');
+    notifications.value = response.data;
   } catch (error: unknown) {
-    console.error('Error loading notifications:', error)
+    console.error('Error loading notifications:', error);
   }
-}
+};
 
 const handleNotificationClick = (notification: Notification): void => {
   // Mark as read
-  notification.isRead = true
-  
+  notification.isRead = true;
+
   // If it's a message notification, open the chat
   if (notification.type === 'message' && notification.conversation_id) {
-    showNotifications.value = false
+    showNotifications.value = false;
     // Find and open the conversation
-    const conversation = conversations.value.find(c => c.id === notification.conversation_id)
+    const conversation = conversations.value.find((c) => c.id === notification.conversation_id);
     if (conversation && conversation.other_participant) {
-      selectedUser.value = conversation.other_participant
-      showChatModal.value = true
-      void loadMessagesForUser(conversation.other_participant.id)
+      selectedUser.value = conversation.other_participant;
+      showChatModal.value = true;
+      void loadMessagesForUser(conversation.other_participant.id);
     }
   }
-}
+};
 
 const markAllNotificationsRead = (): void => {
-  notifications.value.forEach(notification => {
-    notification.isRead = true
-  })
+  notifications.value.forEach((notification) => {
+    notification.isRead = true;
+  });
   $q.notify({
     type: 'positive',
-    message: 'All notifications marked as read'
-  })
-}
-
-// File download functions
-const downloadFile = (message: Message): void => {
-  if (!message.file_attachment) return
-  
-  try {
-    const fileUrl = message.file_attachment.startsWith('http') 
-      ? message.file_attachment 
-      : `http://localhost:8000${message.file_attachment}`
-    
-    // Create a temporary link to download the file
-    const link = document.createElement('a')
-    link.href = fileUrl
-    link.download = message.file_name || 'download'
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
-    $q.notify({
-      type: 'positive',
-      message: 'File download started'
-    })
-  } catch (error: unknown) {
-    console.error('Error downloading file:', error)
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to download file'
-    })
-  }
-}
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
+    message: 'All notifications marked as read',
+  });
+};
 
 // Weather icon mapping
 const getWeatherIcon = (condition: string): string => {
   const iconMap: { [key: string]: string } = {
-    'sunny': 'wb_sunny',
-    'cloudy': 'cloud',
-    'rainy': 'grain',
-    'stormy': 'thunderstorm',
-    'snowy': 'ac_unit',
-    'foggy': 'foggy'
-  }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+    sunny: 'wb_sunny',
+    cloudy: 'cloud',
+    rainy: 'grain',
+    stormy: 'thunderstorm',
+    snowy: 'ac_unit',
+    foggy: 'foggy',
+  };
+  return iconMap[condition.toLowerCase()] || 'wb_sunny';
+};
 
 // Fetch weather data
 const fetchWeatherData = async (): Promise<void> => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
     // Mock weather data - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     weatherData.value = {
       temperature: 28,
       condition: 'sunny',
-      location: 'Mandaluyong City'
-    }
+      location: 'Mandaluyong City',
+    };
   } catch (error) {
-    console.error('Failed to fetch weather data:', error)
-    weatherError.value = true
+    console.error('Failed to fetch weather data:', error);
+    weatherError.value = true;
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 // Lifecycle
 onMounted(() => {
-  console.log('🚀 DoctorMessaging component mounted')
-  getCurrentUser()
-  void fetchUserProfile()
-  updateTime()
-  setInterval(updateTime, 1000)
-  void loadAvailableUsers()
-  void loadConversations()
-  void loadNotifications()
-  void fetchWeatherData()
-  
+  console.log('🚀 DoctorMessaging component mounted');
+  getCurrentUser();
+  void fetchUserProfile();
+  updateTime();
+  setInterval(updateTime, 1000);
+  void loadAvailableUsers();
+  void loadConversations();
+  void loadNotifications();
+  void fetchWeatherData();
+
   // Refresh user profile every 30 seconds to check for verification status updates
   setInterval(() => {
-    void fetchUserProfile()
-  }, 30000)
-})
+    void fetchUserProfile();
+  }, 30000);
+});
 </script>
 
 <style scoped>
@@ -1215,7 +1184,10 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.time-display, .weather-display, .weather-loading, .weather-error {
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1504,7 +1476,6 @@ onMounted(() => {
   border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
-
 .user-info {
   flex: 1;
   display: flex;
@@ -1527,7 +1498,6 @@ onMounted(() => {
   margin: 0;
   text-align: center;
 }
-
 
 .chat-btn {
   margin-top: 8px;
@@ -1734,34 +1704,6 @@ onMounted(() => {
   color: white !important;
 }
 
-/* File attachment styles */
-.file-attachment {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.file-download-btn {
-  color: #286660 !important;
-  text-decoration: none;
-}
-
-.own-message .file-download-btn {
-  color: white !important;
-}
-
-.file-size {
-  font-size: 0.8em;
-  color: #666;
-  margin-left: 8px;
-}
-
-.own-message .file-size {
-  color: rgba(255, 255, 255, 0.8);
-}
-
 .message-header {
   display: flex;
   align-items: center;
@@ -1802,6 +1744,239 @@ onMounted(() => {
 
 .message-input {
   flex: 1;
+}
+
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ensure mobile header is always visible on mobile devices */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Force header visibility on iOS */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Responsive Design - Mobile and Web Support */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Mobile header positioning */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Desktop Header Layout */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Global Modal Safe Area Support */
+@media (max-width: 768px) {
+  :deep(.q-dialog) {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 20px) max(env(safe-area-inset-right), 8px)
+      max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px) !important;
+    margin: 0 !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding-top: max(env(safe-area-inset-top), 20px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
+    ) !important;
+    width: 100% !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 8px) - max(env(safe-area-inset-right), 8px)
+    ) !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 24px) max(env(safe-area-inset-right), 4px)
+      max(env(safe-area-inset-bottom), 4px) max(env(safe-area-inset-left), 4px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
+    ) !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 4px) - max(env(safe-area-inset-right), 4px)
+    ) !important;
+  }
+}
+
+/* Modal Close Button Styles */
+.modal-close-btn {
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+/* Desktop close button styling */
+@media (min-width: 769px) {
+  .modal-close-btn {
+    padding: 6px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 18px;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+  }
+}
+
+/* Mobile close button styling */
+@media (max-width: 768px) {
+  .modal-close-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-close-btn {
+    padding: 10px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 22px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
 }
 
 /* Prototype Header Styles */
@@ -1958,7 +2133,6 @@ onMounted(() => {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-
 .avatar-info {
   text-align: center;
   margin-bottom: 10px;
@@ -1982,7 +2156,6 @@ onMounted(() => {
   font-weight: 500;
 }
 
-
 .chat-btn {
   position: absolute;
   top: 10px;
@@ -2000,28 +2173,147 @@ onMounted(() => {
   .users-row {
     gap: 15px;
   }
-  
+
   .user-avatar-card {
     min-width: 100px;
     padding: 12px;
   }
-  
+
   .user-avatar {
     width: 60px !important;
     height: 60px !important;
   }
-  
+
   .avatar-name {
     font-size: 12px;
     max-width: 80px;
   }
-  
+
   .avatar-role {
     font-size: 10px;
   }
-  
+
   .avatar-status {
     font-size: 10px;
+  }
+}
+
+/* Desktop Layout - Show desktop header, hide mobile */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Mobile Layout - Hide desktop header, show mobile */
+@media (max-width: 768px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    display: none;
+  }
+
+  .mobile-header-layout {
+    padding: 8px 12px;
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .mobile-header-layout {
+    padding: 6px 8px;
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
+  }
+
+  .header-bottom-row {
+    padding: 0 8px 4px;
+  }
+
+  .header-info {
+    gap: 6px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
   }
 }
 </style>

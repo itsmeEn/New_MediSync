@@ -19,9 +19,9 @@ class User(AbstractUser):
         DOCTOR = "doctor", "Doctor"
         PATIENT = "patient", "Patient"
         
-    profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/%Y/%m/%d/', blank=True, null=True)
     verification_document = models.FileField(
-        upload_to='verification_documents/',
+        upload_to='verification_documents/%Y/%m/%d/',
         blank=True,
         null=True,
         help_text="Upload a PDF, JPG, or PNG file for identity verification"

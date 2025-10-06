@@ -29,16 +29,16 @@
         <div v-else class="reset-sent">
           <div class="success-icon">✓</div>
           <h3>Reset Link Sent!</h3>
-          <p>We've sent a password reset link to <strong>{{ email }}</strong></p>
+          <p>
+            We've sent a password reset link to <strong>{{ email }}</strong>
+          </p>
           <p>Please check your email and follow the instructions to reset your password.</p>
         </div>
 
         <div class="forgot-password-footer">
           <p>
             Remember your password?
-            <button @click="$router.push('/login')" class="link-btn">
-              Back to Login
-            </button>
+            <button @click="$router.push('/login')" class="link-btn">Back to Login</button>
           </p>
         </div>
       </div>
@@ -47,47 +47,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
+import { ref } from 'vue';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
 
-const $q = useQuasar()
-const email = ref('')
-const loading = ref(false)
-const resetEmailSent = ref(false)
+const $q = useQuasar();
+const email = ref('');
+const loading = ref(false);
+const resetEmailSent = ref(false);
 
 const onRequestReset = async () => {
-  loading.value = true
-  
+  loading.value = true;
+
   try {
     const response = await api.post('/users/forgot-password/', {
-      email: email.value
-    })
+      email: email.value,
+    });
 
-    resetEmailSent.value = true
-    
+    resetEmailSent.value = true;
+
     // In development, show the reset URL in console
     if (response.data.reset_url) {
-      console.log('Password reset URL:', response.data.reset_url)
+      console.log('Password reset URL:', response.data.reset_url);
       $q.notify({
         type: 'positive',
-        message: 'Password reset link sent! Check the browser console for the reset URL (development mode).',
+        message:
+          'Password reset link sent! Check the browser console for the reset URL (development mode).',
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
     }
   } catch (error: unknown) {
-    console.error('Password reset error:', error)
+    console.error('Password reset error:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to send reset link. Please check your email address and try again.',
       position: 'top',
-      timeout: 4000
-    })
+      timeout: 4000,
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
@@ -190,7 +191,7 @@ const onRequestReset = async () => {
 .success-icon {
   width: 60px;
   height: 60px;
-  background: #4CAF50;
+  background: #4caf50;
   color: white;
   border-radius: 50%;
   display: flex;

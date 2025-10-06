@@ -1,67 +1,30 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-        <div class="search-container">
-          <q-input 
-              outlined
-            dense 
-            v-model="text" 
-              placeholder="Search Patient, symptoms and Appointments"
-            class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-            </template>
-          </q-input>
-          </div>
-        </div>
-        
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn">
-            <q-badge color="red" floating>1</q-badge>
-          </q-btn>
-          
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-          
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-          
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-          
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-    </q-header>
+    <NurseHeader
+      :search-text="searchText"
+      :search-results="searchResults"
+      :unread-notifications-count="unreadNotificationsCount"
+      :current-time="currentTime"
+      :weather-data="weatherData"
+      :weather-loading="weatherLoading"
+      :weather-error="weatherError"
+      :location-data="locationData"
+      :location-loading="locationLoading"
+      @toggle-drawer="toggleRightDrawer"
+      @search-input="onSearchInput"
+      @clear-search="clearSearch"
+      @select-search-result="selectSearchResult"
+      @show-notifications="showNotifications = true"
+    />
 
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -74,13 +37,13 @@
           <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
         </div>
 
-        <!-- User Profile Section - Centered -->
-        <div class="sidebar-user-profile-centered">
+        <!-- User Profile Section -->
+        <div class="sidebar-user-profile">
           <div class="profile-picture-container">
             <q-avatar size="80px" class="profile-avatar">
               <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
               <div v-else class="profile-placeholder">
-                {{ userInitials }}
+                {{ userInitials || 'NU' }}
               </div>
             </q-avatar>
             <q-btn
@@ -92,28 +55,29 @@
               @click="triggerFileUpload"
             />
             <input
-              ref="fileInput"
+              ref="profileFileInput"
               type="file"
               accept="image/*"
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
-            <h6 class="user-name">{{ userProfile?.first_name }} {{ userProfile?.last_name }}</h6>
+            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">Nurse</p>
-            <q-chip 
-              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
               text-color="white"
               size="sm"
-              :label="userProfile?.verification_status === 'approved' ? 'Verified' : 'Not Verified'"
-            />
+            >
+              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
+            </q-chip>
           </div>
         </div>
 
@@ -133,14 +97,24 @@
             <q-item-section>Messaging</q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('patient-assessment')" class="nav-item active">
+          <q-item
+            clickable
+            v-ripple
+            @click="navigateTo('patient-assessment')"
+            class="nav-item active"
+          >
             <q-item-section avatar>
               <q-icon name="assignment" />
             </q-item-section>
-            <q-item-section>Patient Assessment</q-item-section>
+            <q-item-section>Patient Management</q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('nurse-medicine-inventory')" class="nav-item">
+          <q-item
+            clickable
+            v-ripple
+            @click="navigateTo('nurse-medicine-inventory')"
+            class="nav-item"
+          >
             <q-item-section avatar>
               <q-icon name="medication" />
             </q-item-section>
@@ -162,15 +136,9 @@
           </q-item>
         </q-list>
 
-        <!-- Logout Section - Footer -->
-        <div class="sidebar-footer">
-          <q-btn
-            color="negative"
-            icon="logout"
-            label="Logout"
-            class="logout-btn"
-            @click="logout"
-          />
+        <!-- Logout Section -->
+        <div class="logout-section">
+          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -181,9 +149,17 @@
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <h2 class="greeting-text">
-              Good {{ getTimeOfDay() }}, {{ userProfile.role ? userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) : 'Nurse' }} {{ userProfile.full_name || 'User' }}
+              Good {{ getTimeOfDay() }},
+              {{
+                userProfile.role
+                  ? userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)
+                  : 'Nurse'
+              }}
+              {{ userProfile.full_name || 'User' }}
             </h2>
-            <p class="greeting-subtitle">Patient assessment and doctor assignment - {{ currentDate }}</p>
+            <p class="greeting-subtitle">
+              Patient assessment and doctor assignment - {{ currentDate }}
+            </p>
           </q-card-section>
         </q-card>
       </div>
@@ -192,7 +168,7 @@
       <div class="page-header">
         <div class="header-content">
           <div class="header-left">
-            <h4 class="page-title">Patient Assessment</h4>
+            <h4 class="page-title">Patient Management</h4>
           </div>
           <div class="header-right">
             <q-btn
@@ -206,606 +182,608 @@
         </div>
       </div>
 
-    <div class="page-content">
-      <!-- Patient Selection -->
-      <q-card class="patient-selection-card">
-        <q-card-section>
-          <div class="row items-center q-mb-md">
-            <h6 class="text-h6 q-mb-none">Select Patient</h6>
-            <q-space />
-            <q-btn
-              color="secondary"
-              label="Add New Patient"
-              icon="person_add"
-              size="sm"
-            />
-          </div>
-          
-          <q-select
-            v-model="selectedPatient"
-            :options="patientOptions"
-            label="Choose Patient"
-            option-label="name"
-            option-value="id"
-            emit-value
-            map-options
-            clearable
-            class="patient-select"
-          >
-            <template v-slot:option="scope">
-              <q-item v-bind="scope.itemProps">
-                <q-item-section avatar>
-                  <q-avatar color="primary" text-color="white">
-                    {{ scope.opt.name.charAt(0) }}
-                  </q-avatar>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ scope.opt.name }}</q-item-label>
-                  <q-item-label caption>ID: {{ scope.opt.id }} | Queue: {{ scope.opt.queueNumber }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </template>
-          </q-select>
-        </q-card-section>
-      </q-card>
-
-      <!-- Doctor Selection Form -->
-      <div v-if="selectedPatient" class="doctor-selection-form">
-        <!-- Patient Info Card -->
-        <q-card class="patient-info-card">
+      <div class="page-content">
+        <!-- Patient Selection -->
+        <q-card class="patient-selection-card">
           <q-card-section>
-            <h6 class="text-h6 q-mb-md">Patient Information</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-input
-                  :model-value="selectedPatient.name"
-                  label="Full Name"
-                  readonly
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  :model-value="selectedPatient.queueNumber"
-                  label="Queue Number"
-                  readonly
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  :model-value="selectedPatient.priority"
-                  label="Priority"
-                  readonly
-                  outlined
-                />
-              </div>
+            <div class="row items-center q-mb-md">
+              <h6 class="text-h6 q-mb-none">Select Patient</h6>
+              <q-space />
+              <q-btn color="secondary" label="Add New Patient" icon="person_add" size="sm" />
             </div>
+
+            <q-select
+              v-model="selectedPatient"
+              :options="patientOptions"
+              label="Choose Patient"
+              option-label="name"
+              option-value="id"
+              emit-value
+              map-options
+              clearable
+              class="patient-select"
+            >
+              <template v-slot:option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section avatar>
+                    <q-avatar color="primary" text-color="white">
+                      {{ scope.opt.name.charAt(0) }}
+                    </q-avatar>
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.name }}</q-item-label>
+                    <q-item-label caption
+                      >ID: {{ scope.opt.id }} | Queue: {{ scope.opt.queueNumber }}</q-item-label
+                    >
+                  </q-item-section>
+                </q-item>
+              </template>
+            </q-select>
           </q-card-section>
         </q-card>
 
-        <!-- Doctor Selection Card -->
-        <q-card class="doctor-selection-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Select Doctor</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-select
-                  v-model="selectedSpecialization"
-                  :options="doctorSpecializations"
-                  label="Specialization Required"
-                  outlined
-                  clearable
-                  @update:model-value="onSpecializationChange"
-                />
+        <!-- Doctor Selection Form -->
+        <div v-if="selectedPatient" class="doctor-selection-form">
+          <!-- Patient Info Card -->
+          <q-card class="patient-info-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Patient Information</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-input
+                    :model-value="selectedPatient.name"
+                    label="Full Name"
+                    readonly
+                    outlined
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    :model-value="selectedPatient.queueNumber"
+                    label="Queue Number"
+                    readonly
+                    outlined
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    :model-value="selectedPatient.priority"
+                    label="Priority"
+                    readonly
+                    outlined
+                  />
+                </div>
               </div>
-              <div class="col-12 col-md-6">
-                <q-select
-                  v-model="selectedDoctor"
-                  :options="availableDoctors"
-                  label="Available Doctors"
-                  option-label="name"
-                  option-value="id"
-                  emit-value
-                  map-options
-                  outlined
-                  clearable
-                  :disable="!selectedSpecialization"
-                >
-                  <template v-slot:option="scope">
-                    <q-item v-bind="scope.itemProps">
-                      <q-item-section avatar>
-                        <q-avatar color="primary" text-color="white">
-                          {{ scope.opt.name.charAt(0) }}
-                        </q-avatar>
-                      </q-item-section>
-                      <q-item-section>
-                        <q-item-label>{{ scope.opt.name }}</q-item-label>
-                        <q-item-label caption>
-                          {{ scope.opt.specialization }} | 
-                          Patients: {{ scope.opt.currentPatients }}/10 |
-                          <span :class="scope.opt.isAvailable ? 'text-green' : 'text-red'">
-                            {{ scope.opt.isAvailable ? 'Available' : 'Busy' }}
-                          </span>
-                        </q-item-label>
-                      </q-item-section>
-                    </q-item>
-                  </template>
-                </q-select>
+            </q-card-section>
+          </q-card>
+
+          <!-- Doctor Selection Card -->
+          <q-card class="doctor-selection-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Select Doctor</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-select
+                    v-model="selectedSpecialization"
+                    :options="doctorSpecializations"
+                    label="Specialization Required"
+                    outlined
+                    clearable
+                    @update:model-value="onSpecializationChange"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-select
+                    v-model="selectedDoctor"
+                    :options="availableDoctors"
+                    label="Available Doctors"
+                    option-label="name"
+                    option-value="id"
+                    emit-value
+                    map-options
+                    outlined
+                    clearable
+                    :disable="!selectedSpecialization"
+                  >
+                    <template v-slot:option="scope">
+                      <q-item v-bind="scope.itemProps">
+                        <q-item-section avatar>
+                          <q-avatar color="primary" text-color="white">
+                            {{ scope.opt.name.charAt(0) }}
+                          </q-avatar>
+                        </q-item-section>
+                        <q-item-section>
+                          <q-item-label>{{ scope.opt.name }}</q-item-label>
+                          <q-item-label caption>
+                            {{ scope.opt.specialization }} | Patients:
+                            {{ scope.opt.currentPatients }}/10 |
+                            <span :class="scope.opt.isAvailable ? 'text-green' : 'text-red'">
+                              {{ scope.opt.isAvailable ? 'Available' : 'Busy' }}
+                            </span>
+                          </q-item-label>
+                        </q-item-section>
+                      </q-item>
+                    </template>
+                  </q-select>
+                </div>
               </div>
-            </div>
-            
-            <!-- Assignment Button -->
-            <div class="row q-mt-md">
-              <div class="col-12">
-                <q-btn
-                  color="primary"
-                  label="Assign Patient to Doctor"
-                  icon="person_add"
-                  @click="assignPatientToDoctor"
-                  :loading="saving"
-                  :disable="!selectedPatient || !selectedDoctor"
-                  class="full-width"
-                />
+
+              <!-- Assignment Button -->
+              <div class="row q-mt-md">
+                <div class="col-12">
+                  <q-btn
+                    color="primary"
+                    label="Assign Patient to Doctor"
+                    icon="person_add"
+                    @click="assignPatientToDoctor"
+                    :loading="saving"
+                    :disable="!selectedPatient || !selectedDoctor"
+                    class="full-width"
+                  />
+                </div>
               </div>
-            </div>
-          </q-card-section>
-        </q-card>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- Assessment Form (Hidden for now) -->
+        <div v-if="false" class="assessment-form">
+          <!-- Patient Info Card -->
+          <q-card class="patient-info-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Patient Information</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-input v-model="assessment.patientName" label="Full Name" readonly outlined />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input v-model="assessment.patientAge" label="Age" readonly outlined />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input v-model="assessment.patientGender" label="Gender" readonly outlined />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Vital Signs -->
+          <q-card class="vital-signs-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Vital Signs</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.bloodPressure"
+                    label="Blood Pressure (mmHg)"
+                    type="text"
+                    placeholder="120/80"
+                    outlined
+                    :rules="[(val) => !!val || 'Blood pressure is required']"
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.heartRate"
+                    label="Heart Rate (bpm)"
+                    type="number"
+                    outlined
+                    :rules="[(val) => !!val || 'Heart rate is required']"
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.temperature"
+                    label="Temperature (°C)"
+                    type="number"
+                    step="0.1"
+                    outlined
+                    :rules="[(val) => !!val || 'Temperature is required']"
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.respiratoryRate"
+                    label="Respiratory Rate (breaths/min)"
+                    type="number"
+                    outlined
+                    :rules="[(val) => !!val || 'Respiratory rate is required']"
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.oxygenSaturation"
+                    label="Oxygen Saturation (%)"
+                    type="number"
+                    outlined
+                    :rules="[(val) => !!val || 'Oxygen saturation is required']"
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.weight"
+                    label="Weight (kg)"
+                    type="number"
+                    step="0.1"
+                    outlined
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input
+                    v-model.number="assessment.vitals.height"
+                    label="Height (cm)"
+                    type="number"
+                    outlined
+                  />
+                </div>
+                <div class="col-12 col-md-3">
+                  <q-input v-model="assessment.vitals.bmi" label="BMI" readonly outlined />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Pain Assessment -->
+          <q-card class="pain-assessment-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Pain Assessment</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-4">
+                  <q-select
+                    v-model="assessment.pain.level"
+                    :options="painLevels"
+                    label="Pain Level (0-10)"
+                    outlined
+                    emit-value
+                    map-options
+                  />
+                </div>
+                <div class="col-12 col-md-4">
+                  <q-select
+                    v-model="assessment.pain.location"
+                    :options="painLocations"
+                    label="Pain Location"
+                    outlined
+                    multiple
+                    use-chips
+                  />
+                </div>
+                <div class="col-12 col-md-4">
+                  <q-select
+                    v-model="assessment.pain.type"
+                    :options="painTypes"
+                    label="Pain Type"
+                    outlined
+                    multiple
+                    use-chips
+                  />
+                </div>
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.pain.description"
+                    label="Pain Description"
+                    type="textarea"
+                    outlined
+                    rows="3"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Physical Examination -->
+          <q-card class="physical-exam-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Physical Examination</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.generalAppearance"
+                    label="General Appearance"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.skinCondition"
+                    label="Skin Condition"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.cardiovascular"
+                    label="Cardiovascular"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.respiratory"
+                    label="Respiratory"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.gastrointestinal"
+                    label="Gastrointestinal"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-input
+                    v-model="assessment.physicalExam.neurological"
+                    label="Neurological"
+                    type="textarea"
+                    outlined
+                    rows="2"
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Assessment Notes -->
+          <q-card class="assessment-notes-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Assessment Notes</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.notes.subjective"
+                    label="Subjective Assessment"
+                    type="textarea"
+                    outlined
+                    rows="4"
+                    placeholder="Patient's chief complaint and history..."
+                  />
+                </div>
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.notes.objective"
+                    label="Objective Assessment"
+                    type="textarea"
+                    outlined
+                    rows="4"
+                    placeholder="Observations and findings..."
+                  />
+                </div>
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.notes.assessment"
+                    label="Clinical Assessment"
+                    type="textarea"
+                    outlined
+                    rows="4"
+                    placeholder="Diagnosis and clinical impression..."
+                  />
+                </div>
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.notes.plan"
+                    label="Plan of Care"
+                    type="textarea"
+                    outlined
+                    rows="4"
+                    placeholder="Treatment plan and recommendations..."
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Emergency Assessment -->
+          <q-card class="emergency-assessment-card">
+            <q-card-section>
+              <h6 class="text-h6 q-mb-md">Emergency Assessment</h6>
+              <div class="row q-gutter-md">
+                <div class="col-12 col-md-6">
+                  <q-select
+                    v-model="assessment.emergency.priority"
+                    :options="priorityLevels"
+                    label="Priority Level"
+                    outlined
+                    emit-value
+                    map-options
+                  />
+                </div>
+                <div class="col-12 col-md-6">
+                  <q-select
+                    v-model="assessment.emergency.requiresImmediate"
+                    :options="[
+                      { label: 'No', value: false },
+                      { label: 'Yes', value: true },
+                    ]"
+                    label="Requires Immediate Attention"
+                    outlined
+                    emit-value
+                    map-options
+                  />
+                </div>
+                <div class="col-12">
+                  <q-input
+                    v-model="assessment.emergency.notes"
+                    label="Emergency Notes"
+                    type="textarea"
+                    outlined
+                    rows="3"
+                    placeholder="Any urgent concerns or immediate actions needed..."
+                  />
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+
+        <!-- No Patient Selected Message -->
+        <div v-else class="no-patient-message">
+          <q-card class="text-center">
+            <q-card-section>
+              <q-icon name="person_search" size="4rem" color="grey-5" />
+              <h6 class="text-h6 q-mt-md">Select a Patient</h6>
+              <p class="text-body2 text-grey-6">
+                Please select a patient from the dropdown above to begin the assessment.
+              </p>
+            </q-card-section>
+          </q-card>
+        </div>
       </div>
-
-      <!-- Assessment Form (Hidden for now) -->
-      <div v-if="false" class="assessment-form">
-        <!-- Patient Info Card -->
-        <q-card class="patient-info-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Patient Information</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.patientName"
-                  label="Full Name"
-                  readonly
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model="assessment.patientAge"
-                  label="Age"
-                  readonly
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model="assessment.patientGender"
-                  label="Gender"
-                  readonly
-                  outlined
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <!-- Vital Signs -->
-        <q-card class="vital-signs-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Vital Signs</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.bloodPressure"
-                  label="Blood Pressure (mmHg)"
-                  type="text"
-                  placeholder="120/80"
-                  outlined
-                  :rules="[val => !!val || 'Blood pressure is required']"
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.heartRate"
-                  label="Heart Rate (bpm)"
-                  type="number"
-                  outlined
-                  :rules="[val => !!val || 'Heart rate is required']"
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.temperature"
-                  label="Temperature (°C)"
-                  type="number"
-                  step="0.1"
-                  outlined
-                  :rules="[val => !!val || 'Temperature is required']"
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.respiratoryRate"
-                  label="Respiratory Rate (breaths/min)"
-                  type="number"
-                  outlined
-                  :rules="[val => !!val || 'Respiratory rate is required']"
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.oxygenSaturation"
-                  label="Oxygen Saturation (%)"
-                  type="number"
-                  outlined
-                  :rules="[val => !!val || 'Oxygen saturation is required']"
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.weight"
-                  label="Weight (kg)"
-                  type="number"
-                  step="0.1"
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model.number="assessment.vitals.height"
-                  label="Height (cm)"
-                  type="number"
-                  outlined
-                />
-              </div>
-              <div class="col-12 col-md-3">
-                <q-input
-                  v-model="assessment.vitals.bmi"
-                  label="BMI"
-                  readonly
-                  outlined
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <!-- Pain Assessment -->
-        <q-card class="pain-assessment-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Pain Assessment</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-4">
-                <q-select
-                  v-model="assessment.pain.level"
-                  :options="painLevels"
-                  label="Pain Level (0-10)"
-                  outlined
-                  emit-value
-                  map-options
-                />
-              </div>
-              <div class="col-12 col-md-4">
-                <q-select
-                  v-model="assessment.pain.location"
-                  :options="painLocations"
-                  label="Pain Location"
-                  outlined
-                  multiple
-                  use-chips
-                />
-              </div>
-              <div class="col-12 col-md-4">
-                <q-select
-                  v-model="assessment.pain.type"
-                  :options="painTypes"
-                  label="Pain Type"
-                  outlined
-                  multiple
-                  use-chips
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.pain.description"
-                  label="Pain Description"
-                  type="textarea"
-                  outlined
-                  rows="3"
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <!-- Physical Examination -->
-        <q-card class="physical-exam-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Physical Examination</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.generalAppearance"
-                  label="General Appearance"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.skinCondition"
-                  label="Skin Condition"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.cardiovascular"
-                  label="Cardiovascular"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.respiratory"
-                  label="Respiratory"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.gastrointestinal"
-                  label="Gastrointestinal"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-input
-                  v-model="assessment.physicalExam.neurological"
-                  label="Neurological"
-                  type="textarea"
-                  outlined
-                  rows="2"
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <!-- Assessment Notes -->
-        <q-card class="assessment-notes-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Assessment Notes</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.notes.subjective"
-                  label="Subjective Assessment"
-                  type="textarea"
-                  outlined
-                  rows="4"
-                  placeholder="Patient's chief complaint and history..."
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.notes.objective"
-                  label="Objective Assessment"
-                  type="textarea"
-                  outlined
-                  rows="4"
-                  placeholder="Observations and findings..."
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.notes.assessment"
-                  label="Clinical Assessment"
-                  type="textarea"
-                  outlined
-                  rows="4"
-                  placeholder="Diagnosis and clinical impression..."
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.notes.plan"
-                  label="Plan of Care"
-                  type="textarea"
-                  outlined
-                  rows="4"
-                  placeholder="Treatment plan and recommendations..."
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-
-        <!-- Emergency Assessment -->
-        <q-card class="emergency-assessment-card">
-          <q-card-section>
-            <h6 class="text-h6 q-mb-md">Emergency Assessment</h6>
-            <div class="row q-gutter-md">
-              <div class="col-12 col-md-6">
-                <q-select
-                  v-model="assessment.emergency.priority"
-                  :options="priorityLevels"
-                  label="Priority Level"
-                  outlined
-                  emit-value
-                  map-options
-                />
-              </div>
-              <div class="col-12 col-md-6">
-                <q-select
-                  v-model="assessment.emergency.requiresImmediate"
-                  :options="[
-                    { label: 'No', value: false },
-                    { label: 'Yes', value: true }
-                  ]"
-                  label="Requires Immediate Attention"
-                  outlined
-                  emit-value
-                  map-options
-                />
-              </div>
-              <div class="col-12">
-                <q-input
-                  v-model="assessment.emergency.notes"
-                  label="Emergency Notes"
-                  type="textarea"
-                  outlined
-                  rows="3"
-                  placeholder="Any urgent concerns or immediate actions needed..."
-                />
-              </div>
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <!-- No Patient Selected Message -->
-      <div v-else class="no-patient-message">
-        <q-card class="text-center">
-          <q-card-section>
-            <q-icon name="person_search" size="4rem" color="grey-5" />
-            <h6 class="text-h6 q-mt-md">Select a Patient</h6>
-            <p class="text-body2 text-grey-6">
-              Please select a patient from the dropdown above to begin the assessment.
-            </p>
-          </q-card-section>
-        </q-card>
-      </div>
-    </div>
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from 'src/boot/axios';
+import NurseHeader from 'src/components/NurseHeader.vue';
 
-const router = useRouter()
-const $q = useQuasar()
+const router = useRouter();
+const $q = useQuasar();
 
 // Sidebar and navigation
-const rightDrawerOpen = ref(false)
-const text = ref('')
+const rightDrawerOpen = ref(false);
+
+// Search functionality
+const searchText = ref('');
+const searchResults = ref<
+  {
+    id: string;
+    type: string;
+    title: string;
+    subtitle: string;
+    data: Record<string, string | number>;
+  }[]
+>([]);
+
+// Notifications
+const showNotifications = ref(false);
+const unreadNotificationsCount = ref(0);
+
+// Location data
+const locationData = ref<{
+  city: string;
+  region: string;
+  country: string;
+} | null>(null);
+const locationLoading = ref(false);
+const locationError = ref(false);
 
 // Time and weather
-const currentTime = ref('')
+const currentTime = ref('');
 const currentDate = computed(() => {
-  const now = new Date()
-  return now.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  })
-})
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+});
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
-let timeInterval: NodeJS.Timeout | null = null
+  temperature: number;
+  condition: string;
+  location: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
+let timeInterval: NodeJS.Timeout | null = null;
 
 // Get time of day for greeting
 const getTimeOfDay = () => {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Morning'
-  if (hour < 17) return 'Afternoon'
-  return 'Evening'
-}
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Morning';
+  if (hour < 17) return 'Afternoon';
+  return 'Evening';
+};
 
 // Profile picture
-const fileInput = ref<HTMLInputElement | null>(null)
+const profileFileInput = ref<HTMLInputElement | null>(null);
 
 // User profile
 const userProfile = ref<{
-  id?: number
-  first_name?: string
-  last_name?: string
-  full_name?: string
-  role?: string
-  verification_status?: string
-  profile_picture?: string | null
-  email?: string
-}>({})
+  id?: number;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  role?: string;
+  verification_status?: string;
+  profile_picture?: string | null;
+  email?: string;
+}>({});
 
 // Computed properties for profile picture
 const profilePictureUrl = computed(() => {
   if (!userProfile.value.profile_picture) {
-    return null
+    return null;
   }
-  
+
   // If it's already a full URL, return as is
   if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture
+    return userProfile.value.profile_picture;
   }
-  
+
   // If it's a relative path, construct the full URL
   if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`
+    return `http://localhost:8000${userProfile.value.profile_picture}`;
   }
-  
+
   // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`
-})
+  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`;
+});
 
 const userInitials = computed(() => {
   if (!userProfile.value.first_name || !userProfile.value.last_name) {
-    return 'NU'
+    return 'NU';
   }
-  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase()
-})
+  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
+});
 
 // Type definitions
 interface Patient {
-  id: number
-  name: string
-  queueNumber: string
-  department: string
-  status: string
-  position: number
-  enqueueTime: string
-  priority: string
-  priorityLevel?: string
+  id: number;
+  name: string;
+  queueNumber: string;
+  department: string;
+  status: string;
+  position: number;
+  enqueueTime: string;
+  priority: string;
+  priorityLevel?: string;
 }
 
 interface Doctor {
-  id: number
-  name: string
-  specialization: string
-  department: string
-  isAvailable: boolean
-  currentPatients: number
+  id: number;
+  name: string;
+  specialization: string;
+  department: string;
+  isAvailable: boolean;
+  currentPatients: number;
 }
 
 // Patient selection
-const selectedPatient = ref<Patient | null>(null)
-const saving = ref(false)
-const loading = ref(false)
+const selectedPatient = ref<Patient | null>(null);
+const saving = ref(false);
+const loading = ref(false);
 
 // Patient options (from queue)
-const patients = ref<Patient[]>([])
-const patientOptions = computed(() => patients.value)
+const patients = ref<Patient[]>([]);
+const patientOptions = computed(() => patients.value);
 
 // Doctor selection
-const selectedDoctor = ref<Doctor | null>(null)
-const availableDoctors = ref<Doctor[]>([])
+const selectedDoctor = ref<Doctor | null>(null);
+const availableDoctors = ref<Doctor[]>([]);
 const doctorSpecializations = ref([
   'General Medicine',
   'Cardiology',
@@ -816,9 +794,9 @@ const doctorSpecializations = ref([
   'Psychiatry',
   'Emergency Medicine',
   'Internal Medicine',
-  'Surgery'
-])
-const selectedSpecialization = ref('')
+  'Surgery',
+]);
+const selectedSpecialization = ref('');
 
 // Assessment data
 const assessment = ref({
@@ -833,13 +811,13 @@ const assessment = ref({
     oxygenSaturation: null,
     weight: null,
     height: null,
-    bmi: ''
+    bmi: '',
   },
   pain: {
     level: null,
     location: [],
     type: [],
-    description: ''
+    description: '',
   },
   physicalExam: {
     generalAppearance: '',
@@ -847,20 +825,20 @@ const assessment = ref({
     cardiovascular: '',
     respiratory: '',
     gastrointestinal: '',
-    neurological: ''
+    neurological: '',
   },
   notes: {
     subjective: '',
     objective: '',
     assessment: '',
-    plan: ''
+    plan: '',
   },
   emergency: {
     priority: 'normal',
     requiresImmediate: false,
-    notes: ''
-  }
-})
+    notes: '',
+  },
+});
 
 // Options for dropdowns
 const painLevels = [
@@ -868,32 +846,28 @@ const painLevels = [
   { label: '1-3 - Mild Pain', value: 1 },
   { label: '4-6 - Moderate Pain', value: 4 },
   { label: '7-9 - Severe Pain', value: 7 },
-  { label: '10 - Worst Pain', value: 10 }
-]
+  { label: '10 - Worst Pain', value: 10 },
+];
 
-const painLocations = [
-  'Head', 'Neck', 'Chest', 'Back', 'Abdomen', 'Arms', 'Legs', 'Joints'
-]
+const painLocations = ['Head', 'Neck', 'Chest', 'Back', 'Abdomen', 'Arms', 'Legs', 'Joints'];
 
-const painTypes = [
-  'Sharp', 'Dull', 'Throbbing', 'Burning', 'Cramping', 'Aching', 'Stabbing'
-]
+const painTypes = ['Sharp', 'Dull', 'Throbbing', 'Burning', 'Cramping', 'Aching', 'Stabbing'];
 
 const priorityLevels = [
   { label: 'Normal', value: 'normal' },
   { label: 'Low Priority', value: 'low' },
   { label: 'Medium Priority', value: 'medium' },
   { label: 'High Priority', value: 'high' },
-  { label: 'Emergency', value: 'emergency' }
-]
+  { label: 'Emergency', value: 'emergency' },
+];
 
 // Watch for patient selection changes
 watch(selectedPatient, (newPatient) => {
   if (newPatient) {
     // Patient is already selected, no need to find it again
-    assessment.value.patientName = newPatient.name
-    assessment.value.patientAge = 'N/A' // Age not available in queue data
-    assessment.value.patientGender = 'N/A' // Gender not available in queue data
+    assessment.value.patientName = newPatient.name;
+    assessment.value.patientAge = 'N/A'; // Age not available in queue data
+    assessment.value.patientGender = 'N/A'; // Gender not available in queue data
   } else {
     // Reset form when no patient is selected
     assessment.value = {
@@ -908,13 +882,13 @@ watch(selectedPatient, (newPatient) => {
         oxygenSaturation: null,
         weight: null,
         height: null,
-        bmi: ''
+        bmi: '',
       },
       pain: {
         level: null,
         location: [],
         type: [],
-        description: ''
+        description: '',
       },
       physicalExam: {
         generalAppearance: '',
@@ -922,354 +896,442 @@ watch(selectedPatient, (newPatient) => {
         cardiovascular: '',
         respiratory: '',
         gastrointestinal: '',
-        neurological: ''
+        neurological: '',
       },
       notes: {
         subjective: '',
         objective: '',
         assessment: '',
-        plan: ''
+        plan: '',
       },
       emergency: {
         priority: 'normal',
         requiresImmediate: false,
-        notes: ''
-      }
-    }
+        notes: '',
+      },
+    };
   }
-})
+});
 
 // Calculate BMI when weight or height changes
-watch([() => assessment.value.vitals.weight, () => assessment.value.vitals.height], ([weight, height]) => {
-  if (weight && height) {
-    const heightInMeters = height / 100
-    const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1)
-    assessment.value.vitals.bmi = bmi
-  } else {
-    assessment.value.vitals.bmi = ''
-  }
-})
+watch(
+  [() => assessment.value.vitals.weight, () => assessment.value.vitals.height],
+  ([weight, height]) => {
+    if (weight && height) {
+      const heightInMeters = height / 100;
+      const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1);
+      assessment.value.vitals.bmi = bmi;
+    } else {
+      assessment.value.vitals.bmi = '';
+    }
+  },
+);
 
 // Sidebar and navigation functions
 const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const navigateTo = (route: string) => {
-  void router.push(`/${route}`)
-}
+  // Close drawer first
+  rightDrawerOpen.value = false;
+
+  // Navigate to different sections
+  switch (route) {
+    case 'nurse-dashboard':
+      void router.push('/nurse-dashboard');
+      break;
+    case 'patient-assessment':
+      // Already on patient assessment page
+      break;
+    case 'nurse-messaging':
+      void router.push('/nurse-messaging');
+      break;
+    case 'nurse-medicine-inventory':
+      void router.push('/nurse-medicine-inventory');
+      break;
+    case 'nurse-analytics':
+      void router.push('/nurse-analytics');
+      break;
+    case 'nurse-settings':
+      void router.push('/nurse-settings');
+      break;
+    default:
+      console.log('Navigation to:', route);
+  }
+};
 
 const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
+
+// Search functionality methods
+const onSearchInput = (value: string | number | null) => {
+  const stringValue = String(value || '');
+  searchText.value = stringValue;
+  if (stringValue.trim()) {
+    // Simulate search results this would call an API
+    searchResults.value = [
+      {
+        id: '1',
+        type: 'patient',
+        title: 'Search Patient',
+        subtitle: `Search for "${stringValue}" in patient records`,
+        data: { query: stringValue, type: 'patient' },
+      },
+      {
+        id: '2',
+        type: 'assessment',
+        title: 'Search Assessment',
+        subtitle: `Find assessments related to "${stringValue}"`,
+        data: { query: stringValue, type: 'assessment' },
+      },
+      {
+        id: '3',
+        type: 'symptoms',
+        title: 'Search Symptoms',
+        subtitle: `Look for symptoms matching "${stringValue}"`,
+        data: { query: stringValue, type: 'symptoms' },
+      },
+    ];
+  } else {
+    searchResults.value = [];
+  }
+};
+
+const clearSearch = () => {
+  searchText.value = '';
+  searchResults.value = [];
+};
+
+const selectSearchResult = (result: {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  data: Record<string, string | number>;
+}) => {
+  // Handle search result selection
+  console.log('Selected search result:', result);
+  clearSearch();
+};
+
+// Location functionality
+const fetchLocation = async () => {
+  locationLoading.value = true;
+  locationError.value = false;
+
+  try {
+    // Simulate API call for location data
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    locationData.value = {
+      city: 'Manila',
+      region: 'Metro Manila',
+      country: 'Philippines',
+    };
+  } catch (error) {
+    console.error('Error fetching location:', error);
+    locationError.value = true;
+  } finally {
+    locationLoading.value = false;
+  }
+};
 
 // Profile picture functions
 const triggerFileUpload = () => {
-  fileInput.value?.click()
-}
+  profileFileInput.value?.click();
+};
 
 const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    const file = target.files[0];
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       $q.notify({
         type: 'negative',
         message: 'Please select a valid image file (JPG, PNG)',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     if (file.size > 5 * 1024 * 1024) {
       $q.notify({
         type: 'negative',
         message: 'File size must be less than 5MB',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData)
-      
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/users/profile/update/picture/', formData);
+
+      userProfile.value.profile_picture = response.data.user.profile_picture;
+
       // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture)
-      
+      localStorage.setItem('profile_picture', response.data.user.profile_picture);
+
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
-        timeout: 3000
-      })
-      
-      target.value = ''
+        timeout: 3000,
+      });
+
+      target.value = '';
     } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error)
-      
-      let errorMessage = 'Failed to upload profile picture. Please try again.'
+      console.error('Profile picture upload failed:', error);
+
+      let errorMessage = 'Failed to upload profile picture. Please try again.';
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response: { data: { message?: string } } }
-        errorMessage = axiosError.response.data.message || errorMessage
+        const axiosError = error as { response: { data: { message?: string } } };
+        errorMessage = axiosError.response.data.message || errorMessage;
       }
-      
+
       $q.notify({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-        timeout: 3000
-      })
+        timeout: 3000,
+      });
     }
   }
-}
+};
 
 // Time and weather functions
 const updateTime = () => {
-  const now = new Date()
-  
-  // Convert to 12-hour format with AM/PM beside the time
-  const hour = now.getHours()
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const hour12 = hour % 12 || 12
-  const minute = now.getMinutes().toString().padStart(2, '0')
-  const second = now.getSeconds().toString().padStart(2, '0')
-  
-  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`
-}
+  const now = new Date();
 
-const getWeatherIcon = (condition: string) => {
-  const iconMap: Record<string, string> = {
-    'clear': 'wb_sunny',
-    'clouds': 'cloud',
-    'rain': 'opacity',
-    'snow': 'ac_unit',
-    'thunderstorm': 'flash_on',
-    'drizzle': 'grain',
-    'mist': 'cloud',
-    'fog': 'cloud',
-    'haze': 'cloud',
-    'smoke': 'cloud',
-    'dust': 'cloud',
-    'sand': 'cloud',
-    'ash': 'cloud',
-    'squall': 'cloud',
-    'tornado': 'cloud'
-  }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+  // Convert to 12-hour format with AM/PM beside the time
+  const hour = now.getHours();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  const minute = now.getMinutes().toString().padStart(2, '0');
+  const second = now.getSeconds().toString().padStart(2, '0');
+
+  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`;
+};
 
 const fetchWeather = async () => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
     // Mock weather data for now
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     weatherData.value = {
       temperature: 22,
       condition: 'clear',
-      location: 'Manila, PH'
-    }
+      location: 'Manila, PH',
+    };
   } catch (error) {
-    console.error('Weather fetch failed:', error)
-    weatherError.value = true
+    console.error('Weather fetch failed:', error);
+    weatherError.value = true;
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 // Fetch user profile
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user;
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
       full_name: userData.full_name,
       verification_status: userData.verification_status,
       profile_picture: userData.profile_picture || localStorage.getItem('profile_picture'),
-      email: userData.email
-    }
-    
+      email: userData.email,
+    };
+
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
-      localStorage.setItem('profile_picture', userData.profile_picture)
+      localStorage.setItem('profile_picture', userData.profile_picture);
     }
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
+    console.error('Failed to fetch user profile:', error);
   }
-}
+};
 
 const saveAssessment = async () => {
   if (!selectedPatient.value) {
     $q.notify({
       type: 'warning',
       message: 'Please select a patient first',
-      position: 'top'
-    })
-    return
+      position: 'top',
+    });
+    return;
   }
 
-  saving.value = true
+  saving.value = true;
 
   try {
     // Validate required fields
-    const requiredVitals = ['bloodPressure', 'heartRate', 'temperature', 'respiratoryRate', 'oxygenSaturation'] as const
-    const missingVitals = requiredVitals.filter(vital => !assessment.value.vitals[vital])
-    
+    const requiredVitals = [
+      'bloodPressure',
+      'heartRate',
+      'temperature',
+      'respiratoryRate',
+      'oxygenSaturation',
+    ] as const;
+    const missingVitals = requiredVitals.filter((vital) => !assessment.value.vitals[vital]);
+
     if (missingVitals.length > 0) {
       $q.notify({
         type: 'warning',
         message: `Please fill in all required vital signs: ${missingVitals.join(', ')}`,
-        position: 'top'
-      })
-      return
+        position: 'top',
+      });
+      return;
     }
 
     // Mock API call - replace with actual API
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     $q.notify({
       type: 'positive',
       message: 'Assessment saved successfully!',
-      position: 'top'
-    })
+      position: 'top',
+    });
 
     // Reset form after successful save
-    selectedPatient.value = null
-
+    selectedPatient.value = null;
   } catch (error) {
-    console.error('Error saving assessment:', error)
+    console.error('Error saving assessment:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to save assessment. Please try again.',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 
 // Load patients from queue
 const loadQueuePatients = async () => {
   try {
-    loading.value = true
-    const response = await api.get('/operations/nurse/queue/patients/')
-    
+    loading.value = true;
+    const response = await api.get('/operations/nurse/queue/patients/');
+
     // Transform queue data to patient format
-    const normalPatients = response.data.normal_queue.map((queueItem: {
-      patient_id?: number
-      id: number
-      patient_name: string
-      queue_number: string
-      department: string
-      status: string
-      position_in_queue: number
-      enqueue_time: string
-    }) => ({
-      id: queueItem.patient_id || queueItem.id,
-      name: queueItem.patient_name,
-      queueNumber: queueItem.queue_number,
-      department: queueItem.department,
-      status: queueItem.status,
-      position: queueItem.position_in_queue,
-      enqueueTime: queueItem.enqueue_time,
-      priority: 'normal'
-    }))
-    
-    const priorityPatients = response.data.priority_queue.map((queueItem: {
-      patient_id?: number
-      id: number
-      patient_name: string
-      queue_number: string
-      department: string
-      priority_level: string
-      priority_position: number
-    }) => ({
-      id: queueItem.patient_id || queueItem.id,
-      name: queueItem.patient_name,
-      queueNumber: queueItem.queue_number,
-      department: queueItem.department,
-      priorityLevel: queueItem.priority_level,
-      position: queueItem.priority_position,
-      priority: 'high'
-    }))
-    
+    const normalPatients = response.data.normal_queue.map(
+      (queueItem: {
+        patient_id?: number;
+        id: number;
+        patient_name: string;
+        queue_number: string;
+        department: string;
+        status: string;
+        position_in_queue: number;
+        enqueue_time: string;
+      }) => ({
+        id: queueItem.patient_id || queueItem.id,
+        name: queueItem.patient_name,
+        queueNumber: queueItem.queue_number,
+        department: queueItem.department,
+        status: queueItem.status,
+        position: queueItem.position_in_queue,
+        enqueueTime: queueItem.enqueue_time,
+        priority: 'normal',
+      }),
+    );
+
+    const priorityPatients = response.data.priority_queue.map(
+      (queueItem: {
+        patient_id?: number;
+        id: number;
+        patient_name: string;
+        queue_number: string;
+        department: string;
+        priority_level: string;
+        priority_position: number;
+      }) => ({
+        id: queueItem.patient_id || queueItem.id,
+        name: queueItem.patient_name,
+        queueNumber: queueItem.queue_number,
+        department: queueItem.department,
+        priorityLevel: queueItem.priority_level,
+        position: queueItem.priority_position,
+        priority: 'high',
+      }),
+    );
+
     // Combine all patients
-    patients.value = [...normalPatients, ...priorityPatients]
-    
+    patients.value = [...normalPatients, ...priorityPatients];
   } catch (error) {
-    console.error('Failed to load queue patients:', error)
+    console.error('Failed to load queue patients:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load patient queue',
       position: 'top',
-      timeout: 3000
-    })
+      timeout: 3000,
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // Load available doctors by specialization
 const loadAvailableDoctors = async (specialization: string) => {
   try {
     const response = await api.get('/operations/available-doctors/', {
-      params: { specialization }
-    })
-    
-    availableDoctors.value = response.data.map((doctor: {
-      id: number
-      full_name: string
-      specialization: string
-      department: string
-      is_available: boolean
-      current_patients: number
-      profile_picture?: string
-    }) => ({
-      id: doctor.id,
-      name: doctor.full_name,
-      specialization: doctor.specialization,
-      department: doctor.department,
-      isAvailable: doctor.is_available,
-      currentPatients: doctor.current_patients || 0
-    }))
-    
+      params: { specialization },
+    });
+
+    availableDoctors.value = response.data.map(
+      (doctor: {
+        id: number;
+        full_name: string;
+        specialization: string;
+        department: string;
+        is_available: boolean;
+        current_patients: number;
+        profile_picture?: string;
+      }) => ({
+        id: doctor.id,
+        name: doctor.full_name,
+        specialization: doctor.specialization,
+        department: doctor.department,
+        isAvailable: doctor.is_available,
+        currentPatients: doctor.current_patients || 0,
+      }),
+    );
   } catch (error) {
-    console.error('Failed to load available doctors:', error)
+    console.error('Failed to load available doctors:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load available doctors',
       position: 'top',
-      timeout: 3000
-    })
+      timeout: 3000,
+    });
   }
-}
+};
 
 // Handle specialization selection
 const onSpecializationChange = (specialization: string) => {
-  selectedSpecialization.value = specialization
-  selectedDoctor.value = null
+  selectedSpecialization.value = specialization;
+  selectedDoctor.value = null;
   if (specialization) {
-    void loadAvailableDoctors(specialization)
+    void loadAvailableDoctors(specialization);
   } else {
-    availableDoctors.value = []
+    availableDoctors.value = [];
   }
-}
+};
 
 // Assign patient to doctor
 const assignPatientToDoctor = async () => {
@@ -1278,76 +1340,97 @@ const assignPatientToDoctor = async () => {
       type: 'warning',
       message: 'Please select both patient and doctor',
       position: 'top',
-      timeout: 3000
-    })
-    return
+      timeout: 3000,
+    });
+    return;
   }
-  
+
   try {
-    saving.value = true
-    
+    saving.value = true;
+
     await api.post('/operations/assign-patient/', {
       patient_id: selectedPatient.value?.id,
       doctor_id: selectedDoctor.value?.id,
       specialization: selectedSpecialization.value,
       reason: `Patient assessment - ${selectedPatient.value?.name}`,
-      priority: selectedPatient.value?.priority === 'high' ? 'high' : 'medium'
-    })
-    
+      priority: selectedPatient.value?.priority === 'high' ? 'high' : 'medium',
+    });
+
     $q.notify({
       type: 'positive',
       message: `Patient ${selectedPatient.value?.name} assigned to Dr. ${selectedDoctor.value?.name}`,
       position: 'top',
-      timeout: 3000
-    })
-    
+      timeout: 3000,
+    });
+
     // Reset selections
-    selectedPatient.value = null
-    selectedDoctor.value = null
-    selectedSpecialization.value = ''
-    availableDoctors.value = []
-    
+    selectedPatient.value = null;
+    selectedDoctor.value = null;
+    selectedSpecialization.value = '';
+    availableDoctors.value = [];
+
     // Reload patients to update queue
-    void loadQueuePatients()
-    
+    void loadQueuePatients();
   } catch (error) {
-    console.error('Failed to assign patient:', error)
+    console.error('Failed to assign patient:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to assign patient to doctor',
       position: 'top',
-      timeout: 3000
-    })
+      timeout: 3000,
+    });
   } finally {
-    saving.value = false
+    saving.value = false;
   }
-}
+};
 
 onMounted(() => {
   // Load user profile first
-  void fetchUserProfile()
-  
+  void fetchUserProfile();
+
   // Initialize real-time features
-  updateTime() // Set initial time
-  timeInterval = setInterval(updateTime, 1000) // Update every second
-  
+  updateTime(); // Set initial time
+  timeInterval = setInterval(updateTime, 1000); // Update every second
+
   // Fetch weather data
-  void fetchWeather()
-  
+  void fetchWeather();
+
+  // Fetch location data
+  void fetchLocation();
+
   // Load patients from queue
-  void loadQueuePatients()
-  
+  void loadQueuePatients();
+
   // Refresh user profile every 30 seconds to check for verification status updates
   setInterval(() => {
-    void fetchUserProfile()
-  }, 30000)
-})
+    void fetchUserProfile();
+  }, 30000);
+
+  // More frequent verification status check (every 10 seconds)
+  setInterval(() => {
+    void fetchUserProfile();
+  }, 10000);
+});
+
+// Storage event handler for profile picture sync
+const handleStorageChange = (e: StorageEvent) => {
+  if (e.key === 'profile_picture' && e.newValue) {
+    userProfile.value.profile_picture = e.newValue;
+    console.log('Profile picture updated from storage event:', e.newValue);
+  }
+};
+
+// Listen for storage changes to sync profile picture across components
+window.addEventListener('storage', handleStorageChange);
 
 onUnmounted(() => {
   if (timeInterval) {
-    clearInterval(timeInterval)
+    clearInterval(timeInterval);
   }
-})
+
+  // Clean up storage event listener
+  window.removeEventListener('storage', handleStorageChange);
+});
 </script>
 
 <style scoped>
@@ -1478,82 +1561,97 @@ onUnmounted(() => {
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .page-content {
-    padding: 10px;
+    padding: 8px;
   }
-  
+
+  .q-card {
+    margin: 8px 0;
+    border-radius: 12px;
+  }
+
+  .q-card__section {
+    padding: 16px;
+  }
+
   .header-content {
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
     align-items: flex-start;
+    padding: 16px;
   }
-  
+
   .header-right {
     align-self: flex-end;
   }
+
+  .assessment-form {
+    gap: 16px;
+  }
+
+  .assessment-card {
+    margin-bottom: 16px;
+  }
+
+  .assessment-card h6 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .q-field {
+    margin-bottom: 12px;
+  }
+
+  .q-field__label {
+    font-size: 14px;
+  }
+
+  .q-field__control {
+    font-size: 14px;
+  }
+
+  .q-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .q-select {
+    margin-bottom: 12px;
+  }
+
+  .q-input {
+    margin-bottom: 12px;
+  }
+
+  .row {
+    margin: 0 -8px;
+  }
+
+  .col-12,
+  .col-md-6 {
+    padding: 0 8px;
+  }
 }
 
-/* Header Styles */
-.prototype-header {
-  background: #286660;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+/* Profile Avatar Styles - Circular Design */
+.profile-avatar {
+  border: 3px solid #1e7668 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
 }
 
-.header-toolbar {
-  padding: 0 16px;
-}
-
-.header-left, .header-right {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.search-container {
-  min-width: 300px;
-}
-
-.search-input {
-  border-radius: 8px;
-}
-
-.time-display, .weather-display, .weather-loading, .weather-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: white;
-  font-size: 14px;
-}
-
-.time-text,
-.weather-text,
-.weather-location {
-  font-size: 14px;
-  font-weight: 500;
-  color: white;
-}
-
-.weather-location {
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-.weather-loading, .weather-error {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.weather-error .q-icon {
-  color: #ff6b6b;
+.profile-avatar img {
+  border-radius: 50% !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
 
 /* Sidebar Styles */
 .prototype-sidebar {
   background: white;
   border-right: 1px solid #e0e0e0;
+  position: relative;
 }
 
 .sidebar-content {
@@ -1563,37 +1661,10 @@ onUnmounted(() => {
   padding-bottom: 80px; /* Space for footer */
 }
 
-.logo-section {
-  padding: 20px;
+.sidebar-user-profile {
+  padding: 24px 20px;
   border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-text {
-  font-size: 20px;
-  font-weight: 700;
-  color: #286660;
-}
-
-.menu-btn {
-  color: #666;
-}
-
-.sidebar-user-profile-centered {
-  padding: 20px;
   text-align: center;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 .profile-picture-container {
@@ -1602,11 +1673,41 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
+.profile-avatar {
+  border: 3px solid #286660;
+  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.2);
+}
+
+.profile-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  background: #286660 !important;
+  color: white !important;
+  font-weight: 600;
+  font-size: 1.5rem;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+}
+
 .upload-btn {
   position: absolute;
   bottom: 0;
   right: 0;
-  transform: translate(25%, 25%);
+  background: white;
+  border: 2px solid #286660;
+}
+
+.verified-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: white;
+  border-radius: 50%;
+  padding: 2px;
 }
 
 .user-info {
@@ -1632,9 +1733,9 @@ onUnmounted(() => {
 }
 
 .nav-item {
-  margin: 4px 12px;
+  margin: 4px 16px;
   border-radius: 8px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .nav-item.active {
@@ -1650,7 +1751,7 @@ onUnmounted(() => {
   background: #f5f5f5;
 }
 
-.sidebar-footer {
+.logout-section {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1665,45 +1766,6 @@ onUnmounted(() => {
   border-radius: 8px;
   font-weight: 600;
   text-transform: uppercase;
-}
-
-/* Profile Avatar Styles - Circular Design */
-.profile-avatar {
-  border: 3px solid #1e7668 !important;
-  border-radius: 50% !important;
-  overflow: hidden !important;
-}
-
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1e7668;
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
-  border-radius: 50%;
-}
-
-.upload-btn {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  padding: 0 !important;
 }
 
 .verified-badge {

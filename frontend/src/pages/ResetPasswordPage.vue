@@ -50,18 +50,16 @@
         <div v-else class="reset-success">
           <div class="success-icon">✓</div>
           <h3>Password Reset Successful!</h3>
-          <p>Your password has been reset successfully. You can now log in with your new password.</p>
-          <button @click="$router.push('/login')" class="login-btn">
-            Go to Login
-          </button>
+          <p>
+            Your password has been reset successfully. You can now log in with your new password.
+          </p>
+          <button @click="$router.push('/login')" class="login-btn">Go to Login</button>
         </div>
 
         <div class="reset-password-footer">
           <p>
             Remember your password?
-            <button @click="$router.push('/login')" class="link-btn">
-              Back to Login
-            </button>
+            <button @click="$router.push('/login')" class="link-btn">Back to Login</button>
           </p>
         </div>
       </div>
@@ -70,88 +68,88 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
 
-const router = useRouter()
-const route = useRoute()
-const $q = useQuasar()
+const router = useRouter();
+const route = useRoute();
+const $q = useQuasar();
 
-const newPassword = ref('')
-const confirmPassword = ref('')
-const showPassword = ref(false)
-const showConfirmPassword = ref(false)
-const loading = ref(false)
-const passwordReset = ref(false)
-const passwordError = ref('')
+const newPassword = ref('');
+const confirmPassword = ref('');
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
+const loading = ref(false);
+const passwordReset = ref(false);
+const passwordError = ref('');
 
-const uidb64 = ref('')
-const token = ref('')
+const uidb64 = ref('');
+const token = ref('');
 
 onMounted(() => {
   // Get uidb64 and token from route params
-  uidb64.value = route.params.uidb64 as string
-  token.value = route.params.token as string
-  
+  uidb64.value = route.params.uidb64 as string;
+  token.value = route.params.token as string;
+
   if (!uidb64.value || !token.value) {
     $q.notify({
       type: 'negative',
       message: 'Invalid reset link. Please request a new password reset.',
       position: 'top',
-      timeout: 4000
-    })
-    void router.push('/forgot-password')
+      timeout: 4000,
+    });
+    void router.push('/forgot-password');
   }
-})
+});
 
 const validatePassword = (password: string): string => {
   if (password.length < 8) {
-    return 'Password must be at least 8 characters long.'
+    return 'Password must be at least 8 characters long.';
   }
-  
+
   if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-    return 'Password must contain both letters and numbers.'
+    return 'Password must contain both letters and numbers.';
   }
-  
-  return ''
-}
+
+  return '';
+};
 
 const onResetPassword = async () => {
-  passwordError.value = ''
-  
+  passwordError.value = '';
+
   // Validate passwords
-  const passwordValidation = validatePassword(newPassword.value)
+  const passwordValidation = validatePassword(newPassword.value);
   if (passwordValidation) {
-    passwordError.value = passwordValidation
-    return
+    passwordError.value = passwordValidation;
+    return;
   }
-  
+
   if (newPassword.value !== confirmPassword.value) {
-    passwordError.value = 'Passwords do not match.'
-    return
+    passwordError.value = 'Passwords do not match.';
+    return;
   }
-  
-  loading.value = true
-  
+
+  loading.value = true;
+
   try {
     await api.post(`/users/reset-password/${uidb64.value}/${token.value}/`, {
-      new_password: newPassword.value
-    })
+      new_password: newPassword.value,
+    });
 
-    passwordReset.value = true
+    passwordReset.value = true;
   } catch (error: unknown) {
-    console.error('Password reset error:', error)
+    console.error('Password reset error:', error);
     if (error instanceof Error) {
-      passwordError.value = error.message
+      passwordError.value = error.message;
     } else {
-      passwordError.value = 'Failed to reset password. Please try again.'
+      passwordError.value = 'Failed to reset password. Please try again.';
     }
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
 <style scoped>
@@ -282,7 +280,7 @@ const onResetPassword = async () => {
 .success-icon {
   width: 60px;
   height: 60px;
-  background: #4CAF50;
+  background: #4caf50;
   color: white;
   border-radius: 50%;
   display: flex;

@@ -7,6 +7,8 @@ urlpatterns = [
     path('appointments/', views.doctor_appointments, name='doctor_appointments'),
     path('queue/patients/', views.doctor_queue_patients, name='doctor_queue_patients'),
     path('notifications/', views.doctor_notifications, name='doctor_notifications'),
+    path('notifications/<int:notification_id>/mark-read/', views.mark_notification_as_read, name='mark_notification_as_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
     # path('pending-assessments/', views.doctor_pending_assessments, name='doctor_pending_assessments'),
     
     # Appointment management

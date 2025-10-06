@@ -1,83 +1,27 @@
 <template>
   <q-layout view="hHh Lpr fFf">
+    <NurseHeader
+      @toggle-drawer="toggleRightDrawer"
+      @show-notifications="showNotifications = true"
+      :unread-notifications-count="unreadNotificationsCount"
+      :search-text="text"
+      @search-input="onSearchInput"
+      @clear-search="clearSearch"
+      :search-results="searchResults"
+      @select-search-result="selectSearchResult"
+      :get-search-result-icon="getSearchResultIcon"
+      :get-search-result-title="getSearchResultTitle"
+      :get-search-result-subtitle="getSearchResultSubtitle"
+    />
 
-    <q-header elevated class="prototype-header">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-        
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-        <div class="search-container">
-          <q-input 
-              outlined
-            dense 
-            v-model="text" 
-              placeholder="Search Patient, symptoms and Appointments"
-            class="search-input"
-              bg-color="white"
-          >
-            <template v-slot:prepend>
-              <q-icon name="search" color="grey-6" />
-            </template>
-            <template v-slot:append v-if="text">
-              <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-            </template>
-          </q-input>
-          
-          <!-- Search Results Dropdown -->
-          <div v-if="searchResults.length > 0" class="search-results">
-            <q-list dense>
-              <q-item v-for="result in searchResults" :key="`${result.type}-${result.data.id}`" clickable>
-                <q-item-section avatar>
-                  <q-icon :name="getSearchResultIcon(result.type)" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ getSearchResultTitle(result) }}</q-item-label>
-                  <q-item-label caption>{{ getSearchResultSubtitle(result) }}</q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-          </div>
-        </div>
-        
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn flat round icon="notifications" class="notification-btn">
-            <q-badge color="red" floating>1</q-badge>
-          </q-btn>
-          
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-          
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-          
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-          
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-    </q-header>
-
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered class="prototype-sidebar" :width="280">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
       <div class="sidebar-content">
         <!-- Logo Section -->
         <div class="logo-section">
@@ -96,7 +40,7 @@
             <q-avatar size="80px" class="profile-avatar">
               <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
               <div v-else class="profile-placeholder">
-                {{ userInitials }}
+                {{ userInitials || 'NU' }}
               </div>
             </q-avatar>
             <q-btn
@@ -114,22 +58,23 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
-            <q-icon 
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'" 
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'" 
-              class="verified-badge" 
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
             />
           </div>
-          
+
           <div class="user-info">
-            <h6 class="user-name">{{ userProfile?.first_name }} {{ userProfile?.last_name }}</h6>
+            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">Nurse</p>
-            <q-chip 
-              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
               text-color="white"
               size="sm"
-              :label="userProfile?.verification_status === 'approved' ? 'Verified' : 'Not Verified'"
-            />
+            >
+              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
+            </q-chip>
           </div>
         </div>
 
@@ -153,10 +98,15 @@
             <q-item-section avatar>
               <q-icon name="assignment" />
             </q-item-section>
-            <q-item-section>Patient Assessment</q-item-section>
+            <q-item-section>Patient Management</q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('nurse-medicine-inventory')" class="nav-item">
+          <q-item
+            clickable
+            v-ripple
+            @click="navigateTo('nurse-medicine-inventory')"
+            class="nav-item"
+          >
             <q-item-section avatar>
               <q-icon name="medication" />
             </q-item-section>
@@ -170,7 +120,7 @@
             <q-item-section>Analytics</q-item-section>
           </q-item>
 
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item">
+          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
             <q-item-section avatar>
               <q-icon name="settings" />
             </q-item-section>
@@ -178,15 +128,9 @@
           </q-item>
         </q-list>
 
-        <!-- Logout Section - Footer -->
-        <div class="sidebar-footer">
-          <q-btn
-            color="negative"
-            icon="logout"
-            label="Logout"
-            class="logout-btn"
-            @click="logout"
-          />
+        <!-- Logout Section -->
+        <div class="logout-section">
+          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
@@ -199,11 +143,13 @@
             <h2 class="greeting-text">
               Good {{ getTimeOfDay() }}, Nurse {{ userProfile.full_name }}
             </h2>
-            <p class="greeting-subtitle">Manage patient care and medical inventory - {{ currentDate }}</p>
+            <p class="greeting-subtitle">
+              Manage patient care and medical inventory - {{ currentDate }}
+            </p>
           </q-card-section>
         </q-card>
       </div>
-      
+
       <!-- Dashboard Content -->
       <div class="dashboard-content">
         <div class="dashboard-cards">
@@ -250,7 +196,11 @@
           </q-card>
 
           <!-- Medications Administered Card -->
-          <q-card class="dashboard-card medications-card" clickable @click="showMedicationsDialog = true">
+          <q-card
+            class="dashboard-card medications-card"
+            clickable
+            @click="showMedicationsDialog = true"
+          >
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Medications Given</div>
@@ -322,7 +272,7 @@
           </q-card-section>
         </q-card>
       </div>
-      
+
       <router-view />
     </q-page-container>
 
@@ -332,7 +282,7 @@
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">Today's Tasks</div>
           <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
         </q-card-section>
         <q-card-section>
           <div class="tasks-list">
@@ -365,7 +315,7 @@
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">Patients Under Care</div>
           <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
         </q-card-section>
         <q-card-section>
           <div class="patients-list">
@@ -410,7 +360,7 @@
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">Vitals Checked</div>
           <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
         </q-card-section>
         <q-card-section>
           <div class="vitals-list">
@@ -443,7 +393,7 @@
         <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">Medications in Inventory</div>
           <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
         </q-card-section>
         <q-card-section>
           <div class="medications-list">
@@ -457,10 +407,16 @@
                   <q-item-label caption>{{ medicine.medicine_name }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-chip 
-                    :color="medicine.stock_level === 'Low' ? 'red' : medicine.stock_level === 'Medium' ? 'orange' : 'green'" 
-                    text-color="white" 
-                    :label="`${medicine.current_stock} units`" 
+                  <q-chip
+                    :color="
+                      medicine.stock_level === 'Low'
+                        ? 'red'
+                        : medicine.stock_level === 'Medium'
+                          ? 'orange'
+                          : 'green'
+                    "
+                    text-color="white"
+                    :label="`${medicine.current_stock} units`"
                   />
                 </q-item-section>
               </q-item>
@@ -474,203 +430,303 @@
       </q-card>
     </q-dialog>
 
+    <!-- Notifications Modal -->
+    <q-dialog v-model="showNotifications" persistent>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
+            No notifications yet
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item
+                v-for="notification in notifications"
+                :key="notification.id"
+                clickable
+                @click="handleNotificationClick(notification)"
+                :class="{ unread: !notification.isRead }"
+              >
+                <q-item-section avatar>
+                  <q-icon
+                    :name="notification.type === 'message' ? 'message' : 'info'"
+                    :color="notification.type === 'message' ? 'primary' : 'grey'"
+                  />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ notification.title }}</q-item-label>
+                  <q-item-label caption>{{ notification.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{
+                    formatTime(notification.created_at)
+                  }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="!notification.isRead">
+                  <q-badge color="red" rounded />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="notifications.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
+import NurseHeader from '../components/NurseHeader.vue';
 
 // Type definitions for error handling
 interface ApiErrorResponse {
-  profile_picture?: string[]
-  detail?: string
+  profile_picture?: string[];
+  detail?: string;
 }
 
 interface ApiError {
   response?: {
-    data?: ApiErrorResponse
-  }
+    data?: ApiErrorResponse;
+  };
 }
 
-const router = useRouter()
-const $q = useQuasar()
-const rightDrawerOpen = ref(false)
-const text = ref('')
-const fileInput = ref<HTMLInputElement>()
+const router = useRouter();
+const $q = useQuasar();
+const rightDrawerOpen = ref(false);
+const text = ref('');
+const fileInput = ref<HTMLInputElement>();
 
 // Type definitions for search
 interface DoctorData {
-  id: number
-  full_name: string
-  specialization: string
-  department?: string
-  is_available?: boolean
-  current_patients?: number
-  profile_picture?: string
+  id: number;
+  full_name: string;
+  specialization: string;
+  department?: string;
+  is_available?: boolean;
+  current_patients?: number;
+  profile_picture?: string;
 }
 
 interface MedicineData {
-  id: number
-  medicine_name: string
-  current_stock: number
-  unit_price?: number
-  minimum_stock_level?: number
-  expiry_date?: string
-  batch_number?: string
-  usage_pattern?: string
-  stock_level?: string
+  id: number;
+  medicine_name: string;
+  current_stock: number;
+  unit_price?: number;
+  minimum_stock_level?: number;
+  expiry_date?: string;
+  batch_number?: string;
+  usage_pattern?: string;
+  stock_level?: string;
 }
 
 interface PatientData {
-  id: number
-  patient_name: string
-  queue_number: string
-  department?: string
-  status?: string
-  position_in_queue?: number
-  enqueue_time?: string
-  priority_level?: string
-  priority_position?: number
+  id: number;
+  patient_name: string;
+  queue_number: string;
+  department?: string;
+  status?: string;
+  position_in_queue?: number;
+  enqueue_time?: string;
+  priority_level?: string;
+  priority_position?: number;
 }
 
 interface SearchResult {
-  type: 'patient' | 'doctor' | 'medicine'
-  data: PatientData | DoctorData | MedicineData
+  type: 'patient' | 'doctor' | 'medicine';
+  data: PatientData | DoctorData | MedicineData;
 }
 
 interface TaskData {
-  id: number
-  title: string
-  description: string
-  icon: string
-  color: string
-  status: string
-  status_color: string
+  id: number;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  status: string;
+  status_color: string;
 }
 
 interface AssessmentData {
-  id: number
-  patient_name: string
-  vitals_summary: string
-  status: string
+  id: number;
+  patient_name: string;
+  vitals_summary: string;
+  status: string;
 }
 
 // Search functionality
-const searchResults = ref<SearchResult[]>([])
-const isSearching = ref(false)
+const searchResults = ref<SearchResult[]>([]);
+const isSearching = ref(false);
+
+// Location data
+const locationData = ref<{
+  city: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+} | null>(null);
+const locationLoading = ref(false);
+const locationError = ref(false);
 
 // Dialog states
-const showTasksDialog = ref(false)
-const showPatientsDialog = ref(false)
-const showVitalsDialog = ref(false)
-const showMedicationsDialog = ref(false)
+const showTasksDialog = ref(false);
+const showPatientsDialog = ref(false);
+const showVitalsDialog = ref(false);
+const showMedicationsDialog = ref(false);
+const showNotifications = ref(false);
+
+// Notification system
+const notifications = ref<Notification[]>([]);
+
+interface Notification {
+  id: number | string;
+  title: string;
+  message: string;
+  type: 'message' | 'system';
+  isRead: boolean;
+  created_at: string;
+  sender_id?: number | undefined;
+  conversation_id?: number | undefined;
+}
+
+// Raw notification data from backend
+interface RawNotification {
+  id: number;
+  message?: {
+    sender?: {
+      full_name?: string;
+      id?: number;
+    };
+    content?: string;
+    conversation?: {
+      id?: number;
+    };
+  };
+  is_sent?: boolean;
+  created_at: string;
+}
+
+// Medicine data interface
+interface MedicineData {
+  stock_quantity: number;
+  minimum_stock: number;
+  name?: string;
+}
 
 // Queue data
-const normalQueue = ref<PatientData[]>([])
-const priorityQueue = ref<PatientData[]>([])
+const normalQueue = ref<PatientData[]>([]);
+const priorityQueue = ref<PatientData[]>([]);
 
 // Medicine data
-const medicines = ref<MedicineData[]>([])
+const medicines = ref<MedicineData[]>([]);
 
 // Task and assessment data
-const todaysTasks = ref<TaskData[]>([])
-const completedAssessments = ref<AssessmentData[]>([])
+const todaysTasks = ref<TaskData[]>([]);
+const completedAssessments = ref<AssessmentData[]>([]);
 
 const performSearch = async (query: string) => {
   if (!query.trim()) {
-    searchResults.value = []
-    return
+    searchResults.value = [];
+    return;
   }
-  
+
   try {
-    isSearching.value = true
-    
-    // Search patients
-    const patientsResponse = await api.get('/operations/nurse/queue/patients/')
-    const patients = [
-      ...patientsResponse.data.normal_queue,
-      ...patientsResponse.data.priority_queue
-    ].filter(patient => 
-      patient.patient_name.toLowerCase().includes(query.toLowerCase())
-    )
-    
-    // Search doctors
-    const doctorsResponse = await api.get('/operations/available-doctors/')
-    const doctors = doctorsResponse.data.filter((doctor: DoctorData) =>
-      doctor.full_name.toLowerCase().includes(query.toLowerCase()) ||
-      doctor.specialization.toLowerCase().includes(query.toLowerCase())
-    )
-    
-    // Search medicines
-    const medicinesResponse = await api.get('/operations/medicine-inventory/')
-    const medicines = medicinesResponse.data.filter((medicine: MedicineData) =>
-      medicine.medicine_name.toLowerCase().includes(query.toLowerCase())
-    )
-    
+    isSearching.value = true;
+
+    // Search patients using the correct endpoint with search parameter
+    const patientsResponse = await api.get(
+      `/users/nurse/patients/?search=${encodeURIComponent(query)}`,
+    );
+    const patients = patientsResponse.data.patients || [];
+
+    // Search doctors using the correct endpoint with search parameter
+    const doctorsResponse = await api.get(
+      `/operations/available-doctors/?search=${encodeURIComponent(query)}`,
+    );
+    const doctors = doctorsResponse.data || [];
+
+    // Search medicines using the correct endpoint with search parameter
+    const medicinesResponse = await api.get(
+      `/operations/medicine-inventory/?search=${encodeURIComponent(query)}`,
+    );
+    const medicines = medicinesResponse.data || [];
+
     searchResults.value = [
       ...patients.map((p: PatientData) => ({ type: 'patient' as const, data: p })),
       ...doctors.map((d: DoctorData) => ({ type: 'doctor' as const, data: d })),
-      ...medicines.map((m: MedicineData) => ({ type: 'medicine' as const, data: m }))
-    ]
-    
+      ...medicines.map((m: MedicineData) => ({ type: 'medicine' as const, data: m })),
+    ];
   } catch (error) {
-    console.error('Search error:', error)
+    console.error('Search error:', error);
     $q.notify({
       type: 'negative',
       message: 'Search failed',
       position: 'top',
-      timeout: 3000
-    })
+      timeout: 3000,
+    });
   } finally {
-    isSearching.value = false
+    isSearching.value = false;
   }
-}
+};
 
 // Watch for search input changes
 watch(text, (newValue: string) => {
   if (newValue && newValue.length > 2) {
-    void performSearch(newValue)
+    void performSearch(newValue);
   } else {
-    searchResults.value = []
+    searchResults.value = [];
   }
-})
+});
 
 // Search result helpers
 const getSearchResultIcon = (type: string) => {
   switch (type) {
-    case 'patient': return 'person'
-    case 'doctor': return 'medical_services'
-    case 'medicine': return 'medication'
-    default: return 'search'
+    case 'patient':
+      return 'person';
+    case 'doctor':
+      return 'medical_services';
+    case 'medicine':
+      return 'medication';
+    default:
+      return 'search';
   }
-}
+};
 
 const getSearchResultTitle = (result: SearchResult) => {
   switch (result.type) {
-    case 'patient': 
-      return (result.data as PatientData).patient_name || 'Unknown Patient'
-    case 'doctor': 
-      return (result.data as DoctorData).full_name || 'Unknown Doctor'
-    case 'medicine': 
-      return (result.data as MedicineData).medicine_name || 'Unknown Medicine'
-    default: return 'Unknown'
+    case 'patient':
+      return (result.data as PatientData).patient_name || 'Unknown Patient';
+    case 'doctor':
+      return (result.data as DoctorData).full_name || 'Unknown Doctor';
+    case 'medicine':
+      return (result.data as MedicineData).medicine_name || 'Unknown Medicine';
+    default:
+      return 'Unknown';
   }
-}
+};
 
 const getSearchResultSubtitle = (result: SearchResult) => {
   switch (result.type) {
-    case 'patient': 
-      return `Queue: ${(result.data as PatientData).queue_number || 'N/A'}`
-    case 'doctor': 
-      return (result.data as DoctorData).specialization || 'General'
-    case 'medicine': 
-      return `Stock: ${(result.data as MedicineData).current_stock || 0}`
-    default: return ''
+    case 'patient':
+      return `Queue: ${(result.data as PatientData).queue_number || 'N/A'}`;
+    case 'doctor':
+      return (result.data as DoctorData).specialization || 'General';
+    case 'medicine':
+      return `Stock: ${(result.data as MedicineData).current_stock || 0}`;
+    default:
+      return '';
   }
-}
+};
 
 // Dashboard variables
 
@@ -679,8 +735,8 @@ const dashboardStats = ref({
   todaysTasks: 0,
   patientsUnderCare: 0,
   vitalsChecked: 0,
-  medicationsGiven: 0
-})
+  medicationsGiven: 0,
+});
 
 // Queue management (removed duplicate declarations)
 
@@ -688,60 +744,63 @@ const dashboardStats = ref({
 const loadDashboardStats = async () => {
   try {
     // Load patients in queue (normal + priority)
-    const patientsResponse = await api.get('/operations/nurse/queue/patients/')
-    const totalPatients = patientsResponse.data.normal_queue.length + patientsResponse.data.priority_queue.length
-    
+    const patientsResponse = await api.get('/operations/nurse/queue/patients/');
+    const totalPatients =
+      patientsResponse.data.normal_queue.length + patientsResponse.data.priority_queue.length;
+
     // Load medicine inventory count
-    const medicinesResponse = await api.get('/operations/medicine-inventory/')
-    const totalMedicines = medicinesResponse.data.length
-    
+    const medicinesResponse = await api.get('/operations/medicine-inventory/');
+    const totalMedicines = medicinesResponse.data.length;
+
     // Load completed patient assessments (vitals checked) - this would be from assignments
     // For now, we'll use a placeholder - in real implementation, this would come from completed assignments
-    const vitalsChecked = 0 // TODO: Implement actual vitals count from completed assessments
-    
+    const vitalsChecked = 0; // TODO: Implement actual vitals count from completed assessments
+
     // Today's tasks based on actual patient data
-    const todaysTasksCount = totalPatients > 0 ? (totalPatients + (patientsResponse.data.priority_queue.length > 0 ? 1 : 0)) : 0
-    
+    const todaysTasksCount =
+      totalPatients > 0
+        ? totalPatients + (patientsResponse.data.priority_queue.length > 0 ? 1 : 0)
+        : 0;
+
     dashboardStats.value = {
       todaysTasks: todaysTasksCount,
       patientsUnderCare: totalPatients,
       vitalsChecked,
-      medicationsGiven: totalMedicines
-    }
-    
+      medicationsGiven: totalMedicines,
+    };
   } catch (error) {
-    console.error('Failed to load dashboard stats:', error)
+    console.error('Failed to load dashboard stats:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load dashboard statistics',
       position: 'top',
-      timeout: 3000
-    })
+      timeout: 3000,
+    });
   }
-}
+};
 
 // Real-time time and weather
-const currentTime = ref('')
+const currentTime = ref('');
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-  description: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
-let timeInterval: NodeJS.Timeout | null = null
+  temperature: number;
+  condition: string;
+  location: string;
+  description: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
+let timeInterval: NodeJS.Timeout | null = null;
 
 // Mock user profile data - replace with actual API call
 const userProfile = ref<{
-  first_name?: string
-  last_name?: string
-  full_name: string
-  department?: string
-  role: string
-  profile_picture: string | null
-  verification_status: string
-  email?: string
+  first_name?: string;
+  last_name?: string;
+  full_name: string;
+  department?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
+  email?: string;
 }>({
   first_name: '',
   last_name: '',
@@ -750,270 +809,251 @@ const userProfile = ref<{
   role: 'nurse',
   profile_picture: null,
   verification_status: 'not_submitted',
-  email: ''
-})
+  email: '',
+});
 
 const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'N'
+  if (!userProfile.value.full_name) return 'N';
   return userProfile.value.full_name
     .split(' ')
-    .map(name => name.charAt(0))
+    .map((name) => name.charAt(0))
     .join('')
-    .toUpperCase()
-})
+    .toUpperCase();
+});
 
 const getTimeOfDay = () => {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'morning'
-  if (hour < 18) return 'afternoon'
-  return 'evening'
-}
+  const hour = new Date().getHours();
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+};
 
 const currentDate = computed(() => {
-  const now = new Date()
-  return now.toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  })
-})
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+});
 
 // Format profile picture URL
 const profilePictureUrl = computed(() => {
   if (!userProfile.value.profile_picture) {
-    return null
+    return null;
   }
-  
+
   // If it's already a full URL, return as is
   if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture
+    return userProfile.value.profile_picture;
   }
-  
+
   // If it's a relative path, construct the full URL
   if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`
+    return `http://localhost:8000${userProfile.value.profile_picture}`;
   }
-  
+
   // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`
-})
+  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`;
+});
 
 // Update current time
 const updateTime = () => {
-  const now = new Date()
-  
-  // Convert to 12-hour format with AM/PM beside the time
-  const hour = now.getHours()
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const hour12 = hour % 12 || 12
-  const minute = now.getMinutes().toString().padStart(2, '0')
-  const second = now.getSeconds().toString().padStart(2, '0')
-  
-  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`
-}
+  const now = new Date();
 
-// Get weather icon based on condition
-const getWeatherIcon = (condition: string) => {
-  const iconMap: Record<string, string> = {
-    'clear': 'wb_sunny',
-    'clouds': 'cloud',
-    'rain': 'opacity',
-    'snow': 'ac_unit',
-    'thunderstorm': 'flash_on',
-    'drizzle': 'grain',
-    'mist': 'cloud',
-    'fog': 'cloud',
-    'haze': 'cloud',
-    'smoke': 'cloud',
-    'dust': 'cloud',
-    'sand': 'cloud',
-    'ash': 'cloud',
-    'squall': 'air',
-    'tornado': 'air'
-  }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+  // Convert to 12-hour format with AM/PM beside the time
+  const hour = now.getHours();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  const minute = now.getMinutes().toString().padStart(2, '0');
+  const second = now.getSeconds().toString().padStart(2, '0');
+
+  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`;
+};
 
 // Fetch weather data
 const fetchWeather = async () => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
     // Get user's location (default to Manila if geolocation fails)
-    let latitude = 14.5995 // Default: Manila
-    let longitude = 120.9842
-    
+    let latitude = 14.5995; // Default: Manila
+    let longitude = 120.9842;
+
     if (navigator.geolocation) {
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             timeout: 5000,
-            enableHighAccuracy: false
-          })
-        })
-        latitude = position.coords.latitude
-        longitude = position.coords.longitude
+            enableHighAccuracy: false,
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
       } catch {
-        console.log('Geolocation failed, using default location (Manila)')
+        console.log('Geolocation failed, using default location (Manila)');
       }
     }
-    
+
     // Use OpenWeatherMap API
-    const apiKey = '5c328a0059938745d143138d206eb570'
-    const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`)
-    
+    const apiKey = '5c328a0059938745d143138d206eb570';
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`,
+    );
+
     if (!response.ok) {
-      throw new Error('Weather API request failed')
+      throw new Error('Weather API request failed');
     }
-    
-    const data = await response.json()
-    
+
+    const data = await response.json();
+
     weatherData.value = {
       temperature: Math.round(data.main.temp),
       condition: data.weather[0].main.toLowerCase(),
       location: data.name,
-      description: data.weather[0].description
-    }
-    
+      description: data.weather[0].description,
+    };
   } catch (error) {
-    console.error('Weather fetch error:', error)
-    weatherError.value = true
-    
+    console.error('Weather fetch error:', error);
+    weatherError.value = true;
+
     // Fallback weather data
     weatherData.value = {
       temperature: 22,
       condition: 'clear',
       location: 'Local Area',
-      description: 'Partly cloudy'
-    }
+      description: 'Partly cloudy',
+    };
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const triggerFileUpload = () => {
-  fileInput.value?.click()
-}
+  fileInput.value?.click();
+};
 
 const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
+  const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
+    const file = target.files[0];
+
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
       $q.notify({
         type: 'negative',
         message: 'Please select a valid image file (JPG, PNG)',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       $q.notify({
         type: 'negative',
         message: 'File size must be less than 5MB',
         position: 'top',
-        timeout: 3000
-      })
-      return
+        timeout: 3000,
+      });
+      return;
     }
-    
+
     try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData)
-      
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/users/profile/update/picture/', formData);
+
+      userProfile.value.profile_picture = response.data.user.profile_picture;
+
       // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture)
-      
+      localStorage.setItem('profile_picture', response.data.user.profile_picture);
+
       // Show success toast
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
-        timeout: 3000
-      })
-      
+        timeout: 3000,
+      });
+
       // Clear the file input
-      target.value = ''
+      target.value = '';
     } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error)
-      
-      let errorMessage = 'Failed to upload profile picture. Please try again.'
-      
+      console.error('Profile picture upload failed:', error);
+
+      let errorMessage = 'Failed to upload profile picture. Please try again.';
+
       if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as ApiError
+        const axiosError = error as ApiError;
         if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0]
+          errorMessage = axiosError.response.data.profile_picture[0];
         } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail
+          errorMessage = axiosError.response.data.detail;
         }
       }
-      
+
       $q.notify({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
     }
   }
-}
+};
 
 const navigateTo = (route: string) => {
   // Close drawer first
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   // Navigate to different sections
   switch (route) {
     case 'nurse-dashboard':
       // Already on dashboard
-      break
+      break;
     case 'patient-assessment':
-      void router.push('/nurse-patient-assessment')
-      break
+      void router.push('/nurse-patient-assessment');
+      break;
     case 'nurse-messaging':
-      void router.push('/nurse-messaging')
-      break
+      void router.push('/nurse-messaging');
+      break;
     case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory')
-      break
-    case 'analytics':
-      void router.push('/nurse-analytics')
-      break
-    case 'settings':
-      void router.push('/nurse-settings')
-      break
+      void router.push('/nurse-medicine-inventory');
+      break;
+    case 'nurse-analytics':
+      void router.push('/nurse-analytics');
+      break;
+    case 'nurse-settings':
+      void router.push('/nurse-settings');
+      break;
+    default:
+      console.log('Navigation to:', route);
   }
-}
+};
 
 const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user // The API returns nested user data
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user; // The API returns nested user data
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -1022,76 +1062,76 @@ const fetchUserProfile = async () => {
       role: userData.role,
       profile_picture: userData.profile_picture || localStorage.getItem('profile_picture'),
       verification_status: userData.verification_status,
-      email: userData.email
-    }
-    
+      email: userData.email,
+    };
+
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
-      localStorage.setItem('profile_picture', userData.profile_picture)
+      localStorage.setItem('profile_picture', userData.profile_picture);
     }
-    
-    console.log('User profile loaded:', userProfile.value)
+
+    console.log('User profile loaded:', userProfile.value);
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
-    
+    console.error('Failed to fetch user profile:', error);
+
     // Fallback to localStorage
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      const user = JSON.parse(userData)
+      const user = JSON.parse(userData);
       userProfile.value = {
         full_name: user.full_name,
         department: user.nurse_profile?.department,
         role: user.role,
         profile_picture: user.profile_picture || null,
-        verification_status: user.verification_status || 'not_submitted'
-      }
+        verification_status: user.verification_status || 'not_submitted',
+      };
     }
   }
-}
-
+};
 
 // Load queue data
 const loadQueueData = async () => {
   try {
-    const response = await api.get('/operations/nurse/queue/patients/')
-    normalQueue.value = response.data.normal_queue || []
-    priorityQueue.value = response.data.priority_queue || []
+    const response = await api.get('/operations/nurse/queue/patients/');
+    normalQueue.value = response.data.normal_queue || [];
+    priorityQueue.value = response.data.priority_queue || [];
   } catch (error) {
-    console.error('Failed to load queue data:', error)
+    console.error('Failed to load queue data:', error);
   }
-}
+};
 
 // Load medicine data
 const loadMedicineData = async () => {
   try {
-    const response = await api.get('/operations/medicine-inventory/')
-    medicines.value = response.data
+    const response = await api.get('/operations/medicine-inventory/');
+    medicines.value = response.data;
   } catch (error) {
-    console.error('Failed to load medicine data:', error)
+    console.error('Failed to load medicine data:', error);
   }
-}
+};
 
 // Load today's tasks based on patient data
 const loadTodaysTasks = async () => {
   try {
-    const tasks = []
-    
+    const tasks = [];
+
     // Get queue data to generate tasks
-    const queueResponse = await api.get('/operations/nurse/queue/patients/')
-    const totalPatients = queueResponse.data.normal_queue.length + queueResponse.data.priority_queue.length
-    
+    const queueResponse = await api.get('/operations/nurse/queue/patients/');
+    const totalPatients =
+      queueResponse.data.normal_queue.length + queueResponse.data.priority_queue.length;
+
     // Generate tasks based on actual patient data
     if (totalPatients > 0) {
       tasks.push({
         id: 1,
-        title: 'Patient Assessment',
+        title: 'Patient Management',
         description: `Assess ${totalPatients} patients in queue`,
         icon: 'assignment',
         color: 'primary',
         status: 'Pending',
-        status_color: 'orange'
-      })
-      
+        status_color: 'orange',
+      });
+
       if (queueResponse.data.priority_queue.length > 0) {
         tasks.push({
           id: 2,
@@ -1100,90 +1140,449 @@ const loadTodaysTasks = async () => {
           icon: 'emergency',
           color: 'red',
           status: 'Urgent',
-          status_color: 'red'
-        })
+          status_color: 'red',
+        });
       }
     }
-    
-    todaysTasks.value = tasks
+
+    todaysTasks.value = tasks;
   } catch (error) {
-    console.error('Failed to load tasks:', error)
-    todaysTasks.value = []
+    console.error('Failed to load tasks:', error);
+    todaysTasks.value = [];
   }
-}
+};
 
 // Load completed assessments
 const loadCompletedAssessments = () => {
   try {
     // This would typically come from a backend endpoint for completed assessments
     // For now, we'll use empty array as assessments are completed through the patient assessment page
-    completedAssessments.value = []
+    completedAssessments.value = [];
   } catch (error) {
-    console.error('Failed to load completed assessments:', error)
-    completedAssessments.value = []
+    console.error('Failed to load completed assessments:', error);
+    completedAssessments.value = [];
   }
-}
+};
 
 // Queue management methods
 const callNextPatient = () => {
   $q.notify({
     type: 'info',
     message: 'Calling next patient...',
-    position: 'top'
-  })
-}
+    position: 'top',
+  });
+};
 
 const manageQueue = () => {
   $q.notify({
     type: 'info',
     message: 'Opening queue management...',
-    position: 'top'
-  })
-}
+    position: 'top',
+  });
+};
+
+// Notification functions
+const unreadNotificationsCount = computed(() => {
+  return notifications.value.filter((n) => !n.isRead).length;
+});
+
+const loadNotifications = async (): Promise<void> => {
+  try {
+    console.log('📬 Loading notifications...');
+
+    // Load message notifications
+    const messageResponse = await api.get('/operations/messaging/notifications/');
+    const messageNotifications = messageResponse.data || [];
+
+    // Load system notifications (medicine stock alerts, analytics alerts)
+    const systemNotifications = await loadSystemNotifications();
+
+    // Combine and format all notifications
+    const allNotifications = [
+      ...formatMessageNotifications(messageNotifications),
+      ...systemNotifications,
+    ];
+
+    // Sort by creation date (newest first)
+    notifications.value = allNotifications.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    console.log('✅ Notifications loaded:', notifications.value.length);
+  } catch (error: unknown) {
+    console.error('❌ Error loading notifications:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load notifications',
+    });
+  }
+};
+
+// Format message notifications from backend
+const formatMessageNotifications = (rawNotifications: RawNotification[]): Notification[] => {
+  return rawNotifications.map((notif) => ({
+    id: notif.id,
+    title: `New message from ${notif.message?.sender?.full_name || 'Unknown'}`,
+    message: notif.message?.content || 'You have a new message',
+    type: 'message' as const,
+    isRead: notif.is_sent || false,
+    created_at: notif.created_at,
+    sender_id: notif.message?.sender?.id,
+    conversation_id: notif.message?.conversation?.id,
+  }));
+};
+
+// Load system notifications (medicine stock, analytics alerts)
+const loadSystemNotifications = async (): Promise<Notification[]> => {
+  const systemNotifications: Notification[] = [];
+
+  try {
+    // Check for low medicine stock
+    const medicineResponse = await api.get('/operations/medicine-inventory/');
+    const medicines = medicineResponse.data || [];
+
+    const lowStockMedicines = medicines.filter(
+      (med: MedicineData) => med.stock_quantity <= med.minimum_stock,
+    );
+
+    if (lowStockMedicines.length > 0) {
+      systemNotifications.push({
+        id: `low-stock-${Date.now()}`,
+        title: 'Low Medicine Stock Alert',
+        message: `${lowStockMedicines.length} medicine(s) are running low on stock`,
+        type: 'system',
+        isRead: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    console.error('Error loading system notifications:', error);
+  }
+
+  return systemNotifications;
+};
+
+const handleNotificationClick = (notification: Notification): void => {
+  // Mark as read
+  notification.isRead = true;
+
+  // If it's a message notification, navigate to messaging
+  if (notification.type === 'message') {
+    showNotifications.value = false;
+    void router.push('/nurse-messaging');
+  }
+};
+
+const markAllNotificationsRead = async (): Promise<void> => {
+  try {
+    // Mark all notifications as read locally
+    notifications.value.forEach((notification) => {
+      notification.isRead = true;
+    });
+
+    // Mark message notifications as read on backend
+    const messageNotifications = notifications.value.filter((n) => n.type === 'message');
+    for (const notification of messageNotifications) {
+      try {
+        await api.post(`/operations/messaging/notifications/${notification.id}/mark-sent/`);
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
+
+    // Update the notification count
+    await loadNotifications();
+
+    $q.notify({
+      type: 'positive',
+      message: 'All notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to mark notifications as read',
+    });
+  }
+};
+
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+// Search input handler
+const onSearchInput = (value: string) => {
+  if (value && value.length > 2) {
+    void performSearch(value);
+  } else {
+    searchResults.value = [];
+  }
+};
+
+// Clear search
+const clearSearch = () => {
+  text.value = '';
+  searchResults.value = [];
+};
+
+// Select search result
+const selectSearchResult = (result: SearchResult) => {
+  searchResults.value = [];
+  text.value = '';
+
+  // Navigate based on result type
+  switch (result.type) {
+    case 'patient':
+      void router.push('/nurse-patient-assessment');
+      break;
+    case 'doctor':
+      $q.notify({
+        type: 'info',
+        message: `Selected doctor: ${getSearchResultTitle(result)}`,
+        position: 'top',
+      });
+      break;
+    case 'medicine':
+      void router.push('/nurse-medicine-inventory');
+      break;
+  }
+};
+
+// Fetch location data
+const fetchLocation = async () => {
+  locationLoading.value = true;
+  locationError.value = false;
+
+  try {
+    if (navigator.geolocation) {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 5000,
+          enableHighAccuracy: false,
+        });
+      });
+
+      // Use reverse geocoding to get city name
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/reverse?lat=${position.coords.latitude}&lon=${position.coords.longitude}&limit=1&appid=5c328a0059938745d143138d206eb570`,
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          locationData.value = {
+            city: data[0].name,
+            country: data[0].country,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Location fetch error:', error);
+    locationError.value = true;
+    // Fallback location
+    locationData.value = {
+      city: 'Manila',
+      country: 'PH',
+      latitude: 14.5995,
+      longitude: 120.9842,
+    };
+  } finally {
+    locationLoading.value = false;
+  }
+};
 
 onMounted(() => {
   // Load user profile data from API
-  void fetchUserProfile()
-  
+  void fetchUserProfile();
+
   // Load dashboard statistics
-  void loadDashboardStats()
-  
+  void loadDashboardStats();
+
   // Load queue and medicine data
-  void loadQueueData()
-  void loadMedicineData()
-  
+  void loadQueueData();
+  void loadMedicineData();
+
   // Load task and assessment data
-  void loadTodaysTasks()
-  void loadCompletedAssessments()
-  
+  void loadTodaysTasks();
+  void loadCompletedAssessments();
+
+  // Load notifications
+  void loadNotifications();
+
   // Initialize real-time features
-  updateTime() // Set initial time
-  timeInterval = setInterval(updateTime, 1000) // Update every second
-  
+  updateTime(); // Set initial time
+  timeInterval = setInterval(updateTime, 1000); // Update every second
+
   // Fetch weather data
-  void fetchWeather()
-  
+  void fetchWeather();
+
+  // Fetch location data
+  void fetchLocation();
+
   // Refresh weather every 30 minutes
-  setInterval(() => void fetchWeather(), 30 * 60 * 1000)
-  
+  setInterval(() => void fetchWeather(), 30 * 60 * 1000);
+
   // Refresh dashboard stats every 5 minutes
-  setInterval(() => void loadDashboardStats(), 5 * 60 * 1000)
-  
+  setInterval(() => void loadDashboardStats(), 5 * 60 * 1000);
+
   // Refresh user profile every 30 seconds to check for verification status updates
   setInterval(() => {
-    void fetchUserProfile()
-  }, 30000)
-})
+    void fetchUserProfile();
+  }, 30000);
+
+  // More frequent verification status check (every 10 seconds)
+  setInterval(() => {
+    void fetchUserProfile();
+  }, 10000);
+});
+
+// Storage event handler for profile picture sync
+const handleStorageChange = (e: StorageEvent) => {
+  if (e.key === 'profile_picture' && e.newValue) {
+    userProfile.value.profile_picture = e.newValue;
+    console.log('Profile picture updated from storage event:', e.newValue);
+  }
+};
+
+// Listen for storage changes to sync profile picture across components
+window.addEventListener('storage', handleStorageChange);
 
 // Cleanup on component unmount
 onUnmounted(() => {
   if (timeInterval) {
-    clearInterval(timeInterval)
+    clearInterval(timeInterval);
   }
-})
+
+  // Clean up storage event listener
+  window.removeEventListener('storage', handleStorageChange);
+});
 </script>
 
 <style scoped>
+/* Header Styles */
+.prototype-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.header-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 64px;
+}
+
+.header-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.menu-toggle-btn {
+  color: white;
+}
+
+.notification-btn {
+  color: white;
+}
+
+/* Pills for time, weather, location */
+.time-pill,
+.weather-pill,
+.location-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  padding: 6px 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.time-text,
+.weather-text,
+.location-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+}
+
+.weather-loading,
+.weather-error,
+.location-loading,
+.location-error {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0.7;
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: none;
+  flex-direction: column;
+  padding: 8px 16px;
+  gap: 12px;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.header-bottom-row {
+  display: flex;
+  align-items: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-toolbar {
+    display: none;
+  }
+
+  .mobile-header-layout {
+    display: flex;
+  }
+
+  .time-pill,
+  .weather-pill,
+  .location-pill {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .time-text,
+  .weather-text,
+  .location-text {
+    font-size: 11px;
+  }
+}
+
 .page-background {
   background: #f5f5f5;
   min-height: 100vh;
@@ -1225,14 +1624,16 @@ onUnmounted(() => {
   margin-left: 20px;
 }
 
-.time-display, .weather-display, .weather-loading, .weather-error {
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 8px;
   color: white;
   font-size: 14px;
 }
-
 
 .time-text,
 .weather-text,
@@ -1246,9 +1647,6 @@ onUnmounted(() => {
   font-size: 12px;
   opacity: 0.8;
 }
-
-
-
 
 /* Greeting Section Styles */
 .greeting-section {
@@ -1306,7 +1704,9 @@ onUnmounted(() => {
 .stat-card {
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   cursor: pointer;
 }
 
@@ -1428,26 +1828,37 @@ onUnmounted(() => {
 .profile-placeholder {
   width: 100%;
   height: 100%;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  background: #1e7668;
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
+  background: #286660 !important;
+  color: white !important;
+  font-weight: 600;
+  font-size: 1.5rem;
   border-radius: 50%;
+  position: relative;
+  z-index: 1;
 }
 
 .upload-btn {
   position: absolute;
-  bottom: -5px;
-  right: -5px;
+  bottom: 0px;
+  right: 0px;
   background: #1e7668 !important;
   border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
   padding: 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  border: 2px solid white !important;
+  transition: all 0.3s ease !important;
+}
+
+.upload-btn:hover {
+  background: #286660 !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
 
 .user-info {
@@ -1491,7 +1902,7 @@ onUnmounted(() => {
   background: #f5f5f5;
 }
 
-.sidebar-footer {
+.logout-section {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -1503,6 +1914,82 @@ onUnmounted(() => {
 
 .logout-btn {
   width: 100%;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Responsive Design - Mobile and Web Support */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Mobile header positioning */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Desktop Header Layout */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
 }
 
 /* Prototype Header Styles */
@@ -1547,8 +2034,46 @@ onUnmounted(() => {
   color: white;
 }
 
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
 /* Pill-shaped elements for time, weather, and location */
-.time-pill, .weather-pill, .location-pill {
+.time-pill,
+.weather-pill,
+.location-pill {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1561,11 +2086,14 @@ onUnmounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.time-text, .weather-text, .location-text {
+.time-text,
+.weather-text,
+.location-text {
   white-space: nowrap;
 }
 
-.weather-loading, .weather-error {
+.weather-loading,
+.weather-error {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1578,6 +2106,7 @@ onUnmounted(() => {
 .prototype-sidebar {
   background: white;
   border-right: 1px solid #e0e0e0;
+  position: relative;
 }
 
 .sidebar-content {
@@ -1617,12 +2146,6 @@ onUnmounted(() => {
   text-align: center;
 }
 
-.sidebar-user-profile {
-  padding: 24px 20px;
-  border-bottom: 1px solid #e0e0e0;
-  text-align: center;
-}
-
 .profile-picture-container {
   position: relative;
   display: inline-block;
@@ -1633,7 +2156,7 @@ onUnmounted(() => {
   position: absolute;
   bottom: 0;
   right: 0;
-  transform: translate(25%, 25%);
+  transform: translate(10%, 10%);
 }
 
 .verified-badge {
@@ -1649,7 +2172,6 @@ onUnmounted(() => {
   justify-content: center;
   font-size: 12px;
 }
-
 
 .user-name {
   font-size: 16px;
@@ -1696,13 +2218,6 @@ onUnmounted(() => {
   padding: 20px;
   border-top: 1px solid #e0e0e0;
   background: #f8f9fa;
-}
-
-.logout-btn {
-  width: 100%;
-  border-radius: 8px;
-  font-weight: 600;
-  text-transform: uppercase;
 }
 
 /* Page Container with Background */
@@ -1781,8 +2296,155 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    padding: 0 16px;
+    min-height: 56px;
+    padding-top: max(env(safe-area-inset-top), 4px);
+  }
+
+  .header-right {
+    gap: 12px;
+  }
+
+  .search-container {
+    max-width: 300px;
+  }
+
+  .time-pill,
+  .weather-pill,
+  .location-pill {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  /* Mobile Header Layout */
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+
+  .greeting-section {
+    padding: 16px;
+  }
+
+  .greeting-content {
+    padding: 20px;
+  }
+
+  .dashboard-content {
+    padding: 16px;
+  }
+
   .dashboard-cards {
     grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card-content {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .card-title {
+    font-size: 1.1rem;
+  }
+
+  .card-number {
+    font-size: 2.2rem;
+    align-self: flex-end;
+  }
+
+  .card-description {
+    font-size: 0.85rem;
+  }
+
+  .card-icon {
+    margin-left: 0;
+    align-self: flex-end;
+  }
+
+  .queueing-section {
+    padding: 0 16px 16px;
+  }
+
+  .queueing-header {
+    padding: 20px;
+  }
+
+  .queueing-title {
+    font-size: 1.3rem;
+  }
+
+  .queueing-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .action-btn {
+    min-width: 200px;
+    width: 100%;
+    max-width: 280px;
+  }
+
+  .queue-panels-section {
+    padding: 16px;
+  }
+
+  .queue-panels-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .queue-panel {
+    padding: 16px;
+    min-height: 150px;
   }
 }
 
@@ -1971,6 +2633,26 @@ onUnmounted(() => {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
+.modal-close-btn {
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+/* Desktop close button styling */
+@media (min-width: 769px) {
+  .modal-close-btn {
+    padding: 6px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 18px;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+  }
+}
+
 .modal-card .q-card-section {
   padding: 20px;
 }
@@ -2039,20 +2721,245 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-/* Responsive modal */
-@media (max-width: 768px) {
-  .modal-card {
-    min-width: 90vw;
-    max-width: 95vw;
-    margin: 20px;
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
   }
-  
+
+  .header-toolbar {
+    padding: 0 12px;
+    min-height: 52px;
+    padding-top: max(env(safe-area-inset-top), 6px);
+  }
+
+  /* Mobile Header Layout - Extra Small */
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
+  }
+
+  .header-bottom-row {
+    padding: 0 8px 4px;
+  }
+
+  .header-info {
+    gap: 6px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
+
+  .search-container {
+    max-width: 200px;
+  }
+
+  .time-pill,
+  .weather-pill,
+  .location-pill {
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+
+  .greeting-section {
+    padding: 12px;
+  }
+
+  .greeting-content {
+    padding: 16px;
+  }
+
+  .greeting-text {
+    font-size: 24px;
+  }
+
+  .greeting-subtitle {
+    font-size: 14px;
+  }
+
+  .dashboard-content {
+    padding: 12px;
+  }
+
+  .dashboard-cards {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .card-content {
+    padding: 16px;
+  }
+
+  .card-title {
+    font-size: 1rem;
+  }
+
+  .card-number {
+    font-size: 2rem;
+  }
+
+  .card-description {
+    font-size: 0.8rem;
+  }
+
+  .queueing-section {
+    padding: 0 12px 12px;
+  }
+
+  .queueing-header {
+    padding: 16px;
+  }
+
+  .queueing-title {
+    font-size: 1.2rem;
+  }
+
+  .action-btn {
+    min-width: 180px;
+    padding: 12px 16px;
+  }
+
+  .queue-panels-section {
+    padding: 12px;
+  }
+
+  .queue-panel {
+    padding: 12px;
+    min-height: 120px;
+  }
+
+  .queue-panel-title {
+    font-size: 1rem;
+  }
+
+  .notification-btn {
+    padding: 8px;
+  }
+
+  .menu-toggle-btn {
+    padding: 8px;
+  }
+}
+
+/* Global Modal Safe Area Support */
+@media (max-width: 768px) {
+  :deep(.q-dialog) {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 20px) max(env(safe-area-inset-right), 8px)
+      max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px) !important;
+    margin: 0 !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding-top: max(env(safe-area-inset-top), 20px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
+    ) !important;
+    width: 100% !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 8px) - max(env(safe-area-inset-right), 8px)
+    ) !important;
+    margin: 0 !important;
+  }
+
+  .modal-card {
+    min-width: unset;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 12px;
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
+    );
+    overflow-y: auto;
+  }
+
   .modal-card .q-card-section {
     padding: 16px;
   }
-  
+
   .modal-card .text-h6 {
     font-size: 1.25rem;
+  }
+
+  .modal-close-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 24px) max(env(safe-area-inset-right), 4px)
+      max(env(safe-area-inset-bottom), 4px) max(env(safe-area-inset-left), 4px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
+    ) !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 4px) - max(env(safe-area-inset-right), 4px)
+    ) !important;
+  }
+
+  .modal-card {
+    border-radius: 8px;
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
+    );
+  }
+
+  .modal-close-btn {
+    padding: 10px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 22px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
   }
 }
 </style>
