@@ -1,5 +1,11 @@
 <template>
-  <div class="login-page">
+  <div
+    class="login-page safe-area-top safe-area-bottom"
+    style="
+      background: url('http://localhost:9000/background.png') no-repeat center center;
+      background-size: cover;
+    "
+  >
     <div class="login-container">
       <div class="login-card">
         <div class="login-header">
@@ -60,150 +66,273 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
-import { AxiosError } from 'axios'
+import { ref, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
+import { AxiosError } from 'axios';
+import { updateApiEndpoint, getNetworkInfo } from '../utils/mobileConnectivity';
 
-const router = useRouter()
-const $q = useQuasar()
+const router = useRouter();
+const $q = useQuasar();
 
-const email = ref('')
-const password = ref('')
-const showPassword = ref(false)
-const loading = ref(false)
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
+const loading = ref(false);
 
-const onLogin = async () => {
-  loading.value = true
-  
+// Performance optimization: Cache network info
+let cachedNetworkInfo: unknown = null;
+let networkInfoCacheTime = 0;
+const NETWORK_CACHE_DURATION = 30000; // 30 seconds
+
+// Performance optimization: Debounce login attempts
+let loginTimeout: NodeJS.Timeout | null = null;
+
+// iOS-specific optimizations
+const isIOS = ref(false);
+
+onMounted(async () => {
+  // Detect iOS for platform-specific optimizations
+  isIOS.value =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Pre-warm network connection for faster login
+  if (isIOS.value) {
+    try {
+      await updateApiEndpoint();
+    } catch {
+      // Network pre-warming failed silently
+    }
+  }
+});
+
+// Optimized network info getter with caching
+const getCachedNetworkInfo = () => {
+  const now = Date.now();
+  if (cachedNetworkInfo && now - networkInfoCacheTime < NETWORK_CACHE_DURATION) {
+    return cachedNetworkInfo;
+  }
+
   try {
-    const response = await api.post('/users/login/', {
-      email: email.value,
-      password: password.value
-    })
+    cachedNetworkInfo = getNetworkInfo();
+    networkInfoCacheTime = now;
+    return cachedNetworkInfo;
+  } catch {
+    // Network info cache failed silently
+    return null;
+  }
+};
 
-    console.log('Login response:', response.data)  // Add debug logging
-    console.log('Response status:', response.status)  // Add debug logging
+const onLogin = () => {
+  // Debounce login attempts to prevent multiple rapid calls
+  if (loginTimeout) {
+    clearTimeout(loginTimeout);
+  }
 
-    // Check if response has the expected structure
+  loginTimeout = setTimeout(
+    () => {
+      void performLogin();
+    },
+    isIOS.value ? 100 : 0,
+  ); // Small delay on iOS for better UX
+};
+
+const performLogin = async () => {
+  loading.value = true;
+
+  // Mobile-specific platform detection
+  const isMobile = !!(window as { Capacitor?: unknown }).Capacitor;
+
+  try {
+    // Optimized connectivity check with caching
+    if (isMobile) {
+      const networkInfo = getCachedNetworkInfo();
+
+      if (!networkInfo) {
+        throw new Error(
+          'No working endpoints found. Please check your network connection and server status.',
+        );
+      }
+    }
+
+    // Optimized API call with timeout for iOS
+    const loginPromise = api.post(
+      '/users/login/',
+      {
+        email: email.value,
+        password: password.value,
+      },
+      {
+        timeout: isIOS.value ? 15000 : 10000, // Longer timeout on iOS
+        headers: {
+          'Content-Type': 'application/json',
+          ...(isIOS.value && { 'X-Platform': 'iOS' }),
+        },
+      },
+    );
+
+    const response = await loginPromise;
+
+    // Validate response structure
     if (!response.data.access || !response.data.refresh) {
-      console.error('Response missing tokens:', response.data)  // Add debug logging
-      throw new Error('Invalid response structure: missing tokens')
+      throw new Error('Invalid response: missing authentication tokens');
     }
 
-    // Store tokens
-    localStorage.setItem('access_token', response.data.access)
-    localStorage.setItem('refresh_token', response.data.refresh)
-    
-    // Store user data (if available)
+    // Optimized storage operations - batch them for better performance
+    const storageOperations = [];
+
+    storageOperations.push(
+      new Promise((resolve) => {
+        try {
+          localStorage.setItem('access_token', response.data.access);
+          localStorage.setItem('refresh_token', response.data.refresh);
+          resolve(true);
+        } catch (error) {
+          console.error('Token storage failed:', error);
+          resolve(false);
+        }
+      }),
+    );
+
     if (response.data.user) {
-      localStorage.setItem('user', JSON.stringify(response.data.user))
+      storageOperations.push(
+        new Promise((resolve) => {
+          try {
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+            resolve(true);
+          } catch (error) {
+            console.error('User data storage failed:', error);
+            resolve(false);
+          }
+        }),
+      );
     }
 
-    // Show success toast notification
+    // Execute storage operations in parallel
+    await Promise.all(storageOperations);
+
+    // Optimized notification for iOS
     $q.notify({
       type: 'positive',
       message: 'Login successful!',
       position: 'top',
-      timeout: 2000
-    })
+      timeout: isIOS.value ? 1500 : 2000, // Shorter on iOS for better UX
+      actions: isIOS.value ? [] : [{ icon: 'close', color: 'white' }],
+    });
 
-    // Redirect based on user role
-    const user = response.data.user
-    console.log('=== LOGIN DEBUG INFO ===')
-    console.log('Full response data:', response.data)
-    console.log('User data for redirect:', user)
-    console.log('User role:', user?.role)
-    console.log('User is_verified:', user?.is_verified)
-    console.log('User email:', user?.email)
-    console.log('========================')
-    
-    // Check if user is verified
+    // Optimized navigation logic
+    const user = response.data.user;
+
+    // Use nextTick for better performance on iOS
+    void nextTick();
+
+    // Immediate navigation without setTimeout for better performance
     if (user && !user.is_verified) {
-      console.log('User not verified, redirecting to verification page')
-      setTimeout(() => {
-        console.log('Executing redirect to verification page...')
-        router.push('/verification').then(() => {
-          console.log('Successfully redirected to verification page')
-        }).catch((error) => {
-          console.error('Error redirecting to verification page:', error)
-        })
-      }, 1000) // Small delay to show the toast
-      return
+      await router.push('/verification');
+      return;
     }
-    
-    // If user is verified or no verification required, redirect to role-based dashboard
-    setTimeout(() => {
-      console.log('Executing role-based redirect...')
-      if (!user || !user.role) {
-        console.log('No user data or role, redirecting to home')
-        router.push('/').then(() => {
-          console.log('Successfully redirected to home')
-        }).catch((error) => {
-          console.error('Error redirecting to home:', error)
-        })
-        return
-      }
-      
-      console.log(`Redirecting to ${user.role} dashboard...`)
-      let redirectPromise: Promise<unknown>
-      
-      switch (user.role) {
-        case 'doctor':
-          console.log('Redirecting to doctor dashboard')
-          redirectPromise = router.push('/doctor-dashboard')
-          break
-        case 'nurse':
-          console.log('Redirecting to nurse dashboard')
-          redirectPromise = router.push('/nurse-dashboard')
-          break
-        case 'patient':
-          console.log('Redirecting to patient dashboard')
-          redirectPromise = router.push('/patient-dashboard')
-          break
-        default:
-          console.log('No matching role, redirecting to home')
-          redirectPromise = router.push('/')
-      }
-      
-      redirectPromise.then(() => {
-        console.log(`Successfully redirected to ${user.role} dashboard`)
-      }).catch((error) => {
-        console.error('Error during redirect:', error)
-      })
-    }, 1000) // Small delay to show the toast
 
+    // Role-based navigation
+    if (!user || !user.role) {
+      await router.push('/');
+      return;
+    }
+
+    // Navigate based on user role
+    switch (user.role) {
+      case 'doctor':
+        await router.push('/doctor-dashboard');
+        break;
+      case 'nurse':
+        await router.push('/nurse-dashboard');
+        break;
+      case 'patient':
+        await router.push('/patient-dashboard');
+        break;
+      default:
+        await router.push('/');
+    }
   } catch (error: unknown) {
-    console.error('Login error:', error)
-    
-    let errorMessage = 'Login failed. Please try again.'
-    
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Login error:', error);
+    }
+
+    const isMobile = !!(window as { Capacitor?: unknown }).Capacitor;
+    let errorMessage = 'Login failed. Please try again.';
+
     if (error instanceof AxiosError) {
       if (error.response?.data) {
-        errorMessage = error.response.data.message || error.response.data.error || errorMessage
+        errorMessage = error.response.data.message || error.response.data.error || errorMessage;
+      }
+
+      // Optimized mobile-specific error handling
+      if (isMobile) {
+        if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+          errorMessage = 'Network connection failed. Please check your connection.';
+        } else if (error.response?.status === 0) {
+          errorMessage = 'Server unreachable. Please check your network.';
+        } else if (error.response?.status === 403) {
+          errorMessage = 'Access denied. Please check your credentials.';
+        }
       }
     } else if (error instanceof Error) {
-      errorMessage = error.message
+      errorMessage = error.message;
     }
-    
-    // Show error toast notification
+
+    // Show optimized error notification
     $q.notify({
       type: 'negative',
-      message: `Login failed: ${errorMessage}`,
+      message: errorMessage,
       position: 'top',
-      timeout: 4000
-    })
+      timeout: isIOS.value ? 4000 : 6000,
+      actions: isIOS.value
+        ? []
+        : [
+            {
+              label: 'Retry',
+              color: 'white',
+              handler: () => {
+                onLogin();
+              },
+            },
+          ],
+    });
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 </script>
 
-<style scoped>
+<style>
+body {
+  background: url('http://localhost:9000/background.png') no-repeat center center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
+  position: relative !important;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(248, 249, 250, 0.2) 50%,
+    rgba(240, 242, 245, 0.1) 100%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+
 .login-page {
-  min-height: 100vh;
-  background: #286660;
+  min-height: 100vh !important;
+  background: transparent !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -216,10 +345,27 @@ const onLogin = async () => {
 }
 
 .login-card {
-  background: white;
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.15),
+    0 8px 16px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 30px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
 }
 
 .login-header {
@@ -341,5 +487,76 @@ const onLogin = async () => {
 
 .link-btn:hover {
   color: #6ca299;
+}
+
+@media (max-width: 768px) {
+  .login-page {
+    padding: 8px;
+    min-height: 100vh;
+    /* Ensure content doesn't overlap with safe areas and navigation */
+    padding-top: max(60px, calc(var(--safe-area-inset-top) + 40px));
+    padding-bottom: max(8px, var(--safe-area-inset-bottom));
+    padding-left: max(8px, var(--safe-area-inset-left));
+    padding-right: max(8px, var(--safe-area-inset-right));
+    /* Center the login form vertically */
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-container {
+    max-width: 100%;
+  }
+
+  .login-card {
+    padding: 16px;
+    margin: 0;
+    border-radius: 12px;
+  }
+
+  .login-header {
+    margin-bottom: 20px;
+  }
+
+  .login-header h2 {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+
+  .login-header p {
+    font-size: 13px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+
+  .form-group input {
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .login-btn {
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .login-footer {
+    padding-top: 16px;
+  }
+
+  .login-footer p {
+    font-size: 13px;
+  }
+
+  .link-btn {
+    font-size: 13px;
+  }
 }
 </style>

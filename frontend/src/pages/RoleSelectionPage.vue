@@ -3,41 +3,37 @@
     <div class="role-selection-container">
       <div class="role-selection-card">
         <div class="role-header">
-          <h2>Join MediSync</h2>
-          <p>Select your role to get started</p>
+          <h1>Which role best describes you?</h1>
         </div>
 
         <div class="role-options">
-          <div class="role-card" :class="{ 'selected': selectedRole === 'doctor' }" @click="selectRole('doctor')">
-            <div class="role-icon">👨‍⚕️</div>
-            <h3>Doctor</h3>
-            <p>Provide medical care and consultations to patients</p>
-          </div>
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'doctor' }"
+            @click="selectRole('doctor')"
+          >
+            Doctor
+          </button>
 
-          <div class="role-card" :class="{ 'selected': selectedRole === 'nurse' }" @click="selectRole('nurse')">
-            <div class="role-icon">👩‍⚕️</div>
-            <h3>Nurse</h3>
-            <p>Assist in patient care and medical procedures</p>
-          </div>
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'nurse' }"
+            @click="selectRole('nurse')"
+          >
+            Nurse
+          </button>
 
-          <div class="role-card" :class="{ 'selected': selectedRole === 'patient' }" @click="selectRole('patient')">
-            <div class="role-icon">👤</div>
-            <h3>Patient</h3>
-            <p>Access your medical records and appointments</p>
-          </div>
+          <button
+            class="role-btn"
+            :class="{ selected: selectedRole === 'patient' }"
+            @click="selectRole('patient')"
+          >
+            Patient
+          </button>
         </div>
 
-        <div class="role-actions">
-          <button 
-            class="continue-btn" 
-            :disabled="!selectedRole"
-            @click="continueToRegistration"
-          >
-            Continue
-          </button>
-          <button class="back-btn" @click="$router.push('/login')">
-            Back to Login
-          </button>
+        <div class="role-actions" v-if="selectedRole">
+          <button class="continue-btn" @click="continueToRegistration">Continue</button>
         </div>
       </div>
     </div>
@@ -45,120 +41,138 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
-const selectedRole = ref('')
+const router = useRouter();
+const selectedRole = ref('');
 
 const selectRole = (role: string) => {
-  selectedRole.value = role
-}
+  selectedRole.value = role;
+};
 
 const continueToRegistration = () => {
   if (selectedRole.value) {
-    void router.push(`/register/${selectedRole.value}`)
+    void router.push(`/register/${selectedRole.value}`);
   }
-}
+};
 </script>
 
 <style scoped>
 .role-selection-page {
   min-height: 100vh;
-  background: #286660;
+  background: url('/background.png') no-repeat center center;
+  background-size: cover;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  position: relative;
+}
+
+.role-selection-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(248, 249, 250, 0.15) 50%,
+    rgba(240, 242, 245, 0.08) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+.role-selection-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .role-selection-container {
   width: 100%;
-  max-width: 800px;
+  max-width: 600px;
+  text-align: center;
 }
 
 .role-selection-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.15),
+    0 8px 16px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.role-selection-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 20px 20px 0 0;
 }
 
 .role-header {
-  text-align: center;
   margin-bottom: 40px;
 }
 
-.role-header h2 {
-  margin: 0 0 10px 0;
-  color: #333;
-  font-size: 32px;
-  font-weight: 600;
-}
-
-.role-header p {
+.role-header h1 {
   margin: 0;
-  color: #666;
-  font-size: 18px;
+  color: #333;
+  font-size: 28px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .role-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 20px;
   margin-bottom: 40px;
 }
 
-.role-card {
-  background: #f8f9fa;
-  border: 2px solid transparent;
+.role-btn {
+  width: 200px;
+  padding: 16px 24px;
+  background: #286660;
+  color: white;
+  border: none;
   border-radius: 12px;
-  padding: 30px;
-  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.role-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+.role-btn:hover {
+  background: #1e5a52;
+  transform: translateY(-2px);
 }
 
-.role-card.selected {
-  border-color: #1e7668;
-  background: rgba(30, 118, 104, 0.05);
-}
-
-.role-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-}
-
-.role-card h3 {
-  margin: 0 0 15px 0;
-  color: #333;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.role-card p {
-  margin: 0;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.5;
+.role-btn.selected {
+  background: #1e5a52;
+  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.3);
 }
 
 .role-actions {
-  text-align: center;
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
+  margin-top: 40px;
 }
 
 .continue-btn {
   padding: 12px 30px;
-  background: #1e7668;
+  background: #286660;
   color: white;
   border: none;
   border-radius: 8px;
@@ -166,50 +180,77 @@ const continueToRegistration = () => {
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.3s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.continue-btn:hover:not(:disabled) {
-  background: #6ca299;
-}
-
-.continue-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.back-btn {
-  padding: 12px 30px;
-  background: transparent;
-  color: #1e7668;
-  border: 1px solid #1e7668;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.back-btn:hover {
-  background: #1e7668;
-  color: white;
+.continue-btn:hover {
+  background: #1e5a52;
 }
 
 @media (max-width: 768px) {
+  .role-selection-page {
+    padding: 8px;
+    min-height: 100vh;
+    padding-top: max(8px, var(--safe-area-inset-top));
+    padding-bottom: max(8px, var(--safe-area-inset-bottom));
+    padding-left: max(8px, var(--safe-area-inset-left));
+    padding-right: max(8px, var(--safe-area-inset-right));
+  }
+
+  .role-selection-container {
+    max-width: 100%;
+  }
+
   .role-selection-card {
-    padding: 20px;
+    padding: 16px;
+    margin: 0;
+    border-radius: 12px;
   }
-  
+
+  .role-header {
+    margin-bottom: 20px;
+  }
+
+  .role-header h1 {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .role-header p {
+    font-size: 13px;
+  }
+
   .role-options {
-    grid-template-columns: 1fr;
+    gap: 12px;
   }
-  
-  .role-actions {
-    flex-direction: column;
-  }
-  
-  .continue-btn,
-  .back-btn {
+
+  .role-btn {
     width: 100%;
+    padding: 16px;
+    font-size: 14px;
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .role-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .role-name {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .role-description {
+    font-size: 12px;
+  }
+
+  .continue-btn {
+    padding: 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    margin-top: 20px;
   }
 }
 </style>

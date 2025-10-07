@@ -53,7 +53,8 @@ def create_admin_user():
             email=email,
             password=password,
             full_name=full_name,
-            is_super_admin=is_super_admin
+            is_super_admin=is_super_admin,
+            is_email_verified=True  # Set as verified for default admin
         )
         
         print(f"Admin user created successfully!")

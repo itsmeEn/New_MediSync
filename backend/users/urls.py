@@ -20,4 +20,9 @@ urlpatterns = [
     # Password reset endpoints
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/<str:uidb64>/<str:token>/', views.reset_password, name='reset_password'),
+    
+    # Patient management endpoints
+    path('doctor/patients/', views.get_doctor_patients, name='get_doctor_patients'),
+    path('nurse/patients/', views.get_nurse_patients, name='get_nurse_patients'),
+    
 ]

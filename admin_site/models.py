@@ -13,6 +13,11 @@ class AdminUser(AbstractUser):
     full_name = models.CharField(max_length=255)
     is_super_admin = models.BooleanField(default=False)
     
+    # Email verification fields
+    is_email_verified = models.BooleanField(default=False)
+    email_verification_token = models.CharField(max_length=255, blank=True, null=True)
+    email_verification_sent_at = models.DateTimeField(blank=True, null=True)
+    
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name']
     
@@ -85,6 +90,16 @@ class VerificationRequest(models.Model):
         self.reviewed_at = timezone.now()
         self.reviewed_by = admin_user
         self.save()
+        
+        # Update the actual user's verification status
+        try:
+            from backend.users.models import User
+            user = User.objects.get(email=self.user_email)
+            user.verification_status = 'approved'
+            user.save()
+        except User.DoesNotExist:
+            # User might not exist in the main app, that's okay
+            pass
     
     def decline(self, admin_user, reason=""):
         """Decline the verification request."""
@@ -93,6 +108,16 @@ class VerificationRequest(models.Model):
         self.reviewed_by = admin_user
         self.decline_reason = reason
         self.save()
+        
+        # Update the actual user's verification status
+        try:
+            from backend.users.models import User
+            user = User.objects.get(email=self.user_email)
+            user.verification_status = 'declined'
+            user.save()
+        except User.DoesNotExist:
+            # User might not exist in the main app, that's okay
+            pass
     
     def archive(self, admin_user):
         """Archive the verification request."""

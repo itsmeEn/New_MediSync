@@ -5,12 +5,52 @@ const API_BASE_URL = 'http://localhost:8000/api/admin';
 let currentUser = null;
 let verifications = [];
 let selectedVerification = null;
+let csrfToken = null;
+
+// Get CSRF token
+async function getCSRFToken() {
+    if (csrfToken) {
+        return csrfToken;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/csrf-token/`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            csrfToken = data.csrf_token;
+            return csrfToken;
+        }
+    } catch (error) {
+        console.error('Failed to get CSRF token:', error);
+    }
+    
+    return null;
+}
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     checkAuth();
     setupEventListeners();
+    setupPasswordToggle();
 });
+
+// Password toggle functionality
+function setupPasswordToggle() {
+    const passwordInput = document.getElementById('password');
+    const passwordToggleBtn = document.getElementById('passwordToggleBtn');
+    
+    if (passwordInput && passwordToggleBtn) {
+        passwordToggleBtn.addEventListener('click', function() {
+            const isPassword = passwordInput.type === 'password';
+            passwordInput.type = isPassword ? 'text' : 'password';
+            passwordToggleBtn.textContent = isPassword ? 'Hide' : 'Show';
+        });
+    }
+}
 
 // Check if user is authenticated
 function checkAuth() {
@@ -26,23 +66,189 @@ function checkAuth() {
 // Setup event listeners
 function setupEventListeners() {
     // Login form
-    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
     
     // Filters
-    document.getElementById('statusFilter').addEventListener('change', filterVerifications);
-    document.getElementById('searchInput').addEventListener('input', filterVerifications);
+    const statusFilter = document.getElementById('statusFilter');
+    const searchInput = document.getElementById('searchInput');
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterVerifications);
+    }
+    if (searchInput) {
+        searchInput.addEventListener('input', filterVerifications);
+    }
+
+    // Time update
+    updateTime();
+    setInterval(updateTime, 1000);
+}
+
+// Update time display
+function updateTime() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('en-US', { 
+        hour12: true, 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        second: '2-digit' 
+    });
+    
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        timeElement.textContent = timeString;
+    }
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('open');
+    }
+}
+
+// Navigation functions
+function showDashboard() {
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+}
+
+function showVerifications() {
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+}
+
+function showUsers() {
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+}
+
+function showAnalytics() {
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+}
+
+function showSettings() {
+    // Update active nav item
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    event.target.closest('.nav-item').classList.add('active');
+    
+    // Close sidebar on mobile
+    if (window.innerWidth <= 768) {
+        toggleSidebar();
+    }
+}
+
+// Card click handlers
+function showPendingVerifications() {
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.value = 'pending';
+        filterVerifications();
+    }
+}
+
+function showApprovedVerifications() {
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.value = 'approved';
+        filterVerifications();
+    }
+}
+
+function showDeclinedVerifications() {
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.value = 'declined';
+        filterVerifications();
+    }
+}
+
+function showArchivedVerifications() {
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.value = 'archived';
+        filterVerifications();
+    }
 }
 
 // Show login screen
 function showLogin() {
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('dashboard').style.display = 'none';
+    const loginScreen = document.getElementById('loginScreen');
+    const dashboard = document.getElementById('dashboard');
+    
+    if (loginScreen) {
+        loginScreen.style.display = 'flex';
+    }
+    if (dashboard) {
+        dashboard.style.display = 'none';
+    }
 }
 
 // Show dashboard
 function showDashboard() {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+    const loginScreen = document.getElementById('loginScreen');
+    const dashboard = document.getElementById('dashboard');
+    
+    if (loginScreen) {
+        loginScreen.style.display = 'none';
+    }
+    if (dashboard) {
+        dashboard.style.display = 'block';
+        
+        // Set up greeting text
+        const greetingText = document.getElementById('greetingText');
+        const greetingSubtitle = document.getElementById('greetingSubtitle');
+        const adminName = document.getElementById('adminName');
+        
+        if (greetingText && adminName) {
+            const now = new Date();
+            const hour = now.getHours();
+            let timeOfDay = 'morning';
+            if (hour >= 12 && hour < 18) timeOfDay = 'afternoon';
+            else if (hour >= 18) timeOfDay = 'evening';
+            
+            greetingText.textContent = `Good ${timeOfDay}, Admin ${adminName.textContent}`;
+        }
+        
+        if (greetingSubtitle) {
+            const today = new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            greetingSubtitle.textContent = `Manage your healthcare platform - ${today}`;
+        }
+    }
 }
 
 // Handle login
@@ -59,6 +265,7 @@ async function handleLogin(event) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({ email, password })
         });
@@ -287,15 +494,117 @@ async function viewDocument(id) {
     
     // Show document if available
     const iframe = document.getElementById('documentFrame');
+    const documentInfo = document.getElementById('documentInfo');
+    
     if (verification.verification_document) {
-        // Fetch document with authentication and create blob URL
+        // Show loading state
+        iframe.style.display = 'none';
+        documentInfo.innerHTML += '<div class="text-center mt-3"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading document...</p></div>';
+        
         try {
             const token = localStorage.getItem('admin_access_token');
             if (!token) {
                 throw new Error('No authentication token');
             }
             
+            console.log('Fetching document for verification:', verification.id);
+            console.log('Document URL:', `${API_BASE_URL}/verifications/${verification.id}/document/`);
+            
             const response = await fetch(`${API_BASE_URL}/verifications/${verification.id}/document/`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+            });
+            
+            console.log('Document response status:', response.status);
+            console.log('Document response headers:', response.headers);
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                console.log('Document blob size:', blob.size);
+                
+                if (blob.size > 0) {
+                    const blobUrl = URL.createObjectURL(blob);
+                    iframe.src = blobUrl;
+                    iframe.style.display = 'block';
+                    
+                    // Remove loading state
+                    const loadingDiv = documentInfo.querySelector('.text-center');
+                    if (loadingDiv) {
+                        loadingDiv.remove();
+                    }
+                } else {
+                    throw new Error('Document is empty or corrupted');
+                }
+            } else {
+                const errorText = await response.text();
+                console.error('Document fetch error:', response.status, errorText);
+                throw new Error(`Failed to fetch document: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error loading document:', error);
+            iframe.style.display = 'none';
+            
+            // Remove loading state
+            const loadingDiv = documentInfo.querySelector('.text-center');
+            if (loadingDiv) {
+                loadingDiv.remove();
+            }
+            
+            // Add error message with fallback options
+            documentInfo.innerHTML += `
+                <div class="alert alert-danger mt-3">
+                    <h6>Error</h6>
+                    <p>Failed to load PDF document.</p>
+                    <div class="mt-2">
+                        <button class="btn btn-primary btn-sm me-2" onclick="viewDocument(${id})">Reload</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openDocumentInNewTab(${id})">Open in New Tab</button>
+                    </div>
+                </div>
+            `;
+        }
+    } else {
+        iframe.style.display = 'none';
+        documentInfo.innerHTML += '<p class="text-muted mt-3">No document uploaded</p>';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('documentModal'));
+    modal.show();
+}
+
+// Open document in new tab as fallback
+async function openDocumentInNewTab(id) {
+    const verification = verifications.find(v => v.id === id);
+    if (!verification) {
+        showToast('Error', 'Verification not found', 'error');
+        return;
+    }
+    
+    if (!verification.verification_document) {
+        showToast('Error', 'No document available', 'error');
+        return;
+    }
+    
+    try {
+        const token = localStorage.getItem('admin_access_token');
+        if (!token) {
+            showToast('Error', 'No authentication token', 'error');
+            return;
+        }
+        
+        // Create a direct URL to the document endpoint
+        const documentUrl = `${API_BASE_URL}/verifications/${verification.id}/document/`;
+        
+        // Open in new tab with authentication
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+            newWindow.location.href = documentUrl;
+        } else {
+            // Fallback: try to open with fetch and blob
+            const response = await fetch(documentUrl, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -304,23 +613,15 @@ async function viewDocument(id) {
             if (response.ok) {
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
-                iframe.src = blobUrl;
-                iframe.style.display = 'block';
+                window.open(blobUrl, '_blank');
             } else {
-                throw new Error('Failed to fetch document');
+                showToast('Error', 'Failed to open document', 'error');
             }
-        } catch (error) {
-            console.error('Error loading document:', error);
-            iframe.style.display = 'none';
-            document.getElementById('documentInfo').innerHTML += '<p class="text-danger">Error loading document. Please try again.</p>';
         }
-    } else {
-        iframe.style.display = 'none';
-        document.getElementById('documentInfo').innerHTML += '<p class="text-muted">No document uploaded</p>';
+    } catch (error) {
+        console.error('Error opening document in new tab:', error);
+        showToast('Error', 'Failed to open document', 'error');
     }
-    
-    const modal = new bootstrap.Modal(document.getElementById('documentModal'));
-    modal.show();
 }
 
 // Archive verification
@@ -388,6 +689,7 @@ async function apiCall(endpoint, method = 'GET', data = null) {
         headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            'X-CSRFToken': await getCSRFToken()
         }
     };
     
@@ -434,6 +736,7 @@ async function refreshToken() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({ refresh: refreshToken })
         });

@@ -1,10 +1,13 @@
 from django.db import transaction
+from django.db.models import Q
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,6 +15,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from datetime import datetime, date
+from decimal import Decimal
 
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
 from .serializers import UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, ProfilePictureSerializer
@@ -132,7 +137,8 @@ def login(request):
             'email': user.email,
             'full_name': user.full_name,
             'role': user.role,
-            'is_verified': user.is_verified
+            'is_verified': user.is_verified,
+            'verification_status': user.verification_status
         }
         print("User data from serializer:", user_data)  # Add debug logging
         
@@ -157,12 +163,15 @@ def upload_verification_document(request):
     """
     Upload verification document for user identity verification
     """
-    serializer = VerificationDocumentSerializer(request.user, data=request.data, partial=True)
+    user = request.user
+    serializer = VerificationDocumentSerializer(user, data=request.data, partial=True)
     if serializer.is_valid():
+        # Set verification status to pending when document is uploaded
+        user.verification_status = 'pending'
         serializer.save()
         return Response({
-            'message': 'Verification document uploaded successfully',
-            'user': UserSerializer(request.user).data
+            'message': 'Verification document uploaded successfully. Kindly wait for the admin to verify the uploaded file.',
+            'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -201,8 +210,12 @@ def verify_now(request):
         status='pending'
     )
     
+    # Update user verification status to pending
+    user.verification_status = 'pending'
+    user.save()
+    
     return Response({
-        'message': 'Verification request submitted successfully. Please wait for admin approval.',
+        'message': 'Verification request submitted successfully. Kindly wait for the admin to verify the uploaded file.',
         'user': UserSerializer(user).data
     }, status=status.HTTP_200_OK)
 
@@ -344,3 +357,152 @@ def reset_password(request, uidb64, token):
         return Response({
             'error': 'Invalid or expired reset link.'
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_doctor_patients(request):
+    """
+    Get all patients for a doctor with optional search functionality (including dummy data for analytics)
+    """
+    if request.user.role != 'doctor':
+        return Response({
+            'error': 'Only doctors can access this endpoint.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Get search parameter
+        search_query = request.GET.get('search', '').strip()
+        
+        # Get all patients (including dummy data)
+        patients = PatientProfile.objects.select_related('user').all()
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            patients = patients.filter(
+                Q(user__full_name__icontains=search_query) |
+                Q(user__email__icontains=search_query) |
+                Q(medical_condition__icontains=search_query) |
+                Q(blood_type__icontains=search_query) |
+                Q(hospital__icontains=search_query) |
+                Q(insurance_provider__icontains=search_query) |
+                Q(room_number__icontains=search_query) |
+                Q(medication__icontains=search_query)
+            )
+        
+        # Serialize patient data
+        patient_data = []
+        for patient in patients:
+            patient_info = {
+                'id': patient.id,
+                'user_id': patient.user.id,
+                'full_name': patient.user.full_name,
+                'email': patient.user.email,
+                'age': calculate_age(patient.user.date_of_birth) if patient.user.date_of_birth else None,
+                'gender': patient.user.gender,
+                'blood_type': patient.blood_type,
+                'medical_condition': patient.medical_condition,
+                'hospital': patient.hospital,
+                'insurance_provider': patient.insurance_provider,
+                'billing_amount': float(patient.billing_amount) if patient.billing_amount else None,
+                'room_number': patient.room_number,
+                'admission_type': patient.admission_type,
+                'date_of_admission': patient.date_of_admission,
+                'discharge_date': patient.discharge_date,
+                'medication': patient.medication,
+                'test_results': patient.test_results,
+                'is_dummy': 'dummy' in patient.user.email,
+                'assigned_doctor': patient.assigned_doctor.full_name if patient.assigned_doctor else None
+            }
+            patient_data.append(patient_info)
+        
+        return Response({
+            'success': True,
+            'patients': patient_data,
+            'total_count': len(patient_data),
+            'dummy_count': len([p for p in patient_data if p['is_dummy']]),
+            'real_count': len([p for p in patient_data if not p['is_dummy']])
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error fetching patients: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_nurse_patients(request):
+    """
+    Get all patients for a nurse with optional search functionality (including dummy data for analytics)
+    """
+    if request.user.role != 'nurse':
+        return Response({
+            'error': 'Only nurses can access this endpoint.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        # Get search parameter
+        search_query = request.GET.get('search', '').strip()
+        
+        # Get all patients (including dummy data)
+        patients = PatientProfile.objects.select_related('user').all()
+        
+        # Apply search filter if search query is provided
+        if search_query:
+            patients = patients.filter(
+                Q(user__full_name__icontains=search_query) |
+                Q(user__email__icontains=search_query) |
+                Q(medical_condition__icontains=search_query) |
+                Q(blood_type__icontains=search_query) |
+                Q(hospital__icontains=search_query) |
+                Q(insurance_provider__icontains=search_query) |
+                Q(room_number__icontains=search_query) |
+                Q(medication__icontains=search_query)
+            )
+        
+        # Serialize patient data
+        patient_data = []
+        for patient in patients:
+            patient_info = {
+                'id': patient.id,
+                'user_id': patient.user.id,
+                'full_name': patient.user.full_name,
+                'email': patient.user.email,
+                'age': calculate_age(patient.user.date_of_birth) if patient.user.date_of_birth else None,
+                'gender': patient.user.gender,
+                'blood_type': patient.blood_type,
+                'medical_condition': patient.medical_condition,
+                'hospital': patient.hospital,
+                'insurance_provider': patient.insurance_provider,
+                'billing_amount': float(patient.billing_amount) if patient.billing_amount else None,
+                'room_number': patient.room_number,
+                'admission_type': patient.admission_type,
+                'date_of_admission': patient.date_of_admission,
+                'discharge_date': patient.discharge_date,
+                'medication': patient.medication,
+                'test_results': patient.test_results,
+                'is_dummy': 'dummy' in patient.user.email,
+                'assigned_doctor': patient.assigned_doctor.full_name if patient.assigned_doctor else None
+            }
+            patient_data.append(patient_info)
+        
+        return Response({
+            'success': True,
+            'patients': patient_data,
+            'total_count': len(patient_data),
+            'dummy_count': len([p for p in patient_data if p['is_dummy']]),
+            'real_count': len([p for p in patient_data if not p['is_dummy']])
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error fetching patients: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+def calculate_age(birth_date):
+    """Calculate age from birth date"""
+    if not birth_date:
+        return None
+    today = date.today()
+    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))

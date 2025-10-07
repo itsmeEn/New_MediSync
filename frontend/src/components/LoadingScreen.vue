@@ -15,16 +15,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted } from 'vue';
 
-const isLoading = ref(true)
+const isLoading = ref(true);
 
 onMounted(() => {
   // Simulate loading time (you can adjust this or make it dynamic)
   setTimeout(() => {
-    isLoading.value = false
-  }, 3000) // 3 seconds loading time
-})
+    isLoading.value = false;
+  }, 3000); // 3 seconds loading time
+});
 </script>
 
 <style scoped>
@@ -108,7 +108,8 @@ onMounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -130,7 +131,7 @@ onMounted(() => {
   .app-name {
     font-size: 28px;
   }
-  
+
   .logo-image {
     width: 150px;
     height: 150px;
