@@ -35,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'full_name', 'role', 'date_of_birth', 'gender',
-            'is_verified', 'profile_picture', 'verification_document',
+            'is_verified', 'verification_status', 'profile_picture', 'verification_document',
             'doctor_profile', 'nurse_profile', 'patient_profile',
             'date_joined', 'updated_at'
         ]
@@ -132,7 +132,7 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = User
-        fields = ["verification_document", "is_verified"]
+        fields = ["verification_document", "is_verified", "verification_status"]
 
     def validate_verification_document(self, value):
         """

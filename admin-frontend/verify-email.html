@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediSync Admin - Email Verification</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: url('http://localhost:9000/background.png') center/cover;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(1px);
+        }
+
+        .verification-container {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 30px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .verification-header {
+            background: transparent;
+            color: #333;
+            padding: 40px 30px 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .verification-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            color: #333;
+        }
+
+        .verification-header p {
+            font-size: 16px;
+            color: #666;
+            position: relative;
+            z-index: 1;
+        }
+
+        .verification-content {
+            padding: 20px 30px 40px;
+            text-align: center;
+        }
+
+        .verification-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+        }
+
+        .verification-icon.success {
+            color: #27ae60;
+        }
+
+        .verification-icon.error {
+            color: #e74c3c;
+        }
+
+        .verification-icon.loading {
+            color: #286660;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .verification-content h2 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .verification-content p {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .verification-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 14px 24px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #286660 0%, #4a7c59 100%);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(40, 102, 96, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 2px solid #e1e5e9;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+            border-color: #d1d5db;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        .btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .resend-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .resend-section p {
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .resend-form {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .resend-form input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .resend-form input:focus {
+            outline: none;
+            border-color: #286660;
+        }
+
+        .resend-form button {
+            padding: 12px 20px;
+            background: #286660;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .resend-form button:hover {
+            background: #1e4d47;
+        }
+
+        .resend-form button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 600px) {
+            .verification-content {
+                padding: 30px 20px;
+            }
+            
+            .verification-header {
+                padding: 30px 20px;
+            }
+
+            .resend-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="verification-container">
+        <div class="verification-header">
+            <div class="logo">
+                <i class="fas fa-envelope-open"></i>
+            </div>
+            <h1>Email Verification</h1>
+            <p>Verify your admin account</p>
+        </div>
+
+        <div class="verification-content">
+            <div id="alertContainer"></div>
+
+            <!-- Loading State -->
+            <div id="loadingState">
+                <div class="verification-icon loading">
+                    <i class="fas fa-spinner"></i>
+                </div>
+                <h2>Verifying your email...</h2>
+                <p>Please wait while we verify your email address.</p>
+            </div>
+
+            <!-- Success State -->
+            <div id="successState" class="hidden">
+                <div class="verification-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h2>Email Verified Successfully!</h2>
+                <p>Your email has been verified successfully! You will be redirected to the login page in a few seconds.</p>
+                <div class="verification-actions">
+                    <a href="index.html" class="btn btn-primary">Go to Login</a>
+                </div>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorState" class="hidden">
+                <div class="verification-icon error">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <h2>Verification Failed</h2>
+                <p id="errorMessage">There was an error verifying your email address.</p>
+                <div class="verification-actions">
+                    <a href="register.html" class="btn btn-primary">Register Again</a>
+                    <a href="index.html" class="btn btn-secondary">Back to Login</a>
+                </div>
+            </div>
+
+            <!-- Resend Section -->
+            <div id="resendSection" class="resend-section hidden">
+                <p>Didn't receive the verification email?</p>
+                <form id="resendForm" class="resend-form">
+                    <input 
+                        type="email" 
+                        id="resendEmail" 
+                        placeholder="Enter your email address"
+                        required
+                    >
+                    <button type="submit" id="resendBtn">
+                        <span class="spinner"></span>
+                        <span class="btn-text">Resend Email</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_BASE_URL = 'http://localhost:8000/api/admin';
+        
+        // CSRF Token
+        let csrfToken = null;
+        
+        // Get CSRF token
+        async function getCSRFToken() {
+            if (csrfToken) {
+                return csrfToken;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/csrf-token/`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    csrfToken = data.csrf_token;
+                    return csrfToken;
+                }
+            } catch (error) {
+                console.error('Failed to get CSRF token:', error);
+            }
+            
+            return null;
+        }
+
+        // DOM Elements
+        const loadingState = document.getElementById('loadingState');
+        const successState = document.getElementById('successState');
+        const errorState = document.getElementById('errorState');
+        const resendSection = document.getElementById('resendSection');
+        const alertContainer = document.getElementById('alertContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        const resendForm = document.getElementById('resendForm');
+        const resendBtn = document.getElementById('resendBtn');
+
+        // Show alert function
+        function showAlert(message, type = 'info') {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+        }
+
+        // Clear alerts
+        function clearAlerts() {
+            alertContainer.innerHTML = '';
+        }
+
+        // Set loading state for resend button
+        function setResendLoading(loading) {
+            resendBtn.disabled = loading;
+            if (loading) {
+                resendBtn.classList.add('loading');
+                resendBtn.querySelector('.btn-text').textContent = 'Sending...';
+            } else {
+                resendBtn.classList.remove('loading');
+                resendBtn.querySelector('.btn-text').textContent = 'Resend Email';
+            }
+        }
+
+        // Verify email function
+        async function verifyEmail(token) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/verify-email/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': await getCSRFToken()
+                    },
+                    body: JSON.stringify({ token: token })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Show success state
+                    loadingState.classList.add('hidden');
+                    successState.classList.remove('hidden');
+                    
+                    // Redirect to login page after 3 seconds
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 3000);
+                } else {
+                    // Show error state
+                    loadingState.classList.add('hidden');
+                    errorState.classList.remove('hidden');
+                    errorMessage.textContent = result.error || result.message || 'Verification failed.';
+                    resendSection.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Verification error:', error);
+                loadingState.classList.add('hidden');
+                errorState.classList.remove('hidden');
+                errorMessage.textContent = 'Network error. Please check your connection and try again.';
+                resendSection.classList.remove('hidden');
+            }
+        }
+
+        // Resend verification email
+        async function resendVerificationEmail(email) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/resend-verification/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': await getCSRFToken()
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showAlert('Verification email sent successfully! Please check your inbox.', 'success');
+                } else {
+                    showAlert(result.error || result.message || 'Failed to resend verification email.', 'error');
+                }
+            } catch (error) {
+                console.error('Resend error:', error);
+                showAlert('Network error. Please check your connection and try again.', 'error');
+            }
+        }
+
+        // Handle resend form submission
+        resendForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            clearAlerts();
+
+            const email = document.getElementById('resendEmail').value;
+            if (!email) {
+                showAlert('Please enter your email address.', 'error');
+                return;
+            }
+
+            setResendLoading(true);
+            await resendVerificationEmail(email);
+            setResendLoading(false);
+        });
+
+        // Get token from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
+        if (token) {
+            // Verify the email with the token
+            verifyEmail(token);
+        } else {
+            // No token provided, show error
+            loadingState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+            errorMessage.textContent = 'No verification token provided. Please check your email for the correct verification link.';
+            resendSection.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

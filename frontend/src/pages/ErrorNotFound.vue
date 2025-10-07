@@ -1,5 +1,5 @@
 <template>
-  <div class="fullscreen bg-blue text-white text-center q-pa-md flex flex-center">
+  <div class="fullscreen error-page text-white text-center q-pa-md flex flex-center">
     <div>
       <div style="font-size: 30vh">404</div>
 
@@ -21,3 +21,10 @@
 <script setup lang="ts">
 //
 </script>
+
+<style scoped>
+.error-page {
+  background: url('/background.png') no-repeat center center;
+  background-size: cover;
+}
+</style>

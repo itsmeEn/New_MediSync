@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-jkac^7ayyqz9=+ksgij@fva4f&cv($)9+w=#d^u)mkozs&#hq&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '192.168.55.101']
 
 
 # Application definition
@@ -38,13 +38,21 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
+
+    # Third-party apps
+    "rest_framework",
+    "rest_framework.authtoken",
+    "rest_framework_simplejwt",
+    "corsheaders",
+    "channels",
+    "channels_redis",
+    "redis",
 
     # Local apps
     "backend.users.apps.UsersConfig",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "corsheaders",
     "backend.operations.apps.OperationsConfig",
+    "backend.analytics.apps.AnalyticsConfig",
     "admin_site.apps.AdminSiteConfig",
 ]
 
@@ -84,8 +92,12 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+       "ENGINE": "django.db.backends.postgresql",
+        "NAME": "medisync",
+        "HOST": "localhost",
+        "PORT": "5432",
+        "USER": "postgres",
+        "PASSWORD": "admin1234", 
     }
 }
 
@@ -129,7 +141,13 @@ STATIC_URL = "static/"
 # Media files (User uploads)
 # https://docs.djangoproject.com/en/5.2/topics/files/
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Use a temporary directory for development, in production this should be a cloud storage
+# like AWS S3, Google Cloud Storage, or similar
+import os
+MEDIA_ROOT = os.path.join('/tmp', 'medisync_media')
+
+# Ensure the directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -161,17 +179,52 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # Enable JSON, form, and multipart parsers so endpoints like /users/register/
+    # can correctly accept FormData with optional file uploads.
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
 }
 
 # CORS Configuration
 # https://github.com/adamchainz/django-cors-headers
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:9000",  # Default Quasar dev server port
-    "http://localhost:9001",  # Alternative Quasar dev server port
-    "http://localhost:8080",
-    "http://127.0.0.1:9000",
-    "http://127.0.0.1:9001",
-]
+
+# Allow all origins (recommended for development)
+# This allows requests from any origin - perfect for development
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Alternative options for different scenarios:
+
+# Option 2: Wildcard pattern (alternative to CORS_ALLOW_ALL_ORIGINS)
+# CORS_ALLOWED_ORIGINS = ["*"]
+
+# Option 3: Regex pattern for flexible matching
+# CORS_ALLOWED_ORIGIN_REGEXES = [
+#     r"^https?://.*$",  # Match any http or https origin
+#     r"^capacitor://.*$",  # Match any capacitor origin
+# ]
+
+# Specific origins (uncomment and customize for production)
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:9000",  # Default Quasar dev server port
+#     "http://localhost:9001",  # Alternative Quasar dev server port
+#     "http://localhost:8080",  # Admin frontend
+#     "http://127.0.0.1:9000",
+#     "http://127.0.0.1:9001",
+#     "http://127.0.0.1:8080",  # Admin frontend
+#     "http://192.168.55.101:9000",  # Mobile app development server
+#     "http://192.168.55.101:8000",  # Backend API for mobile
+#     "capacitor://localhost",  # Capacitor app origin
+#     "ionic://localhost",  # Ionic app origin
+#     "http://localhost",  # Local development
+#     "https://localhost",  # Local development HTTPS
+# ]
+
+# Additional CORS settings for development
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_HEADERS = True
 
 # Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
@@ -208,6 +261,42 @@ EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+
+# Frontend URL for email verification links
+FRONTEND_URL = "http://localhost:8080"
 EMAIL_HOST_USER = "nitzydiones@gmail.com"
 EMAIL_HOST_PASSWORD = "vyqo dpsl twkg inzp"
-DEFAULT_FROM_EMAIL = "nitzydiones@gmail.com"  
+DEFAULT_FROM_EMAIL = "nitzydiones@gmail.com"
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True
+
+# Cache Configuration
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis://localhost:6379/1',
+    }
+}
+
+# Message Encryption Settings
+MESSAGE_ENCRYPTION_KEY = "your-32-character-secret-key-here"  # Change this in production
+
+# Channels Configuration for WebSocket
+ASGI_APPLICATION = "backend.asgi.application"
+
+# Channel Layers Configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}

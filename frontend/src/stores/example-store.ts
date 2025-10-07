@@ -1,5 +1,16 @@
 import { defineStore, acceptHMRUpdate } from 'pinia';
 
+// Type declaration for HMR
+interface ImportMetaHot {
+  accept: (callback: (newModule: unknown) => void) => void;
+}
+
+declare global {
+  interface ImportMeta {
+    hot?: ImportMetaHot;
+  }
+}
+
 export const useCounterStore = defineStore('counter', {
   state: () => ({
     counter: 0,

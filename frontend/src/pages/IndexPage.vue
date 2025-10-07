@@ -41,3 +41,10 @@ const meta = ref<Meta>({
   totalCount: 1200,
 });
 </script>
+
+<style scoped>
+.q-page {
+  background: url('/background.png') no-repeat center center;
+  background-size: cover;
+}
+</style>

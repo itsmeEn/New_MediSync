@@ -1,5 +1,5 @@
 <template>
-  <div class="register-page">
+  <div class="register-page safe-area-top safe-area-bottom">
     <div class="register-container">
       <div class="register-card">
         <div class="register-header">
@@ -36,11 +36,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label for="date_of_birth">Date of Birth</label>
-                <input
-                  id="date_of_birth"
-                  v-model="formData.date_of_birth"
-                  type="date"
-                />
+                <input id="date_of_birth" v-model="formData.date_of_birth" type="date" />
               </div>
               <div class="form-group">
                 <label for="gender">Gender</label>
@@ -66,6 +62,9 @@
                 <button type="button" class="toggle-password" @click="showPassword = !showPassword">
                   {{ showPassword ? 'Hide' : 'Show' }}
                 </button>
+                <div class="password-strength" :class="passwordStrengthClass">
+                  {{ passwordStrengthText }}
+                </div>
               </div>
               <div class="form-group">
                 <label for="password2">Confirm Password *</label>
@@ -76,7 +75,11 @@
                   required
                   placeholder="Confirm your password"
                 />
-                <button type="button" class="toggle-password" @click="showPassword2 = !showPassword2">
+                <button
+                  type="button"
+                  class="toggle-password"
+                  @click="showPassword2 = !showPassword2"
+                >
                   {{ showPassword2 ? 'Hide' : 'Show' }}
                 </button>
               </div>
@@ -146,9 +149,7 @@
         <div class="register-footer">
           <p>
             Already have an account?
-            <button @click="$router.push('/login')" class="link-btn">
-              Sign In
-            </button>
+            <button @click="$router.push('/login')" class="link-btn">Sign In</button>
           </p>
         </div>
       </div>
@@ -157,32 +158,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from '../boot/axios'
-import { AxiosError } from 'axios'
+import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from '../boot/axios';
+import { AxiosError } from 'axios';
 
 interface RegistrationFormData {
-  full_name: string
-  email: string
-  date_of_birth: string
-  gender: string
-  password: string
-  password2: string
-  license_number: string
-  specialization: string
-  department: string
+  full_name: string;
+  email: string;
+  date_of_birth: string;
+  gender: string;
+  password: string;
+  password2: string;
+  license_number: string;
+  specialization: string;
+  department: string;
 }
 
-const router = useRouter()
-const route = useRoute()
-const $q = useQuasar()
+const router = useRouter();
+const route = useRoute();
+const $q = useQuasar();
 
-const role = ref('')
-const loading = ref(false)
-const showPassword = ref(false)
-const showPassword2 = ref(false)
+const role = ref('');
+const loading = ref(false);
+const showPassword = ref(false);
+const showPassword2 = ref(false);
+
+// Password strength
+const passwordStrengthClass = ref('');
+const passwordStrengthText = ref('');
 
 const formData = ref<RegistrationFormData>({
   full_name: '',
@@ -193,24 +198,85 @@ const formData = ref<RegistrationFormData>({
   password2: '',
   license_number: '',
   specialization: '',
-  department: ''
-})
+  department: '',
+});
 
 const roleTitle = computed(() => {
   switch (role.value) {
-    case 'doctor': return 'Doctor'
-    case 'nurse': return 'Nurse'
-    case 'patient': return 'Patient'
-    default: return ''
+    case 'doctor':
+      return 'Doctor';
+    case 'nurse':
+      return 'Nurse';
+    case 'patient':
+      return 'Patient';
+    default:
+      return '';
   }
-})
+});
+
+// Password strength calculation
+const calculatePasswordStrength = (password: string) => {
+  if (!password) {
+    passwordStrengthText.value = '';
+    passwordStrengthClass.value = '';
+    return;
+  }
+
+  let score = 0;
+  const feedback = [];
+
+  // Length check
+  if (password.length >= 8) score += 1;
+  else feedback.push('at least 8 characters');
+
+  // Lowercase check
+  if (/[a-z]/.test(password)) score += 1;
+  else feedback.push('lowercase letters');
+
+  // Uppercase check
+  if (/[A-Z]/.test(password)) score += 1;
+  else feedback.push('uppercase letters');
+
+  // Number check
+  if (/\d/.test(password)) score += 1;
+  else feedback.push('numbers');
+
+  // Special character check
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score += 1;
+  else feedback.push('special characters');
+
+  // Determine strength
+  if (score <= 2) {
+    passwordStrengthText.value = 'Weak password';
+    passwordStrengthClass.value = 'weak';
+  } else if (score <= 3) {
+    passwordStrengthText.value = 'Medium password';
+    passwordStrengthClass.value = 'medium';
+  } else {
+    passwordStrengthText.value = 'Strong password';
+    passwordStrengthClass.value = 'strong';
+  }
+
+  // Add feedback for weak passwords
+  if (score <= 2 && feedback.length > 0) {
+    passwordStrengthText.value += ` - needs ${feedback.slice(0, 2).join(', ')}`;
+  }
+};
 
 onMounted(() => {
-  role.value = route.params.role as string
+  role.value = route.params.role as string;
   if (!['doctor', 'nurse', 'patient'].includes(role.value)) {
-    void router.push('/role-selection')
+    void router.push('/role-selection');
   }
-})
+});
+
+// Watch password changes to update strength indicator
+watch(
+  () => formData.value.password,
+  (newPassword) => {
+    calculatePasswordStrength(newPassword);
+  },
+);
 
 const onRegister = async () => {
   // Validate required fields based on role
@@ -220,33 +286,35 @@ const onRegister = async () => {
         type: 'negative',
         message: 'License number and specialization are required for doctors.',
         position: 'top',
-        timeout: 4000
-      })
+        timeout: 4000,
+      });
       return;
     }
-      } else if (role.value === 'nurse') {
-      if (!formData.value.license_number || !formData.value.department) {
-        $q.notify({
-          type: 'negative',
-          message: 'License number and department are required for nurses.',
-          position: 'top',
-          timeout: 4000
-        })
-        return;
-      }
+  } else if (role.value === 'nurse') {
+    if (!formData.value.license_number || !formData.value.department) {
+      $q.notify({
+        type: 'negative',
+        message: 'License number and department are required for nurses.',
+        position: 'top',
+        timeout: 4000,
+      });
+      return;
+    }
   }
-  
+
   // A boolean flag is set to true to indicate that the registration process has started.
   loading.value = true;
-  
+
   try {
     // A FormData object is instantiated to handle the data submission.
     // This is necessary for including file uploads, such as images and documents.
     const registrationData = new FormData();
-    
+
     // The function retrieves the file input elements for the profile picture and verification document.
     const profilePictureInput = document.getElementById('profile_picture') as HTMLInputElement;
-    const verificationDocumentInput = document.getElementById('verification_document') as HTMLInputElement;
+    const verificationDocumentInput = document.getElementById(
+      'verification_document',
+    ) as HTMLInputElement;
 
     // It is checked if a profile picture file has been selected, and if so, it is appended to the FormData object.
     if (profilePictureInput?.files?.[0]) {
@@ -256,7 +324,7 @@ const onRegister = async () => {
     if (verificationDocumentInput?.files?.[0]) {
       registrationData.append('verification_document', verificationDocumentInput.files[0]);
     }
-    
+
     // The function iterates through the common form fields and appends them to the FormData object.
     Object.entries(formData.value).forEach(([key, value]) => {
       registrationData.append(key, value);
@@ -266,7 +334,7 @@ const onRegister = async () => {
 
     // The FormData object, ready for submission, is logged to the console for debugging.
     console.log('Sending registration data (FormData):', registrationData);
-    
+
     // Debug: Log the actual form data being sent
     for (const [key, value] of registrationData.entries()) {
       console.log(`${key}:`, value);
@@ -279,33 +347,32 @@ const onRegister = async () => {
     // Upon successful registration, the access and refresh tokens are stored in local storage.
     localStorage.setItem('access_token', response.data.tokens.access);
     localStorage.setItem('refresh_token', response.data.tokens.refresh);
-    
+
     // The user's data from the response is stored in local storage.
     localStorage.setItem('user', JSON.stringify(response.data.user));
 
     // A success message is displayed to the user.
-          $q.notify({
-        type: 'positive',
-        message: 'Account created successfully!',
-        position: 'top',
-        timeout: 3000
-      });
+    $q.notify({
+      type: 'positive',
+      message: 'Account created successfully!',
+      position: 'top',
+      timeout: 3000,
+    });
 
     // The user is redirected to the verification page after successful registration.
     void router.push('/verification');
-
   } catch (error: unknown) {
     // If the registration request fails, the error is logged to the console.
     console.error('Registration error:', error);
-    
+
     // A default error message is set.
     let errorMessage = 'Registration failed. Please try again.';
-    
+
     // It is checked if the error is an AxiosError to handle specific HTTP response details.
     if (error instanceof AxiosError) {
       console.error('Axios error response:', error.response?.data);
       console.error('Axios error status:', error.response?.status);
-      
+
       // If the server provided a response body with the error details, it is processed.
       if (error.response?.data) {
         // More robust error handling for validation errors from Django is applied here.
@@ -318,14 +385,14 @@ const onRegister = async () => {
         }
       }
     }
-    
+
     // The final error message is displayed to the user.
-          $q.notify({
-        type: 'negative',
-        message: `Registration failed: ${errorMessage}`,
-        position: 'top',
-        timeout: 4000
-      });
+    $q.notify({
+      type: 'negative',
+      message: `Registration failed: ${errorMessage}`,
+      position: 'top',
+      timeout: 4000,
+    });
   } finally {
     // The loading flag is set to false, indicating that the registration process has completed.
     loading.value = false;
@@ -336,11 +403,35 @@ const onRegister = async () => {
 <style scoped>
 .register-page {
   min-height: 100vh;
-  background: #286660;
+  background: url('/background.png') no-repeat center center;
+  background-size: cover;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  position: relative;
+}
+
+.register-page::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(248, 249, 250, 0.15) 50%,
+    rgba(240, 242, 245, 0.08) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+.register-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .register-container {
@@ -429,6 +520,25 @@ const onRegister = async () => {
   font-size: 14px;
 }
 
+.password-strength {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.password-strength.weak {
+  color: #e74c3c;
+}
+
+.password-strength.medium {
+  color: #f39c12;
+}
+
+.password-strength.strong {
+  color: #27ae60;
+}
+
 .role-specific-fields {
   border-top: 1px solid #eee;
   padding-top: 20px;
@@ -482,12 +592,88 @@ const onRegister = async () => {
 }
 
 @media (max-width: 768px) {
-  .register-card {
-    padding: 20px;
+  .register-page {
+    padding: 8px;
+    min-height: 100vh;
+    /* Ensure content doesn't overlap with safe areas and navigation */
+    padding-top: max(80px, calc(var(--safe-area-inset-top) + 60px));
+    padding-bottom: max(8px, var(--safe-area-inset-bottom));
+    padding-left: max(8px, var(--safe-area-inset-left));
+    padding-right: max(8px, var(--safe-area-inset-right));
+    /* Adjust alignment for mobile to start from top */
+    align-items: flex-start;
   }
-  
+
+  .register-container {
+    max-width: 100%;
+  }
+
+  .register-card {
+    padding: 16px;
+    margin: 0;
+    border-radius: 12px;
+  }
+
+  .register-header {
+    margin-bottom: 20px;
+  }
+
+  .register-header h2 {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+
+  .register-header p {
+    font-size: 14px;
+  }
+
   .form-row {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  .form-group label {
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .register-btn {
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+  }
+
+  .register-footer {
+    padding-top: 16px;
+  }
+
+  .register-footer p {
+    font-size: 13px;
+  }
+
+  .link-btn {
+    font-size: 13px;
+  }
+
+  .toggle-password {
+    font-size: 12px;
+  }
+
+  .password-strength {
+    font-size: 11px;
   }
 }
 </style>

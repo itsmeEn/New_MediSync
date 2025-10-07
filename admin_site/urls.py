@@ -5,8 +5,14 @@ urlpatterns = [
     # Root admin URL - redirect to dashboard stats
     path('', views.admin_overview, name='admin_overview'),
     
+    # CSRF Token
+    path('csrf-token/', views.get_csrf_token, name='get_csrf_token'),
+    
     # Authentication
     path('login/', views.admin_login, name='admin_login'),
+    path('register/', views.admin_register, name='admin_register'),
+    path('verify-email/', views.verify_admin_email, name='verify_admin_email'),
+    path('resend-verification/', views.resend_verification_email, name='resend_verification_email'),
     path('token/refresh/', views.admin_token_refresh, name='admin_token_refresh'),
     
     # Dashboard

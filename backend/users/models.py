@@ -19,9 +19,9 @@ class User(AbstractUser):
         DOCTOR = "doctor", "Doctor"
         PATIENT = "patient", "Patient"
         
-    profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/%Y/%m/%d/', blank=True, null=True)
     verification_document = models.FileField(
-        upload_to='verification_documents/',
+        upload_to='verification_documents/%Y/%m/%d/',
         blank=True,
         null=True,
         help_text="Upload a PDF, JPG, or PNG file for identity verification"
@@ -36,6 +36,16 @@ class User(AbstractUser):
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=10, blank=True, null=True)
     is_verified = models.BooleanField(default=False)
+    verification_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('not_submitted', 'Not Submitted'),
+            ('pending', 'Pending Admin Review'),
+            ('approved', 'Approved'),
+            ('declined', 'Declined'),
+        ],
+        default='not_submitted'
+    )
     updated_at = models.DateTimeField(auto_now=True)  # `date_joined` from AbstractUser serves as `created_at`
 
     USERNAME_FIELD = "email"
@@ -135,6 +145,13 @@ class PatientProfile(models.Model): #can be the content of medical history
     )
     medication = models.TextField(blank=True, help_text="List of prescribed medications.")
     test_results = models.TextField(blank=True, help_text="Summary of recent test results.")
+    
+    # Additional fields from CSV data
+    hospital = models.CharField(max_length=255, blank=True, help_text="Hospital or medical facility name.")
+    insurance_provider = models.CharField(max_length=255, blank=True, help_text="Patient's insurance provider.")
+    billing_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Billing amount for treatment.")
+    room_number = models.CharField(max_length=20, blank=True, help_text="Hospital room number.")
+    admission_type = models.CharField(max_length=50, blank=True, help_text="Type of admission (emergency, scheduled, etc.).")
 
     class Meta:
         db_table = "patient_profiles"

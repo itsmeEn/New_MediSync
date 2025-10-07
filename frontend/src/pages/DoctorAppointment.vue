@@ -1,71 +1,167 @@
 <template>
   <q-layout view="hHh Lpr fFf">
+    <q-header elevated class="prototype-header safe-area-top">
+      <q-toolbar class="header-toolbar">
+        <!-- Menu button to open sidebar -->
+        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
 
-    <q-header reveal elevated class="text-white" height-hint="98">
-      <q-toolbar>
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" />
-        
-        <q-toolbar-title>
-          <q-avatar>
-            <img src="../assets/logo.png" alt="MediSync Logo" />
-          </q-avatar>
-          MediSync
-        </q-toolbar-title>
-      </q-toolbar>
-
-      <q-toolbar class="text-white">
-        <div class="search-container">
-          <q-input 
-            dark 
-            dense 
-            standout 
-            v-model="text" 
-            placeholder="Search appointments, patients..."
-            class="search-input"
-          >
-            <template v-slot:append>
-              <q-icon v-if="text === ''" name="search" />
-              <q-icon v-else name="clear" class="cursor-pointer" @click="text = ''" />
-            </template>
-          </q-input>
+        <!-- Left side - Search bar -->
+        <div class="header-left">
+          <div class="search-container">
+            <q-input
+              outlined
+              dense
+              v-model="text"
+              placeholder="Search Patient, symptoms and Appointments"
+              class="search-input"
+              bg-color="white"
+            >
+              <template v-slot:prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+              <template v-slot:append v-if="text">
+                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
+              </template>
+            </q-input>
+          </div>
         </div>
-        
-        <!-- Real-time Time and Weather -->
-        <div class="real-time-info">
+
+        <!-- Right side - Notifications, Time, Weather -->
+        <div class="header-right">
+          <!-- Notifications -->
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
+          </q-btn>
+
           <!-- Time Display -->
           <div class="time-display">
             <q-icon name="schedule" size="md" />
             <span class="time-text">{{ currentTime }}</span>
           </div>
-          
+
           <!-- Weather Display -->
           <div class="weather-display" v-if="weatherData">
             <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
             <span class="weather-text">{{ weatherData.temperature }}°C</span>
             <span class="weather-location">{{ weatherData.location }}</span>
           </div>
-          
+
           <!-- Loading Weather -->
           <div class="weather-loading" v-else-if="weatherLoading">
             <q-spinner size="sm" />
             <span class="weather-text">Loading weather...</span>
           </div>
-          
+
           <!-- Weather Error -->
           <div class="weather-error" v-else-if="weatherError">
             <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather unavailable</span>
+            <span class="weather-text">Weather Update and Place</span>
           </div>
         </div>
       </q-toolbar>
+
+      <!-- Mobile Header Layout -->
+      <div class="mobile-header-layout">
+        <!-- Top Row: Menu, Time, Weather, Notifications -->
+        <div class="header-top-row">
+          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+
+          <div class="header-info">
+            <!-- Time Display -->
+            <div class="time-display">
+              <q-icon name="schedule" size="sm" />
+              <span class="time-text">{{ currentTime }}</span>
+            </div>
+
+            <!-- Weather Display -->
+            <div class="weather-display" v-if="weatherData">
+              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
+              <span class="weather-text">{{ weatherData.temperature }}°C</span>
+              <span class="weather-location">{{ weatherData.location }}</span>
+            </div>
+
+            <!-- Loading Weather -->
+            <div class="weather-loading" v-else-if="weatherLoading">
+              <q-spinner size="sm" />
+              <span class="weather-text">Loading...</span>
+            </div>
+
+            <!-- Weather Error -->
+            <div class="weather-error" v-else-if="weatherError">
+              <q-icon name="error" size="sm" />
+              <span class="weather-text">Weather Update</span>
+            </div>
+          </div>
+
+          <!-- Notifications -->
+          <q-btn
+            flat
+            round
+            icon="notifications"
+            class="notification-btn"
+            @click="showNotifications = true"
+          >
+            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
+              unreadNotificationsCount
+            }}</q-badge>
+          </q-btn>
+        </div>
+
+        <!-- Bottom Row: Search Bar -->
+        <div class="header-bottom-row">
+          <div class="search-container">
+            <q-input
+              outlined
+              dense
+              v-model="text"
+              placeholder="Search Patient, symptoms and Appointments"
+              class="search-input"
+              bg-color="white"
+            >
+              <template v-slot:prepend>
+                <q-icon name="search" color="grey-6" />
+              </template>
+              <template v-slot:append v-if="text">
+                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
+              </template>
+            </q-input>
+          </div>
+        </div>
+      </div>
     </q-header>
 
-    <q-drawer v-model="rightDrawerOpen" side="left" overlay bordered>
-      <div class="drawer-content">
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="left"
+      overlay
+      bordered
+      class="prototype-sidebar"
+      :width="280"
+    >
+      <div class="sidebar-content">
+        <!-- Logo Section -->
+        <div class="logo-section">
+          <div class="logo-container">
+            <q-avatar size="40px" class="logo-avatar">
+              <img src="../assets/logo.png" alt="MediSync Logo" />
+            </q-avatar>
+            <span class="logo-text">MediSync</span>
+          </div>
+          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
+        </div>
+
         <!-- User Profile Section -->
-        <div class="user-profile-section">
+        <div class="sidebar-user-profile">
           <div class="profile-picture-container">
-            <q-avatar size="100px" class="profile-avatar">
+            <q-avatar size="80px" class="profile-avatar">
               <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
               <div v-else class="profile-placeholder">
                 {{ userInitials }}
@@ -86,13 +182,22 @@
               style="display: none"
               @change="handleProfilePictureUpload"
             />
+            <q-icon
+              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              class="verified-badge"
+            />
           </div>
-          
+
           <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name }}</h6>
-            <p class="user-specialization">{{ userProfile.specialization }}</p>
-            <q-chip color="primary" text-color="white" size="sm">
-              {{ userProfile.role }}
+            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
+            <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
+            <q-chip
+              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
+              text-color="white"
+              size="sm"
+            >
+              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
             </q-chip>
           </div>
         </div>
@@ -144,40 +249,20 @@
 
         <!-- Logout Section -->
         <div class="logout-section">
-          <q-btn
-            color="negative"
-            icon="logout"
-            label="Logout"
-            class="logout-btn"
-            @click="logout"
-          />
+          <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
         </div>
       </div>
     </q-drawer>
 
-    <q-page-container>
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="page-header-left">
-          <h2 class="page-title">Appointment Calendar</h2>
-          <p class="page-subtitle">Manage your appointments and schedule</p>
-        </div>
-        <div class="page-header-right">
-          <q-btn 
-            color="negative" 
-            icon="block" 
-            label="Block Date" 
-            @click="blockDate"
-            :disable="selectedDate?.isBlocked"
-            class="q-mr-sm"
-          />
-          <q-btn 
-            color="primary" 
-            icon="add" 
-            label="New Appointment" 
-            @click="showNewAppointmentDialog = true"
-          />
-        </div>
+    <q-page-container class="page-container-with-fixed-header">
+      <!-- Greeting Section -->
+      <div class="greeting-section">
+        <q-card class="greeting-card">
+          <q-card-section class="greeting-content">
+            <h2 class="greeting-text">Appointment Calendar</h2>
+            <p class="greeting-subtitle">Manage your appointments and schedule</p>
+          </q-card-section>
+        </q-card>
       </div>
 
       <div class="q-pa-md">
@@ -187,75 +272,62 @@
             <!-- Month Navigation -->
             <div class="col-auto">
               <div class="month-navigation">
-                <q-btn 
-                  round 
-                  flat 
-                  icon="chevron_left" 
-                  @click="previousMonth"
-                  class="nav-btn"
-                />
+                <q-btn round flat icon="chevron_left" @click="previousMonth" class="nav-btn" />
                 <h4 class="month-year">{{ currentMonthYear }}</h4>
-                <q-btn 
-                  round 
-                  flat 
-                  icon="chevron_right" 
-                  @click="nextMonth"
-                  class="nav-btn"
-                />
-                <q-btn 
-                  flat 
-                  label="Today" 
-                  @click="goToToday"
-                  class="today-btn"
-                />
+                <q-btn round flat icon="chevron_right" @click="nextMonth" class="nav-btn" />
+                <q-btn flat label="Today" @click="goToToday" class="today-btn" />
               </div>
             </div>
-            
+            <div class="col-auto">
+              <q-btn
+                color="negative"
+                icon="block"
+                label="Block Date"
+                @click="blockDate"
+                :disable="selectedDate?.isBlocked"
+                class="q-mr-sm"
+              />
+              <q-btn
+                color="primary"
+                icon="add"
+                label="New Appointment"
+                @click="showNewAppointmentDialog = true"
+              />
+            </div>
+
             <!-- View Selector and Export Options -->
             <div class="col-auto">
               <div class="view-export-controls">
                 <!-- View Selector -->
                 <q-btn-group flat class="view-selector">
-                  <q-btn 
-                    flat 
-                    label="Day" 
+                  <q-btn
+                    flat
+                    label="Day"
                     :class="{ 'active-view': currentView === 'day' }"
                     @click="setView('day')"
                   />
-                  <q-btn 
-                    flat 
-                    label="Week" 
+                  <q-btn
+                    flat
+                    label="Week"
                     :class="{ 'active-view': currentView === 'week' }"
                     @click="setView('week')"
                   />
-                  <q-btn 
-                    flat 
-                    label="Month" 
+                  <q-btn
+                    flat
+                    label="Month"
                     :class="{ 'active-view': currentView === 'month' }"
                     @click="setView('month')"
                   />
                 </q-btn-group>
-                
+
                 <!-- Export/Print Options -->
                 <div class="export-controls">
-                  <q-btn 
-                    round 
-                    flat 
-                    icon="download" 
-                    @click="downloadSchedule"
-                    class="export-btn"
-                  />
-                  <q-btn 
-                    round 
-                    flat 
-                    icon="print" 
-                    @click="printSchedule"
-                    class="export-btn"
-                  />
-                  <q-btn 
-                    round 
-                    flat 
-                    icon="more_vert" 
+                  <q-btn round flat icon="download" @click="downloadSchedule" class="export-btn" />
+                  <q-btn round flat icon="print" @click="printSchedule" class="export-btn" />
+                  <q-btn
+                    round
+                    flat
+                    icon="more_vert"
                     @click="showExportMenu = true"
                     class="export-btn"
                   />
@@ -275,17 +347,21 @@
           </div>
 
           <!-- Calendar Days -->
-          <div v-for="(week, weekIndex) in calendarWeeks" :key="`week-${weekIndex}`" class="calendar-row">
-            <div 
-              v-for="(day, dayIndex) in week" 
-              :key="`day-${weekIndex}-${dayIndex}`" 
+          <div
+            v-for="(week, weekIndex) in calendarWeeks"
+            :key="`week-${weekIndex}`"
+            class="calendar-row"
+          >
+            <div
+              v-for="(day, dayIndex) in week"
+              :key="`day-${weekIndex}-${dayIndex}`"
               class="calendar-cell"
               :class="{
                 'other-month': !day?.isCurrentMonth,
-                'today': day?.isToday,
-                'selected': day?.isSelected,
+                today: day?.isToday,
+                selected: day?.isSelected,
                 'has-appointments': day?.appointments?.length > 0,
-                'blocked': day?.isBlocked
+                blocked: day?.isBlocked,
               }"
               @click="selectDate(day)"
             >
@@ -308,33 +384,33 @@
                 <h3 class="section-title">Upcoming Appointments</h3>
                 <div class="filter-controls">
                   <q-btn-group flat class="status-filter">
-                    <q-btn 
-                      flat 
-                      label="All" 
+                    <q-btn
+                      flat
+                      label="All"
                       :class="{ 'active-filter': selectedStatus === 'all' }"
                       @click="filterByStatus('all')"
                     />
-                    <q-btn 
-                      flat 
-                      label="Confirmed" 
+                    <q-btn
+                      flat
+                      label="Confirmed"
                       :class="{ 'active-filter': selectedStatus === 'confirmed' }"
                       @click="filterByStatus('confirmed')"
                     />
-                    <q-btn 
-                      flat 
-                      label="Pending" 
+                    <q-btn
+                      flat
+                      label="Pending"
                       :class="{ 'active-filter': selectedStatus === 'pending' }"
                       @click="filterByStatus('pending')"
                     />
-                    <q-btn 
-                      flat 
-                      label="Completed" 
+                    <q-btn
+                      flat
+                      label="Completed"
                       :class="{ 'active-filter': selectedStatus === 'completed' }"
                       @click="filterByStatus('completed')"
                     />
-                    <q-btn 
-                      flat 
-                      label="Cancelled" 
+                    <q-btn
+                      flat
+                      label="Cancelled"
                       :class="{ 'active-filter': selectedStatus === 'cancelled' }"
                       @click="filterByStatus('cancelled')"
                     />
@@ -344,16 +420,25 @@
 
               <!-- Appointments List -->
               <div class="appointments-list">
-                <q-card v-for="appointment in filteredAppointments" :key="appointment.id" class="appointment-card q-mb-md">
+                <q-card
+                  v-for="appointment in filteredAppointments"
+                  :key="appointment.id"
+                  class="appointment-card q-mb-md"
+                >
                   <q-card-section>
                     <div class="appointment-header">
                       <div class="patient-info">
                         <div class="patient-name">{{ appointment.patient_name }}</div>
                         <div class="appointment-details">
                           <q-icon name="schedule" size="sm" />
-                          <span>{{ formatAppointmentDateTime(appointment.appointment_date, appointment.appointment_time) }}</span>
-                          <q-chip 
-                            :color="getStatusColor(appointment.status)" 
+                          <span>{{
+                            formatAppointmentDateTime(
+                              appointment.appointment_date,
+                              appointment.appointment_time,
+                            )
+                          }}</span>
+                          <q-chip
+                            :color="getStatusColor(appointment.status)"
                             :label="appointment.status"
                             size="sm"
                             class="q-ml-sm"
@@ -361,20 +446,20 @@
                         </div>
                       </div>
                       <div class="appointment-actions">
-                        <q-btn 
-                          round 
-                          flat 
-                          icon="visibility" 
+                        <q-btn
+                          round
+                          flat
+                          icon="visibility"
                           color="primary"
                           @click="viewMedicalAssessment(appointment)"
                           class="q-mr-sm"
                         >
                           <q-tooltip>View Medical Assessment</q-tooltip>
                         </q-btn>
-                        <q-btn 
-                          round 
-                          flat 
-                          icon="check_circle" 
+                        <q-btn
+                          round
+                          flat
+                          icon="check_circle"
                           color="positive"
                           @click="markAsCompleted(appointment)"
                           v-if="appointment.status === 'confirmed'"
@@ -382,10 +467,10 @@
                         >
                           <q-tooltip>Mark as Completed</q-tooltip>
                         </q-btn>
-                        <q-btn 
-                          round 
-                          flat 
-                          icon="schedule" 
+                        <q-btn
+                          round
+                          flat
+                          icon="schedule"
                           color="warning"
                           @click="scheduleFollowUp(appointment)"
                           v-if="appointment.status === 'confirmed'"
@@ -393,13 +478,15 @@
                         >
                           <q-tooltip>Schedule Follow-up</q-tooltip>
                         </q-btn>
-                        <q-btn 
-                          round 
-                          flat 
-                          icon="cancel" 
+                        <q-btn
+                          round
+                          flat
+                          icon="cancel"
                           color="negative"
                           @click="cancelAppointment(appointment)"
-                          v-if="appointment.status === 'confirmed' || appointment.status === 'pending'"
+                          v-if="
+                            appointment.status === 'confirmed' || appointment.status === 'pending'
+                          "
                         >
                           <q-tooltip>Cancel Appointment</q-tooltip>
                         </q-btn>
@@ -421,6 +508,52 @@
       </div>
     </q-page-container>
 
+    <!-- Notifications Modal -->
+    <q-dialog v-model="showNotifications" persistent>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
+            No notifications yet
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item
+                v-for="notification in notifications"
+                :key="notification.id"
+                clickable
+                @click="handleNotificationClick(notification)"
+                :class="{ unread: !notification.is_read }"
+              >
+                <q-item-section avatar>
+                  <q-icon name="info" color="primary" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ notification.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{
+                    formatTime(notification.created_at)
+                  }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="!notification.is_read">
+                  <q-badge color="red" rounded />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="notifications.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- New Appointment Dialog -->
     <q-dialog v-model="showNewAppointmentDialog" persistent>
       <q-card style="min-width: 400px">
@@ -436,7 +569,7 @@
               v-model="newAppointment.patient_name"
               label="Patient Name"
               outlined
-              :rules="[val => !!val || 'Patient name is required']"
+              :rules="[(val) => !!val || 'Patient name is required']"
             />
 
             <q-input
@@ -444,7 +577,7 @@
               label="Date"
               outlined
               type="date"
-              :rules="[val => !!val || 'Date is required']"
+              :rules="[(val) => !!val || 'Date is required']"
             />
 
             <q-input
@@ -452,7 +585,7 @@
               label="Time"
               outlined
               type="time"
-              :rules="[val => !!val || 'Time is required']"
+              :rules="[(val) => !!val || 'Time is required']"
             />
 
             <q-select
@@ -460,7 +593,7 @@
               :options="appointmentTypes"
               label="Appointment Type"
               outlined
-              :rules="[val => !!val || 'Appointment type is required']"
+              :rules="[(val) => !!val || 'Appointment type is required']"
             />
 
             <q-input
@@ -496,36 +629,60 @@
               <div class="vital-signs-grid">
                 <div class="vital-sign">
                   <span class="label">Blood Pressure:</span>
-                  <span class="value">{{ selectedAppointment.medical_assessment?.blood_pressure || 'Not recorded' }}</span>
+                  <span class="value">{{
+                    selectedAppointment.medical_assessment?.blood_pressure || 'Not recorded'
+                  }}</span>
                 </div>
                 <div class="vital-sign">
                   <span class="label">Heart Rate:</span>
-                  <span class="value">{{ selectedAppointment.medical_assessment?.heart_rate ? `${selectedAppointment.medical_assessment.heart_rate} bpm` : 'Not recorded' }}</span>
+                  <span class="value">{{
+                    selectedAppointment.medical_assessment?.heart_rate
+                      ? `${selectedAppointment.medical_assessment.heart_rate} bpm`
+                      : 'Not recorded'
+                  }}</span>
                 </div>
                 <div class="vital-sign">
                   <span class="label">Temperature:</span>
-                  <span class="value">{{ selectedAppointment.medical_assessment?.temperature ? `${selectedAppointment.medical_assessment.temperature}°C` : 'Not recorded' }}</span>
+                  <span class="value">{{
+                    selectedAppointment.medical_assessment?.temperature
+                      ? `${selectedAppointment.medical_assessment.temperature}°C`
+                      : 'Not recorded'
+                  }}</span>
                 </div>
                 <div class="vital-sign">
                   <span class="label">Weight:</span>
-                  <span class="value">{{ selectedAppointment.medical_assessment?.weight ? `${selectedAppointment.medical_assessment.weight} kg` : 'Not recorded' }}</span>
+                  <span class="value">{{
+                    selectedAppointment.medical_assessment?.weight
+                      ? `${selectedAppointment.medical_assessment.weight} kg`
+                      : 'Not recorded'
+                  }}</span>
                 </div>
               </div>
             </div>
 
             <div class="assessment-section">
               <h5>Symptoms</h5>
-              <p>{{ selectedAppointment.medical_assessment?.symptoms || 'No symptoms recorded' }}</p>
+              <p>
+                {{ selectedAppointment.medical_assessment?.symptoms || 'No symptoms recorded' }}
+              </p>
             </div>
 
             <div class="assessment-section">
               <h5>Nurse's Notes</h5>
-              <p>{{ selectedAppointment.medical_assessment?.nurse_notes || 'No notes recorded' }}</p>
+              <p>
+                {{ selectedAppointment.medical_assessment?.nurse_notes || 'No notes recorded' }}
+              </p>
             </div>
 
             <div class="assessment-section">
               <h5>Assessment Date</h5>
-              <p>{{ selectedAppointment.medical_assessment?.assessment_date ? formatDate(selectedAppointment.medical_assessment.assessment_date) : 'Not recorded' }}</p>
+              <p>
+                {{
+                  selectedAppointment.medical_assessment?.assessment_date
+                    ? formatDate(selectedAppointment.medical_assessment.assessment_date)
+                    : 'Not recorded'
+                }}
+              </p>
             </div>
           </div>
         </q-card-section>
@@ -556,7 +713,7 @@
               label="Follow-up Date"
               outlined
               type="date"
-              :rules="[val => !!val || 'Date is required']"
+              :rules="[(val) => !!val || 'Date is required']"
             />
 
             <q-input
@@ -564,7 +721,7 @@
               label="Follow-up Time"
               outlined
               type="time"
-              :rules="[val => !!val || 'Time is required']"
+              :rules="[(val) => !!val || 'Time is required']"
             />
 
             <q-input
@@ -588,123 +745,159 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
+import { api } from 'src/boot/axios';
 
-const router = useRouter()
-const $q = useQuasar()
+const router = useRouter();
+const $q = useQuasar();
 
 // Drawer and navigation
-const rightDrawerOpen = ref(false)
-const text = ref('')
+const rightDrawerOpen = ref(false);
+const text = ref('');
+const showNotifications = ref(false);
 
 // Real-time time and weather
-const currentTime = ref('')
+const currentTime = ref('');
 const weatherData = ref<{
-  temperature: number
-  condition: string
-  location: string
-  description: string
-} | null>(null)
-const weatherLoading = ref(false)
-const weatherError = ref(false)
-let timeInterval: NodeJS.Timeout | null = null
+  temperature: number;
+  condition: string;
+  location: string;
+  description: string;
+} | null>(null);
+const weatherLoading = ref(false);
+const weatherError = ref(false);
+let timeInterval: NodeJS.Timeout | null = null;
 
 // User profile
 const userProfile = ref<{
-  full_name: string
-  specialization?: string
-  role: string
-  profile_picture: string | null
+  full_name: string;
+  specialization?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
 }>({
   full_name: 'user',
   specialization: 'specialization',
   role: 'role',
-  profile_picture: null
-})
+  profile_picture: null,
+  verification_status: 'not_submitted',
+});
 
-const fileInput = ref<HTMLInputElement>()
-
-// Computed properties for user profile
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U'
-  return userProfile.value.full_name
-    .split(' ')
-    .map(name => name.charAt(0))
-    .join('')
-    .toUpperCase()
-})
-
+// Profile picture handling
 const profilePictureUrl = computed(() => {
   if (!userProfile.value.profile_picture) {
-    return null
+    return null;
   }
-  
-  // If it's already a full URL, return as is
+
   if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture
+    return userProfile.value.profile_picture;
   }
-  
-  // If it's a relative path, construct the full URL
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`
+
+  return `http://localhost:8000${userProfile.value.profile_picture}`;
+});
+
+const userInitials = computed(() => {
+  const name = userProfile.value.full_name || 'User';
+  return name
+    .split(' ')
+    .map((n) => n.charAt(0))
+    .join('')
+    .toUpperCase();
+});
+
+const triggerFileUpload = () => {
+  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  if (fileInput) {
+    fileInput.click();
   }
-  
-  // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`
-})
+};
+
+const handleProfilePictureUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  if (target.files && target.files[0]) {
+    const file = target.files[0];
+    // Handle file upload logic here
+    console.log('File selected:', file.name);
+  }
+};
+
+// File input reference removed - not used in new design
+
+// Computed properties for user profile
+
+// Time and date functions removed - not used in appointment page
+
+// Profile picture URL computed property removed - not used in new design
 
 // Types
 interface DayData {
-  date: Date
-  dayNumber: number
-  isCurrentMonth: boolean
-  isToday: boolean
-  isSelected: boolean
-  isBlocked: boolean
-  appointments: Appointment[]
+  date: Date;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isSelected: boolean;
+  isBlocked: boolean;
+  appointments: Appointment[];
 }
 
 interface Appointment {
-  id: number
-  patient_name: string
-  appointment_date: string
-  appointment_time: string
-  appointment_type: string
-  status: string
-  notes?: string
+  id: number;
+  patient_name: string;
+  appointment_date: string;
+  appointment_time: string;
+  appointment_type: string;
+  status: string;
+  notes?: string;
   medical_assessment?: {
-    blood_pressure: string
-    heart_rate: number
-    temperature: number
-    weight: number
-    symptoms: string
-    nurse_notes: string
-    assessment_date: string
-  }
+    blood_pressure: string;
+    heart_rate: number;
+    temperature: number;
+    weight: number;
+    symptoms: string;
+    nurse_notes: string;
+    assessment_date: string;
+  };
 }
 
 // Reactive data
-const currentDate = ref(new Date())
-const selectedDate = ref<DayData | null>(null)
-const showNewAppointmentDialog = ref(false)
-const appointments = ref<Appointment[]>([])
-const blockedDates = ref<string[]>([])
-const currentView = ref<'day' | 'week' | 'month'>('month')
-const showExportMenu = ref(false)
+const currentDate = ref(new Date());
+const selectedDate = ref<DayData | null>(null);
+const showNewAppointmentDialog = ref(false);
+const appointments = ref<Appointment[]>([]);
+const blockedDates = ref<string[]>([]);
+const currentView = ref<'day' | 'week' | 'month'>('month');
+const showExportMenu = ref(false);
 
 // Upcoming appointments
-const selectedStatus = ref<'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled'>('all')
-const showMedicalAssessmentDialog = ref(false)
-const showFollowUpDialog = ref(false)
-const selectedAppointment = ref<Appointment | null>(null)
+const selectedStatus = ref<'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled'>('all');
+const showMedicalAssessmentDialog = ref(false);
+const showFollowUpDialog = ref(false);
+const selectedAppointment = ref<Appointment | null>(null);
 const followUpData = ref({
   date: '',
   time: '',
-  notes: ''
-})
+  notes: '',
+});
+
+// Notification system
+const notifications = ref<
+  {
+    id: number;
+    message: string;
+    is_read: boolean;
+    created_at: string;
+  }[]
+>([]);
+
+// Notification interface
+interface Notification {
+  id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
 
 // New appointment form
 const newAppointment = ref({
@@ -712,40 +905,36 @@ const newAppointment = ref({
   appointment_date: '',
   appointment_time: '',
   appointment_type: '',
-  notes: ''
-})
+  notes: '',
+});
 
-const appointmentTypes = [
-  'consultation',
-  'follow_up',
-  'emergency'
-]
+const appointmentTypes = ['consultation', 'follow_up', 'emergency'];
 
 // Computed properties
 const currentMonthYear = computed(() => {
-  return currentDate.value.toLocaleDateString('en-US', { 
-    month: 'long', 
-    year: 'numeric' 
-  })
-})
+  return currentDate.value.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  });
+});
 
-const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const calendarWeeks = computed(() => {
-  const year = currentDate.value.getFullYear()
-  const month = currentDate.value.getMonth()
-  
-  const firstDay = new Date(year, month, 1)
-  const startDate = new Date(firstDay)
-  startDate.setDate(startDate.getDate() - firstDay.getDay())
-  
-  const weeks: DayData[][] = []
-  let currentWeek: DayData[] = []
-  
+  const year = currentDate.value.getFullYear();
+  const month = currentDate.value.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+  const weeks: DayData[][] = [];
+  let currentWeek: DayData[] = [];
+
   for (let i = 0; i < 42; i++) {
-    const date = new Date(startDate)
-    date.setDate(startDate.getDate() + i)
-    
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
+
     const dayData: DayData = {
       date: date,
       dayNumber: date.getDate(),
@@ -753,291 +942,210 @@ const calendarWeeks = computed(() => {
       isToday: isToday(date),
       isSelected: selectedDate.value ? isSameDate(date, selectedDate.value.date) : false,
       isBlocked: isDateBlocked(date),
-      appointments: getAppointmentsForDate(date)
-    }
-    
-    currentWeek.push(dayData)
-    
+      appointments: getAppointmentsForDate(date),
+    };
+
+    currentWeek.push(dayData);
+
     if (currentWeek.length === 7) {
-      weeks.push(currentWeek)
-      currentWeek = []
+      weeks.push(currentWeek);
+      currentWeek = [];
     }
   }
-  
-  return weeks
-})
 
-
+  return weeks;
+});
 
 // Time and weather functions
 const updateTime = () => {
-  const now = new Date()
-  
+  const now = new Date();
+
   // Convert to 12-hour format with AM/PM beside the time
-  const hour = now.getHours()
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const hour12 = hour % 12 || 12
-  const minute = now.getMinutes().toString().padStart(2, '0')
-  const second = now.getSeconds().toString().padStart(2, '0')
-  
-  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`
-}
+  const hour = now.getHours();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  const minute = now.getMinutes().toString().padStart(2, '0');
+  const second = now.getSeconds().toString().padStart(2, '0');
+
+  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`;
+};
 
 const getWeatherIcon = (condition: string) => {
   const iconMap: Record<string, string> = {
-    'clear': 'wb_sunny',
-    'clouds': 'cloud',
-    'rain': 'opacity',
-    'snow': 'ac_unit',
-    'thunderstorm': 'flash_on',
-    'drizzle': 'grain',
-    'mist': 'cloud',
-    'fog': 'cloud',
-    'haze': 'cloud',
-    'smoke': 'cloud',
-    'dust': 'cloud',
-    'sand': 'cloud',
-    'ash': 'cloud',
-    'squall': 'air',
-    'tornado': 'air'
-  }
-  return iconMap[condition.toLowerCase()] || 'wb_sunny'
-}
+    clear: 'wb_sunny',
+    clouds: 'cloud',
+    rain: 'opacity',
+    snow: 'ac_unit',
+    thunderstorm: 'flash_on',
+    drizzle: 'grain',
+    mist: 'cloud',
+    fog: 'cloud',
+    haze: 'cloud',
+    smoke: 'cloud',
+    dust: 'cloud',
+    sand: 'cloud',
+    ash: 'cloud',
+    squall: 'air',
+    tornado: 'air',
+  };
+  return iconMap[condition.toLowerCase()] || 'wb_sunny';
+};
 
 const fetchWeather = async () => {
-  weatherLoading.value = true
-  weatherError.value = false
-  
+  weatherLoading.value = true;
+  weatherError.value = false;
+
   try {
     // Get user's location (default to Manila if geolocation fails)
-    let latitude = 14.5995 // Default: Manila
-    let longitude = 120.9842
-    
+    let latitude = 14.5995; // Default: Manila
+    let longitude = 120.9842;
+
     if (navigator.geolocation) {
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, {
             timeout: 5000,
-            enableHighAccuracy: false
-          })
-        })
-        latitude = position.coords.latitude
-        longitude = position.coords.longitude
+            enableHighAccuracy: false,
+          });
+        });
+        latitude = position.coords.latitude;
+        longitude = position.coords.longitude;
       } catch {
-        console.log('Geolocation failed, using default location (Manila)')
+        console.log('Geolocation failed, using default location (Manila)');
       }
     }
-    
+
     // Use OpenWeatherMap API
-    const apiKey = '5c328a0059938745d143138d206eb570'
-    const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`)
-    
+    const apiKey = '5c328a0059938745d143138d206eb570';
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`,
+    );
+
     if (!response.ok) {
-      throw new Error('Weather API request failed')
+      throw new Error('Weather API request failed');
     }
-    
-    const data = await response.json()
-    
+
+    const data = await response.json();
+
     weatherData.value = {
       temperature: Math.round(data.main.temp),
       condition: data.weather[0].main.toLowerCase(),
       location: data.name,
-      description: data.weather[0].description
-    }
-    
+      description: data.weather[0].description,
+    };
   } catch (error) {
-    console.error('Weather fetch error:', error)
-    weatherError.value = true
-    
+    console.error('Weather fetch error:', error);
+    weatherError.value = true;
+
     // Fallback weather data
     weatherData.value = {
       temperature: 22,
       condition: 'clear',
       location: 'Local Area',
-      description: 'Partly cloudy'
-    }
+      description: 'Partly cloudy',
+    };
   } finally {
-    weatherLoading.value = false
+    weatherLoading.value = false;
   }
-}
+};
 
 // Navigation functions
 const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value
-}
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+};
 
 const navigateTo = (route: string) => {
   // Close drawer first
-  rightDrawerOpen.value = false
-  
+  rightDrawerOpen.value = false;
+
   // Navigate to different sections
   switch (route) {
     case 'doctor-dashboard':
-      void router.push('/doctor-dashboard')
-      break
+      void router.push('/doctor-dashboard');
+      break;
     case 'appointments':
       // Already on appointments page
-      break
+      break;
     case 'messaging':
-      void router.push('/doctor-messaging')
-      break
+      void router.push('/doctor-messaging');
+      break;
     case 'patients':
-      $q.notify({
-        type: 'info',
-        message: 'Patient Management page - Coming soon!',
-        position: 'top',
-        timeout: 3000
-      })
-      break
+      void router.push('/doctor-patient-management');
+      break;
     case 'analytics':
-      $q.notify({
-        type: 'info',
-        message: 'Analytics page - Coming soon!',
-        position: 'top',
-        timeout: 3000
-      })
-      break
+      void router.push('/doctor-predictive-analytics');
+      break;
     case 'settings':
-      $q.notify({
-        type: 'info',
-        message: 'Settings page - Coming soon!',
-        position: 'top',
-        timeout: 3000
-      })
-      break
+      void router.push('/doctor-settings');
+      break;
   }
-}
+};
 
 const logout = () => {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-  localStorage.removeItem('user')
-  void router.push('/login')
-}
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  void router.push('/login');
+};
 
-// Profile picture functions
-const triggerFileUpload = () => {
-  fileInput.value?.click()
-}
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement
-  if (target.files && target.files[0]) {
-    const file = target.files[0]
-    
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg']
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000
-      })
-      return
-    }
-    
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000
-      })
-      return
-    }
-    
-    try {
-      const formData = new FormData()
-      formData.append('profile_picture', file)
-      
-      const response = await api.post('/users/profile/update/picture/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
-      
-      userProfile.value.profile_picture = response.data.user.profile_picture
-      
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000
-      })
-      
-      // Clear the file input
-      target.value = ''
-    } catch (error) {
-      console.error('Profile picture upload failed:', error)
-      $q.notify({
-        type: 'negative',
-        message: 'Failed to upload profile picture. Please try again.',
-        position: 'top',
-        timeout: 4000
-      })
-    }
-  }
-}
+// Profile picture functions removed - not used in new design
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
   try {
-    const response = await api.get('/users/profile/')
-    const userData = response.data.user // The API returns nested user data
-    
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user; // The API returns nested user data
+
     userProfile.value = {
       full_name: userData.full_name,
       specialization: userData.doctor_profile?.specialization,
       role: userData.role,
-      profile_picture: userData.profile_picture || null
-    }
-    
-    console.log('User profile loaded:', userProfile.value)
+      profile_picture: userData.profile_picture || null,
+      verification_status: userData.verification_status || 'not_submitted',
+    };
+
+    console.log('User profile loaded:', userProfile.value);
   } catch (error) {
-    console.error('Failed to fetch user profile:', error)
-    
+    console.error('Failed to fetch user profile:', error);
+
     // Fallback to localStorage
-    const userData = localStorage.getItem('user')
+    const userData = localStorage.getItem('user');
     if (userData) {
-      const user = JSON.parse(userData)
+      const user = JSON.parse(userData);
       userProfile.value = {
         full_name: user.full_name,
         specialization: user.doctor_profile?.specialization,
         role: user.role,
-        profile_picture: user.profile_picture || null
-      }
+        profile_picture: user.profile_picture || null,
+        verification_status: user.verification_status || 'not_submitted',
+      };
     }
   }
-}
+};
 
 // Methods
 function isToday(date: Date): boolean {
-  const today = new Date()
-  return date.toDateString() === today.toDateString()
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
 }
 
 function isSameDate(date1: Date, date2: Date): boolean {
-  return date1.toDateString() === date2.toDateString()
+  return date1.toDateString() === date2.toDateString();
 }
 
 function isDateBlocked(date: Date): boolean {
-  return blockedDates.value.some(blockedDate => 
-    isSameDate(new Date(blockedDate), date)
-  )
+  return blockedDates.value.some((blockedDate) => isSameDate(new Date(blockedDate), date));
 }
 
 function getAppointmentsForDate(date: Date) {
-  return appointments.value.filter(appointment => 
-    isSameDate(new Date(appointment.appointment_date), date)
-  )
+  return appointments.value.filter((appointment) =>
+    isSameDate(new Date(appointment.appointment_date), date),
+  );
 }
 
 function selectDate(day: DayData | undefined) {
   if (day && day.isCurrentMonth) {
-    selectedDate.value = day
+    selectedDate.value = day;
   }
 }
 
@@ -1045,80 +1153,76 @@ function previousMonth() {
   currentDate.value = new Date(
     currentDate.value.getFullYear(),
     currentDate.value.getMonth() - 1,
-    1
-  )
+    1,
+  );
 }
 
 function nextMonth() {
   currentDate.value = new Date(
     currentDate.value.getFullYear(),
     currentDate.value.getMonth() + 1,
-    1
-  )
+    1,
+  );
 }
 
 function goToToday() {
-  currentDate.value = new Date()
-  const today = calendarWeeks.value
-    .flat()
-    .find(day => day.isToday)
+  currentDate.value = new Date();
+  const today = calendarWeeks.value.flat().find((day) => day.isToday);
   if (today) {
-    selectedDate.value = today
+    selectedDate.value = today;
   }
 }
 
-
-
 async function fetchAppointments() {
   try {
-    const response = await api.get('/operations/appointments/')
-    appointments.value = response.data
+    const response = await api.get('/operations/appointments/');
+    appointments.value = response.data;
   } catch (error) {
-    console.error('Failed to fetch appointments:', error)
+    console.error('Failed to fetch appointments:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load appointments',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
 async function fetchBlockedDates() {
   try {
     // This would be a new endpoint for blocked dates
-    const response = await api.get('/operations/blocked-dates/')
-    blockedDates.value = response.data
+    const response = await api.get('/operations/blocked-dates/');
+    blockedDates.value = response.data;
   } catch (error) {
-    console.error('Failed to fetch blocked dates:', error)
+    console.error('Failed to fetch blocked dates:', error);
   }
 }
 
 async function blockDate() {
-  if (!selectedDate.value) return
-  
+  if (!selectedDate.value) return;
+
   try {
-    const dateString = selectedDate.value.date.toISOString().split('T')[0]
+    const dateString = selectedDate.value.date.toISOString().split('T')[0];
     if (dateString) {
       await api.post('/operations/block-date/', {
-        date: dateString
-      })
-      
-      blockedDates.value.push(dateString)
+        date: dateString,
+      });
+
+      blockedDates.value.push(dateString);
     }
-    selectedDate.value.isBlocked = true
-    
+    selectedDate.value.isBlocked = true;
+
     $q.notify({
       type: 'positive',
       message: 'Date blocked successfully',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to block date:', error)
+    console.error('Failed to block date:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to block date',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
@@ -1126,37 +1230,38 @@ async function createAppointment() {
   try {
     const appointmentData = {
       ...newAppointment.value,
-      appointment_date: newAppointment.value.appointment_date + 'T' + newAppointment.value.appointment_time
-    }
-    
-    await api.post('/operations/create-appointment/', appointmentData)
-    
+      appointment_date:
+        newAppointment.value.appointment_date + 'T' + newAppointment.value.appointment_time,
+    };
+
+    await api.post('/operations/create-appointment/', appointmentData);
+
     // Reset form
     newAppointment.value = {
       patient_name: '',
       appointment_date: '',
       appointment_time: '',
       appointment_type: '',
-      notes: ''
-    }
-    
-    showNewAppointmentDialog.value = false
-    
+      notes: '',
+    };
+
+    showNewAppointmentDialog.value = false;
+
     // Refresh appointments
-    await fetchAppointments()
-    
+    await fetchAppointments();
+
     $q.notify({
       type: 'positive',
       message: 'Appointment created successfully',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to create appointment:', error)
+    console.error('Failed to create appointment:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to create appointment',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
@@ -1164,49 +1269,49 @@ async function createAppointment() {
 async function downloadSchedule() {
   try {
     // Get current month's appointments
-    const year = currentDate.value.getFullYear()
-    const month = currentDate.value.getMonth() + 1
-    
-    const response = await api.get(`/operations/appointments/?year=${year}&month=${month}`)
-    const appointments = response.data
-    
+    const year = currentDate.value.getFullYear();
+    const month = currentDate.value.getMonth() + 1;
+
+    const response = await api.get(`/operations/appointments/?year=${year}&month=${month}`);
+    const appointments = response.data;
+
     // Create CSV content
-    const csvContent = createCSVContent(appointments)
-    
+    const csvContent = createCSVContent(appointments);
+
     // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `schedule_${year}_${month.toString().padStart(2, '0')}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `schedule_${year}_${month.toString().padStart(2, '0')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     $q.notify({
       type: 'positive',
       message: 'Schedule downloaded successfully',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to download schedule:', error)
+    console.error('Failed to download schedule:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to download schedule',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
 function printSchedule() {
   try {
     // Create a printable version of the schedule
-    const printWindow = window.open('', '_blank')
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
-      const year = currentDate.value.getFullYear()
-      const monthName = currentDate.value.toLocaleDateString('en-US', { month: 'long' })
-      
+      const year = currentDate.value.getFullYear();
+      const monthName = currentDate.value.toLocaleDateString('en-US', { month: 'long' });
+
       const printContent = `
         <!DOCTYPE html>
         <html>
@@ -1243,39 +1348,35 @@ function printSchedule() {
           </table>
         </body>
         </html>
-      `
-      
-      printWindow.document.write(printContent)
-      printWindow.document.close()
-      printWindow.print()
+      `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
     }
   } catch (error) {
-    console.error('Failed to print schedule:', error)
+    console.error('Failed to print schedule:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to print schedule',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
-
-
 // Helper functions for export
 function createCSVContent(appointments: Appointment[]): string {
-  const headers = ['Date', 'Time', 'Patient Name', 'Appointment Type', 'Status', 'Notes']
-  const rows = appointments.map(appointment => [
+  const headers = ['Date', 'Time', 'Patient Name', 'Appointment Type', 'Status', 'Notes'];
+  const rows = appointments.map((appointment) => [
     new Date(appointment.appointment_date).toLocaleDateString(),
     appointment.appointment_time,
     appointment.patient_name,
     appointment.appointment_type,
     appointment.status,
-    appointment.notes || ''
-  ])
-  
-  return [headers, ...rows]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
+    appointment.notes || '',
+  ]);
+
+  return [headers, ...rows].map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
 }
 
 function generateScheduleRows(): string {
@@ -1287,95 +1388,98 @@ function generateScheduleRows(): string {
         Schedule data will be populated here
       </td>
     </tr>
-  `
+  `;
 }
-
-
 
 // View management function
 function setView(view: 'day' | 'week' | 'month') {
-  currentView.value = view
+  currentView.value = view;
   // TODO: Implement different view logic
-  console.log('Switched to view:', view)
+  console.log('Switched to view:', view);
 }
 
 // Upcoming appointments functions
 const filteredAppointments = computed(() => {
   if (selectedStatus.value === 'all') {
-    return appointments.value
+    return appointments.value;
   }
-  return appointments.value.filter(appointment => appointment.status === selectedStatus.value)
-})
+  return appointments.value.filter((appointment) => appointment.status === selectedStatus.value);
+});
 
 function filterByStatus(status: 'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled') {
-  selectedStatus.value = status
+  selectedStatus.value = status;
 }
 
 function formatAppointmentDateTime(date: string, time: string): string {
-  const dateObj = new Date(date)
+  const dateObj = new Date(date);
   const formattedDate = dateObj.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
-    day: 'numeric'
-  })
-  return `${formattedDate} at ${time}`
+    day: 'numeric',
+  });
+  return `${formattedDate} at ${time}`;
 }
 
 function getStatusColor(status: string): string {
   switch (status) {
-    case 'confirmed': return 'primary'
-    case 'pending': return 'warning'
-    case 'completed': return 'positive'
-    case 'cancelled': return 'negative'
-    default: return 'grey'
+    case 'confirmed':
+      return 'primary';
+    case 'pending':
+      return 'warning';
+    case 'completed':
+      return 'positive';
+    case 'cancelled':
+      return 'negative';
+    default:
+      return 'grey';
   }
 }
 
 function viewMedicalAssessment(appointment: Appointment) {
-  selectedAppointment.value = appointment
-  showMedicalAssessmentDialog.value = true
+  selectedAppointment.value = appointment;
+  showMedicalAssessmentDialog.value = true;
 }
 
 async function markAsCompleted(appointment: Appointment) {
   try {
     await api.patch(`/operations/appointments/${appointment.id}/`, {
-      status: 'completed'
-    })
-    
+      status: 'completed',
+    });
+
     // Update local appointment
-    const index = appointments.value.findIndex(a => a.id === appointment.id)
+    const index = appointments.value.findIndex((a) => a.id === appointment.id);
     if (index !== -1 && appointments.value[index]) {
-      appointments.value[index].status = 'completed'
+      appointments.value[index].status = 'completed';
     }
-    
+
     $q.notify({
       type: 'positive',
       message: 'Appointment marked as completed',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to mark appointment as completed:', error)
+    console.error('Failed to mark appointment as completed:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to update appointment status',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
 function scheduleFollowUp(appointment: Appointment) {
-  selectedAppointment.value = appointment
+  selectedAppointment.value = appointment;
   followUpData.value = {
     date: '',
     time: '',
-    notes: ''
-  }
-  showFollowUpDialog.value = true
+    notes: '',
+  };
+  showFollowUpDialog.value = true;
 }
 
 async function confirmFollowUp() {
-  if (!selectedAppointment.value) return
-  
+  if (!selectedAppointment.value) return;
+
   try {
     const followUpAppointment = {
       patient_name: selectedAppointment.value.patient_name,
@@ -1383,53 +1487,53 @@ async function confirmFollowUp() {
       appointment_time: followUpData.value.time,
       appointment_type: 'follow_up',
       notes: followUpData.value.notes,
-      original_appointment_id: selectedAppointment.value.id
-    }
-    
-    await api.post('/operations/create-appointment/', followUpAppointment)
-    
-    showFollowUpDialog.value = false
-    await fetchAppointments()
-    
+      original_appointment_id: selectedAppointment.value.id,
+    };
+
+    await api.post('/operations/create-appointment/', followUpAppointment);
+
+    showFollowUpDialog.value = false;
+    await fetchAppointments();
+
     $q.notify({
       type: 'positive',
       message: 'Follow-up appointment scheduled successfully',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to schedule follow-up:', error)
+    console.error('Failed to schedule follow-up:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to schedule follow-up appointment',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
 async function cancelAppointment(appointment: Appointment) {
   try {
     await api.patch(`/operations/appointments/${appointment.id}/`, {
-      status: 'cancelled'
-    })
-    
+      status: 'cancelled',
+    });
+
     // Update local appointment
-    const index = appointments.value.findIndex(a => a.id === appointment.id)
+    const index = appointments.value.findIndex((a) => a.id === appointment.id);
     if (index !== -1 && appointments.value[index]) {
-      appointments.value[index].status = 'cancelled'
+      appointments.value[index].status = 'cancelled';
     }
-    
+
     $q.notify({
       type: 'positive',
       message: 'Appointment cancelled successfully',
-      position: 'top'
-    })
+      position: 'top',
+    });
   } catch (error) {
-    console.error('Failed to cancel appointment:', error)
+    console.error('Failed to cancel appointment:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to cancel appointment',
-      position: 'top'
-    })
+      position: 'top',
+    });
   }
 }
 
@@ -1437,52 +1541,128 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
-  })
+    day: 'numeric',
+  });
 }
 
 // Lifecycle
-onMounted(async () => {
-  console.log('DoctorAppointment component mounted successfully!')
-  
-  // Load user profile data from API
-  void fetchUserProfile()
-  
-  // Initialize real-time features
-  updateTime() // Set initial time
-  timeInterval = setInterval(updateTime, 1000) // Update every second
-  
-  // Fetch weather data
-  void fetchWeather()
-  
-  // Refresh weather every 30 minutes
-  setInterval(() => void fetchWeather(), 30 * 60 * 1000)
-  
+// Notification functions
+const unreadNotificationsCount = computed(() => {
+  return notifications.value.filter((n) => !n.is_read).length;
+});
+
+const loadNotifications = async (): Promise<void> => {
   try {
-    await fetchAppointments()
-    await fetchBlockedDates()
-    goToToday()
-  } catch (error) {
-    console.error('Error during component initialization:', error)
+    console.log('📬 Loading doctor notifications...');
+
+    const response = await api.get('/operations/notifications/');
+    notifications.value = response.data || [];
+
+    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+  } catch (error: unknown) {
+    console.error('❌ Error loading doctor notifications:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load notifications',
+    });
   }
-})
+};
+
+const handleNotificationClick = (notification: Notification): void => {
+  // Mark as read
+  notification.is_read = true;
+
+  // Update on backend
+  void markNotificationAsRead(notification.id);
+};
+
+const markNotificationAsRead = async (notificationId: number): Promise<void> => {
+  try {
+    await api.patch(`/operations/notifications/${notificationId}/mark-read/`);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+};
+
+const markAllNotificationsRead = async (): Promise<void> => {
+  try {
+    // Mark all notifications as read locally
+    notifications.value.forEach((notification) => {
+      notification.is_read = true;
+    });
+
+    // Mark all notifications as read on backend
+    await api.post('/operations/notifications/mark-all-read/');
+
+    $q.notify({
+      type: 'positive',
+      message: 'All notifications marked as read',
+    });
+  } catch (error) {
+    console.error('Error marking notifications as read:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to mark notifications as read',
+    });
+  }
+};
+
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+onMounted(async () => {
+  console.log('DoctorAppointment component mounted successfully!');
+
+  // Load user profile data from API
+  void fetchUserProfile();
+
+  // Load notifications
+  void loadNotifications();
+
+  // Initialize real-time features
+  updateTime(); // Set initial time
+  timeInterval = setInterval(updateTime, 1000); // Update every second
+
+  // Fetch weather data
+  void fetchWeather();
+
+  // Refresh weather every 30 minutes
+  setInterval(() => void fetchWeather(), 30 * 60 * 1000);
+
+  // Refresh notifications every 30 seconds
+  setInterval(() => void loadNotifications(), 30000);
+
+  try {
+    await fetchAppointments();
+    await fetchBlockedDates();
+    goToToday();
+  } catch (error) {
+    console.error('Error during component initialization:', error);
+  }
+});
 
 // Cleanup on component unmount
 onUnmounted(() => {
   if (timeInterval) {
-    clearInterval(timeInterval)
+    clearInterval(timeInterval);
   }
-})
+});
 </script>
 
 <style scoped>
-/* Header and Navigation Styles */
-.search-container {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  padding: 0 20px;
+.page-background {
+  background: #f8f9fa;
+  background-size: cover;
+  min-height: 100vh;
 }
+
+/* Header and Navigation Styles */
 
 .search-input {
   max-width: 600px;
@@ -1495,46 +1675,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 20px;
   margin-left: 20px;
-}
-
-.time-display,
-.weather-display,
-.weather-loading,
-.weather-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.time-display .q-icon,
-.weather-display .q-icon {
-  color: #286660;
-}
-
-.time-text,
-.weather-text {
-  font-size: 14px;
-  font-weight: 500;
-  color: #286660;
-  white-space: nowrap;
-}
-
-.weather-location {
-  font-size: 12px;
-  color: #666;
-  margin-left: 4px;
-}
-
-.weather-loading .q-spinner {
-  color: #286660;
-}
-
-.weather-error .q-icon {
-  color: #ff6b6b;
 }
 
 /* Page Header Styles */
@@ -1593,7 +1733,16 @@ onUnmounted(() => {
 }
 
 .profile-avatar {
-  border: 3px solid #1e7668;
+  border: 3px solid #1e7668 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+}
+
+.profile-avatar img {
+  border-radius: 50% !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
 
 .profile-placeholder {
@@ -1611,9 +1760,14 @@ onUnmounted(() => {
 
 .upload-btn {
   position: absolute;
-  bottom: 0;
-  right: 0;
+  bottom: -5px;
+  right: -5px;
   background: #1e7668 !important;
+  border-radius: 50% !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
 }
 
 .user-info {
@@ -1684,8 +1838,6 @@ onUnmounted(() => {
   height: 100%;
   object-fit: contain;
 }
-
-
 
 /* Calendar Navigation Bar Styles */
 .calendar-navigation-bar {
@@ -2030,5 +2182,585 @@ onUnmounted(() => {
 
 .appointment-item {
   border-radius: 4px;
+}
+
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ensure mobile header is always visible on mobile devices */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Force header visibility on iOS */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Responsive Design - Mobile and Web Support */
+@media (max-width: 768px) {
+  .mobile-header-layout {
+    display: flex !important;
+  }
+
+  .header-toolbar {
+    display: none !important;
+  }
+
+  /* Mobile header positioning */
+  .prototype-header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2000 !important;
+    padding-top: max(env(safe-area-inset-top), 8px) !important;
+  }
+
+  /* Ensure main content doesn't overlap header */
+  .q-page {
+    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
+  }
+}
+
+/* Desktop Header Layout */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Global Modal Safe Area Support */
+@media (max-width: 768px) {
+  :deep(.q-dialog) {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 20px) max(env(safe-area-inset-right), 8px)
+      max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px) !important;
+    margin: 0 !important;
+    min-height: 100vh !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    padding-top: max(env(safe-area-inset-top), 20px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
+    ) !important;
+    width: 100% !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 8px) - max(env(safe-area-inset-right), 8px)
+    ) !important;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  :deep(.q-dialog__inner) {
+    padding: max(env(safe-area-inset-top), 24px) max(env(safe-area-inset-right), 4px)
+      max(env(safe-area-inset-bottom), 4px) max(env(safe-area-inset-left), 4px) !important;
+  }
+
+  :deep(.q-dialog__inner > div) {
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
+    ) !important;
+    max-width: calc(
+      100vw - max(env(safe-area-inset-left), 4px) - max(env(safe-area-inset-right), 4px)
+    ) !important;
+  }
+}
+
+/* Modal Close Button Styles */
+.modal-close-btn {
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+/* Desktop close button styling */
+@media (min-width: 769px) {
+  .modal-close-btn {
+    padding: 6px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 18px;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+  }
+}
+
+/* Mobile close button styling */
+@media (max-width: 768px) {
+  .modal-close-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-close-btn {
+    padding: 10px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 22px !important;
+    background: rgba(0, 0, 0, 0.1) !important;
+    border-radius: 50% !important;
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* Prototype Header Styles */
+.prototype-header {
+  background: #286660;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-toolbar {
+  padding: 0 24px;
+  min-height: 64px;
+}
+
+.menu-toggle-btn {
+  color: white;
+  margin-right: 16px;
+}
+
+.header-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.search-container {
+  width: 100%;
+  max-width: 500px;
+}
+
+.search-input {
+  background: white;
+  border-radius: 8px;
+}
+
+.notification-btn {
+  color: white;
+}
+
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  font-size: 14px;
+}
+
+/* Prototype Sidebar Styles */
+.prototype-sidebar {
+  background: white;
+  border-right: 1px solid #e0e0e0;
+}
+
+.sidebar-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-section {
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #286660;
+}
+
+.menu-btn {
+  color: #666;
+}
+
+.sidebar-user-profile {
+  padding: 24px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.profile-picture-container {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.verified-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+}
+
+.user-role {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 12px 0;
+}
+
+.navigation-menu {
+  flex: 1;
+  padding: 16px 0;
+}
+
+.nav-item {
+  margin: 4px 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-item.active {
+  background: #286660;
+  color: white;
+}
+
+.nav-item.active .q-icon {
+  color: white;
+}
+
+.nav-item:hover:not(.active) {
+  background: #f5f5f5;
+}
+
+.logout-section {
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.logout-btn {
+  width: 100%;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Page Container with Off-White Background */
+.page-container-with-fixed-header {
+  background: #f8f9fa;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Greeting Section */
+.greeting-section {
+  padding: 24px;
+  background: transparent;
+}
+
+.greeting-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.greeting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
+}
+
+.greeting-content {
+  padding: 24px;
+}
+
+.greeting-text {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.greeting-subtitle {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+/* Notification styles */
+.unread {
+  background-color: rgba(25, 118, 210, 0.05);
+  border-left: 3px solid #1976d2;
+}
+
+.unread .q-item-label {
+  font-weight: 600;
+}
+
+/* Desktop Layout - Show desktop header, hide mobile */
+@media (min-width: 769px) {
+  .mobile-header-layout {
+    display: none;
+  }
+
+  .prototype-header .header-toolbar {
+    display: flex;
+  }
+}
+
+/* Mobile Layout - Hide desktop header, show mobile */
+@media (max-width: 768px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    display: none;
+  }
+
+  .mobile-header-layout {
+    padding: 8px 12px;
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .mobile-header-layout {
+    padding: 6px 8px;
+    padding-top: max(env(safe-area-inset-top), 12px);
+  }
+
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
+  }
+
+  .header-bottom-row {
+    padding: 0 8px 4px;
+  }
+
+  .header-info {
+    gap: 6px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
 }
 </style>
