@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
 from django.utils import timezone
+from .image_utils import ImageProcessor, process_profile_picture
 import re
 
 
@@ -35,9 +36,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'full_name', 'role', 'date_of_birth', 'gender',
-            'is_verified', 'verification_status', 'profile_picture', 'verification_document',
-            'doctor_profile', 'nurse_profile', 'patient_profile',
-            'date_joined', 'updated_at'
+            'hospital_name', 'hospital_address', 'is_verified', 'verification_status', 
+            'profile_picture', 'verification_document', 'doctor_profile', 'nurse_profile', 
+            'patient_profile', 'date_joined', 'updated_at'
         ]
         read_only_fields = ['id', 'date_joined', 'updated_at']
 
@@ -120,11 +121,49 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 class ProfilePictureSerializer(serializers.ModelSerializer):
     """
-    A separate serializer for updating only the profile picture.
+    Enhanced serializer for updating profile pictures with validation and optimization.
     """
     class Meta:
         model = User
         fields = ["profile_picture"]
+    
+    def validate_profile_picture(self, value):
+        """
+        Comprehensive validation for profile picture uploads.
+        """
+        if value:
+            try:
+                # Use the ImageProcessor for validation
+                validation_result = ImageProcessor.validate_image_file(value)
+                
+                # Log any warnings
+                if validation_result.get('warnings'):
+                    # In a production environment, you might want to log these warnings
+                    pass
+                
+                return value
+                
+            except Exception as e:
+                raise serializers.ValidationError(str(e))
+        
+        return value
+    
+    def update(self, instance, validated_data):
+        """
+        Update user profile picture with optimization.
+        """
+        profile_picture = validated_data.get('profile_picture')
+        
+        if profile_picture:
+            try:
+                # Process and optimize the image
+                optimized_image = process_profile_picture(profile_picture, instance.id)
+                validated_data['profile_picture'] = optimized_image
+                
+            except Exception as e:
+                raise serializers.ValidationError(f"Failed to process image: {str(e)}")
+        
+        return super().update(instance, validated_data)
 
 class VerificationDocumentSerializer(serializers.ModelSerializer):
     """
@@ -148,3 +187,16 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("File size must be less than 5MB.")
         
         return value
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating user profile information including hospital details
+    """
+    class Meta:
+        model = User
+        fields = [
+            'email', 'full_name', 'date_of_birth', 'gender', 
+            'hospital_name', 'hospital_address'
+        ]
+        read_only_fields = ['email']  # Email should not be updated through this endpoint

@@ -605,19 +605,26 @@ def add_reaction(request, message_id):
 @permission_classes([IsAuthenticated])
 def get_available_users(request):
     """
-    Get list of doctors and nurses available for messaging with optional search functionality
+    Get list of verified doctors and nurses available for secure messaging.
+    Only shows healthcare providers who have completed admin verification process.
     """
     try:
         user = request.user
         search_query = request.GET.get('search', '').strip()
         
-        # Get all doctors and nurses except current user
-        # Include users who are either admin-approved or self-verified
+        # Security: Only allow verified users to access messaging
+        if user.verification_status != 'approved':
+            return Response({
+                'error': 'Account verification required to access messaging features.',
+                'verification_status': user.verification_status
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get only admin-verified doctors and nurses (excluding current user)
+        # This ensures secure communication between authenticated healthcare providers
         available_users = User.objects.filter(
             role__in=['doctor', 'nurse'],
-            is_active=True
-        ).filter(
-            Q(verification_status='approved') | Q(is_verified=True)
+            is_active=True,
+            verification_status='approved'  # Only admin-verified users for security
         ).exclude(id=user.id)
         
         # Apply search filter if search query is provided
@@ -629,7 +636,11 @@ def get_available_users(request):
             )
         
         serializer = UserSerializer(available_users, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            'users': serializer.data,
+            'total_count': available_users.count(),
+            'message': f'Found {available_users.count()} verified healthcare providers'
+        }, status=status.HTTP_200_OK)
         
     except Exception as e:
         return Response({
@@ -950,25 +961,33 @@ def nurse_queue_patients(request):
 @permission_classes([IsAuthenticated])
 def get_available_doctors(request):
     """
-    Get available doctors by specialization with optional search functionality
+    Get available verified doctors by specialization with optional search functionality.
+    Only shows doctors who have completed admin verification process.
     """
     try:
         user = request.user
         
-        # Check if user is a nurse
+        # Check if user is a nurse and is verified
         if user.role != 'nurse':
             return Response({
                 'error': 'Access denied. Only nurses can view available doctors.'
             }, status=status.HTTP_403_FORBIDDEN)
         
+        # Security: Only allow verified nurses to access doctor information
+        if user.verification_status != 'approved':
+            return Response({
+                'error': 'Account verification required to access doctor information.',
+                'verification_status': user.verification_status
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         specialization = request.GET.get('specialization', '')
         search_query = request.GET.get('search', '').strip()
         
-        # Get doctors with the specified specialization
+        # Get only admin-verified doctors with the specified specialization
         from backend.users.models import GeneralDoctorProfile
         
         doctors_query = GeneralDoctorProfile.objects.filter(
-            user__is_verified=True,
+            user__verification_status='approved',  # Only admin-verified doctors for security
             user__is_active=True
         )
         
@@ -1001,10 +1020,17 @@ def get_available_doctors(request):
                 'department': doctor.department,
                 'is_available': current_patients < 10,  # Assume max 10 patients per doctor
                 'current_patients': current_patients,
-                'profile_picture': doctor.user.profile_picture
+                'profile_picture': doctor.user.profile_picture,
+                'verification_status': doctor.user.verification_status,
+                'is_verified': True  # All returned doctors are verified
             })
         
-        return Response(doctor_data, status=status.HTTP_200_OK)
+        return Response({
+            'doctors': doctor_data,
+            'total_count': len(doctor_data),
+            'message': f'Found {len(doctor_data)} verified doctors',
+            'security_note': 'Only admin-verified doctors are shown for secure healthcare operations'
+        }, status=status.HTTP_200_OK)
         
     except Exception as e:
         return Response({

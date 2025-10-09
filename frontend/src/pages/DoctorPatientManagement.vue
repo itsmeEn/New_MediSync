@@ -1,192 +1,10 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header safe-area-top">
-      <!-- Mobile Header Layout -->
-      <div class="mobile-header-layout">
-        <!-- Top Row: Menu, Time, Weather, Notifications -->
-        <div class="header-top-row">
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+    <!-- Standardized Header Component -->
+    <DoctorHeader @toggle-drawer="rightDrawerOpen = !rightDrawerOpen" />
 
-          <div class="header-info">
-            <!-- Time Display -->
-            <div class="time-display">
-              <q-icon name="schedule" size="sm" />
-              <span class="time-text">{{ currentTime }}</span>
-            </div>
-
-            <!-- Weather Display -->
-            <div class="weather-display" v-if="weatherData">
-              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-              <span class="weather-text">{{ weatherData.temperature }}°C</span>
-              <span class="weather-location">{{ weatherData.location }}</span>
-            </div>
-
-            <!-- Loading Weather -->
-            <div class="weather-loading" v-else-if="weatherLoading">
-              <q-spinner size="sm" />
-              <span class="weather-text">Loading...</span>
-            </div>
-
-            <!-- Weather Error -->
-            <div class="weather-error" v-else-if="weatherError">
-              <q-icon name="error" size="sm" />
-              <span class="weather-text">Weather Update</span>
-            </div>
-          </div>
-
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-        </div>
-
-        <!-- Bottom Row: Search Bar -->
-        <div class="header-bottom-row">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="searchText"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="searchText">
-                <q-icon name="clear" class="cursor-pointer" @click="searchText = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </div>
-    </q-header>
-
-    <!-- Sidebar -->
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('doctor-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('appointments')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="event" />
-            </q-item-section>
-            <q-item-section>Appointments</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patients')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="people" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+    <!-- Standardized Sidebar Component -->
+    <DoctorSidebar v-model="rightDrawerOpen" active-route="patients" />
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Main Content -->
@@ -365,8 +183,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
+import DoctorHeader from '../components/DoctorHeader.vue';
+import DoctorSidebar from '../components/DoctorSidebar.vue';
 
 // Types
 interface Patient {
@@ -393,11 +212,9 @@ interface Patient {
 
 // Reactive data
 const $q = useQuasar();
-const router = useRouter();
 const rightDrawerOpen = ref(false);
 const loading = ref(false);
 const searchText = ref('');
-const currentTime = ref('');
 const patients = ref<Patient[]>([]);
 const selectedPatient = ref<Patient | null>(null);
 const showNotifications = ref(false);
@@ -417,14 +234,7 @@ const userProfile = ref<{
   verification_status: 'not_submitted',
 });
 
-// Weather data
-const weatherData = ref<{
-  temperature: number;
-  condition: string;
-  location: string;
-} | null>(null);
-const weatherLoading = ref(false);
-const weatherError = ref(false);
+// Weather data is now handled by DoctorHeader component
 
 // Notification system
 const notifications = ref<
@@ -444,45 +254,9 @@ interface Notification {
   created_at: string;
 }
 
-// Profile picture handling
-const userInitials = computed(() => {
-  const name = userProfile.value.full_name || 'User';
-  return name
-    .split(' ')
-    .map((n) => n.charAt(0))
-    .join('')
-    .toUpperCase();
-});
-
-const triggerFileUpload = () => {
-  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-  if (fileInput) {
-    fileInput.click();
-  }
-};
-
-const handleProfilePictureUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-    // Handle file upload logic here
-    console.log('File selected:', file.name);
-  }
-};
+// Profile picture functionality removed - not used in this component
 
 // Computed properties
-
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
-});
 
 const filteredPatients = computed(() => {
   if (!searchText.value) return patients.value;
@@ -500,49 +274,7 @@ const activePatientsCount = computed(
   () => patients.value.filter((p) => p.discharge_date === null || p.discharge_date === '').length,
 );
 
-// Methods
-const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value;
-};
-
-const updateTime = () => {
-  currentTime.value = new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-};
-
-const getWeatherIcon = (condition: string): string => {
-  const iconMap: { [key: string]: string } = {
-    sunny: 'wb_sunny',
-    cloudy: 'cloud',
-    rainy: 'grain',
-    stormy: 'thunderstorm',
-    snowy: 'ac_unit',
-    foggy: 'foggy',
-  };
-  return iconMap[condition.toLowerCase()] || 'wb_sunny';
-};
-
-const fetchWeatherData = async (): Promise<void> => {
-  weatherLoading.value = true;
-  weatherError.value = false;
-
-  try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    weatherData.value = {
-      temperature: 28,
-      condition: 'sunny',
-      location: 'Mandaluyong City',
-    };
-  } catch (error) {
-    console.error('Failed to fetch weather data:', error);
-    weatherError.value = true;
-  } finally {
-    weatherLoading.value = false;
-  }
-};
+// Methods - time and weather functionality now handled by DoctorHeader component
 
 const loadPatients = async () => {
   loading.value = true;
@@ -602,43 +334,9 @@ const fetchUserProfile = async () => {
   }
 };
 
-const navigateTo = (route: string) => {
-  rightDrawerOpen.value = false;
+// Navigation and logout functionality now handled by DoctorSidebar component
 
-  switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
-      break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
-      break;
-    case 'messaging':
-      void router.push('/doctor-messaging');
-      break;
-    case 'patients':
-      // Already on patient management
-      break;
-    case 'analytics':
-      void router.push('/doctor-predictive-analytics');
-      break;
-    case 'settings':
-      void router.push('/doctor-settings');
-      break;
-  }
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
-
-// Lifecycle
 // Notification functions
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter((n) => !n.is_read).length;
-});
 
 const loadNotifications = async (): Promise<void> => {
   try {
@@ -709,10 +407,7 @@ onMounted(() => {
   console.log('🚀 DoctorPatientManagement component mounted');
   void fetchUserProfile();
   void loadNotifications();
-  updateTime();
-  setInterval(updateTime, 1000);
   void loadPatients();
-  void fetchWeatherData();
 
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);

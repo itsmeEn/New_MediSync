@@ -1183,7 +1183,7 @@ def main():
             critical_alerts.append({
                 'id': 'CRIT_001',
                 'priority': 'CRITICAL',
-                'title': '🚨 CRITICAL RISK SCORE ALERT',
+                'title': 'CRITICAL RISK SCORE ALERT',
                 'message': f'Overall risk score: {overall_score:.1f}% - IMMEDIATE INTERVENTION REQUIRED',
                 'action_required': 'Activate rapid response team within 15 minutes',
                 'timeframe': '< 15 minutes',
@@ -1200,7 +1200,7 @@ def main():
                 critical_alerts.append({
                     'id': 'CRIT_002',
                     'priority': 'CRITICAL',
-                    'title': '🚨 HIGH ELDERLY POPULATION ALERT',
+                    'title': 'HIGH ELDERLY POPULATION ALERT',
                     'message': flag,
                     'action_required': 'Implement emergency geriatric protocols',
                     'timeframe': '< 30 minutes',
@@ -1212,7 +1212,7 @@ def main():
                 critical_alerts.append({
                     'id': 'CRIT_003',
                     'priority': 'CRITICAL',
-                    'title': '🚨 CRITICAL CONDITION SURGE ALERT',
+                    'title': 'CRITICAL CONDITION SURGE ALERT',
                     'message': flag,
                     'action_required': 'Activate disease-specific emergency protocols',
                     'timeframe': '< 30 minutes',
@@ -1233,7 +1233,7 @@ def main():
             urgent_alerts.append({
                 'id': 'URG_001',
                 'priority': 'URGENT',
-                'title': '🔴 HIGH CLINICAL RISK ALERT',
+                'title': 'HIGH CLINICAL RISK ALERT',
                 'message': f'Clinical risk score: {clinical_risk:.1f}% - Enhanced monitoring required',
                 'action_required': 'Implement enhanced surveillance protocols',
                 'timeframe': '< 2 hours',
@@ -1247,7 +1247,7 @@ def main():
             urgent_alerts.append({
                 'id': 'URG_002',
                 'priority': 'URGENT',
-                'title': '🔴 URGENT INTERVENTION REQUIRED',
+                'title': 'URGENT INTERVENTION REQUIRED',
                 'message': f"Intervention needed: {intervention_urgency.get('timeframe', 'Within 2-4 hours')}",
                 'action_required': intervention_urgency.get('escalation', 'Physician notification'),
                 'timeframe': intervention_urgency.get('timeframe', '< 4 hours'),
@@ -1268,7 +1268,7 @@ def main():
             warning_alerts.append({
                 'id': 'WARN_001',
                 'priority': 'WARNING',
-                'title': '🟡 DEMOGRAPHIC RISK WARNING',
+                'title': 'DEMOGRAPHIC RISK WARNING',
                 'message': f'Demographic risk score: {demographic_risk:.1f}% - Monitor population trends',
                 'action_required': 'Review and adjust care protocols',
                 'timeframe': '< 24 hours',
@@ -1284,7 +1284,7 @@ def main():
             warning_alerts.append({
                 'id': f'WARN_{len(warning_alerts) + 2:03d}',
                 'priority': 'WARNING',
-                'title': '🟡 CLINICAL WARNING',
+                'title': 'CLINICAL WARNING',
                 'message': warning,
                 'action_required': 'Enhanced monitoring and assessment',
                 'timeframe': '< 24 hours',
@@ -1306,7 +1306,7 @@ def main():
             informational_alerts.append({
                 'id': f'INFO_{len(informational_alerts) + 1:03d}',
                 'priority': 'INFORMATIONAL',
-                'title': '🟢 PROTECTIVE FACTOR IDENTIFIED',
+                'title': 'PROTECTIVE FACTOR IDENTIFIED',
                 'message': factor,
                 'action_required': 'Continue current protocols',
                 'timeframe': 'Routine',
@@ -1338,7 +1338,7 @@ def main():
                 alerts['critical_alerts'].append({
                     'id': f'COND_CRIT_{condition.replace(" ", "_").upper()}',
                     'priority': 'CRITICAL',
-                    'title': f'🚨 CRITICAL CONDITION ALERT: {condition}',
+                    'title': f'CRITICAL CONDITION ALERT: {condition}',
                     'message': f'Rising {condition} cases detected - Immediate protocol activation required',
                     'action_required': f'Activate {condition} emergency protocols',
                     'timeframe': '< 30 minutes',
@@ -1349,7 +1349,7 @@ def main():
                 alerts['urgent_alerts'].append({
                     'id': f'COND_URG_{condition.replace(" ", "_").upper()}',
                     'priority': 'URGENT',
-                    'title': f'🔴 URGENT CONDITION ALERT: {condition}',
+                    'title': f'URGENT CONDITION ALERT: {condition}',
                     'message': f'Increasing {condition} trend - Enhanced protocols needed',
                     'action_required': f'Implement enhanced {condition} management',
                     'timeframe': '< 4 hours',
@@ -1360,7 +1360,7 @@ def main():
                 alerts['warning_alerts'].append({
                     'id': f'COND_WARN_{condition.replace(" ", "_").upper()}',
                     'priority': 'WARNING',
-                    'title': f'🟡 CONDITION TREND ALERT: {condition}',
+                    'title': f'CONDITION TREND ALERT: {condition}',
                     'message': f'{condition} showing upward trend - Monitor closely',
                     'action_required': f'Enhanced {condition} monitoring',
                     'timeframe': '< 24 hours',
@@ -1391,7 +1391,7 @@ def main():
                     alerts['critical_alerts'].append({
                         'id': 'DEMO_CRIT_AGE',
                         'priority': 'CRITICAL',
-                        'title': '🚨 CRITICAL ELDERLY POPULATION ALERT',
+                        'title': 'CRITICAL ELDERLY POPULATION ALERT',
                         'message': f'Elderly population: {elderly_ratio*100:.1f}% - Emergency geriatric protocols required',
                         'action_required': 'Activate emergency geriatric care protocols',
                         'timeframe': '< 30 minutes',
@@ -1402,7 +1402,7 @@ def main():
                     alerts['urgent_alerts'].append({
                         'id': 'DEMO_URG_AGE',
                         'priority': 'URGENT',
-                        'title': '🔴 HIGH ELDERLY POPULATION ALERT',
+                        'title': 'HIGH ELDERLY POPULATION ALERT',
                         'message': f'Elderly population: {elderly_ratio*100:.1f}% - Enhanced geriatric care needed',
                         'action_required': 'Implement enhanced geriatric protocols',
                         'timeframe': '< 4 hours',
@@ -1433,7 +1433,7 @@ def main():
                     alerts['critical_alerts'].append({
                         'id': 'TREND_CRIT_SURGE',
                         'priority': 'CRITICAL',
-                        'title': '🚨 CRITICAL SURGE ALERT',
+                        'title': 'CRITICAL SURGE ALERT',
                         'message': f'Projected {increase_percent:.0f}% case increase - Emergency capacity activation required',
                         'action_required': 'Activate emergency surge protocols immediately',
                         'timeframe': '< 30 minutes',
@@ -1444,7 +1444,7 @@ def main():
                     alerts['urgent_alerts'].append({
                         'id': 'TREND_URG_SURGE',
                         'priority': 'URGENT',
-                        'title': '🔴 URGENT SURGE ALERT',
+                        'title': 'URGENT SURGE ALERT',
                         'message': f'Projected {increase_percent:.0f}% case increase - Prepare surge capacity',
                         'action_required': 'Prepare surge capacity protocols',
                         'timeframe': '< 4 hours',
@@ -1459,7 +1459,7 @@ def main():
         alerts = {'critical_alerts': [], 'urgent_alerts': [], 'warning_alerts': [], 'informational_alerts': []}
         
         # This would typically integrate with real capacity data
-        # For now, we'll generate alerts based on predicted surge
+        # generate alerts based on predicted surge
         
         if not patient_data or 'surge_prediction' not in patient_data:
             return alerts
@@ -1474,7 +1474,7 @@ def main():
                 alerts['urgent_alerts'].append({
                     'id': 'CAP_URG_RESOURCES',
                     'priority': 'URGENT',
-                    'title': '🔴 RESOURCE CAPACITY ALERT',
+                    'title': 'RESOURCE CAPACITY ALERT',
                     'message': f'Multiple surge risk factors identified: {", ".join(risk_factors[:3])}',
                     'action_required': 'Review resource allocation and staffing levels',
                     'timeframe': '< 4 hours',

@@ -13,23 +13,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             application.isIdleTimerDisabled = false
         }
         
-        // Capacitor optimization
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(capacitorDidLoad),
-            name: .capacitorDidLoad,
-            object: nil
-        )
-        
         return true
-    }
-    
-    @objc func capacitorDidLoad() {
-        // Called when Capacitor finishes loading
-        // This can be used for post-load optimizations
-        DispatchQueue.main.async {
-            // Any UI updates after Capacitor loads
-        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

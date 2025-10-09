@@ -265,6 +265,131 @@
         </q-card>
       </div>
 
+      <!-- Dashboard Cards Section -->
+      <div class="dashboard-cards-section">
+        <div class="dashboard-cards-grid">
+          <!-- Patient Medical Records Card -->
+          <q-card class="dashboard-card medical-records-card enhanced-card cursor-pointer" @click="viewMedicalRequests">
+            <div class="card-gradient-bg medical-gradient"></div>
+            <q-card-section class="card-content enhanced-content">
+              <div class="card-header">
+                <div class="card-icon-container medical-icon-bg">
+                  <q-icon name="assignment" size="2rem" class="card-icon-enhanced" />
+                </div>
+                <div class="card-badge">
+                  <q-chip size="sm" color="purple-2" text-color="purple-8" icon="pending">
+                    Pending
+                  </q-chip>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-title-enhanced">Patient Medical Records</div>
+                <div class="card-value-container">
+                  <div class="card-value-enhanced">
+                    <q-spinner v-if="statsLoading" size="md" color="purple" />
+                    <span v-else class="value-number">{{ dashboardStats.medicalRecords || 0 }}</span>
+                  </div>
+                  <div class="card-trend">
+                    <q-icon name="email" size="sm" color="primary" />
+                    <span class="trend-text">Click to view</span>
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Today's Schedule Card -->
+          <q-card class="dashboard-card schedule-card enhanced-card">
+            <div class="card-gradient-bg schedule-gradient"></div>
+            <q-card-section class="card-content enhanced-content">
+              <div class="card-header">
+                <div class="card-icon-container schedule-icon-bg">
+                  <q-icon name="calendar_today" size="2rem" class="card-icon-enhanced" />
+                </div>
+                <div class="card-badge">
+                  <q-chip size="sm" color="pink-2" text-color="pink-8" icon="schedule">
+                    Today
+                  </q-chip>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-title-enhanced">Today's Schedule</div>
+                <div class="card-value-container">
+                  <div class="card-value-enhanced">
+                    <q-spinner v-if="statsLoading" size="md" color="pink" />
+                    <span v-else class="value-number">{{ dashboardStats.todayAppointments || 28 }}</span>
+                  </div>
+                  <div class="card-trend">
+                    <q-icon name="access_time" size="sm" color="info" />
+                    <span class="trend-text">8 pending</span>
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Performance Score Card -->
+          <q-card class="dashboard-card performance-card enhanced-card">
+            <div class="card-gradient-bg performance-gradient"></div>
+            <q-card-section class="card-content enhanced-content">
+              <div class="card-header">
+                <div class="card-icon-container performance-icon-bg">
+                  <q-icon name="analytics" size="2rem" class="card-icon-enhanced" />
+                </div>
+                <div class="card-badge">
+                  <q-chip size="sm" color="cyan-2" text-color="cyan-8" icon="star">
+                    Excellent
+                  </q-chip>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-title-enhanced">Performance Score</div>
+                <div class="card-value-container">
+                  <div class="card-value-enhanced">
+                    <q-spinner v-if="statsLoading" size="md" color="cyan" />
+                    <span v-else class="value-number">{{ dashboardStats.performanceScore || '94%' }}</span>
+                  </div>
+                  <div class="card-trend">
+                    <q-icon name="trending_up" size="sm" color="positive" />
+                    <span class="trend-text">+5.2%</span>
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Notifications Card -->
+          <q-card class="dashboard-card notifications-card enhanced-card">
+            <div class="card-gradient-bg notifications-gradient"></div>
+            <q-card-section class="card-content enhanced-content">
+              <div class="card-header">
+                <div class="card-icon-container notifications-icon-bg">
+                  <q-icon name="notifications_active" size="2rem" class="card-icon-enhanced" />
+                </div>
+                <div class="card-badge">
+                  <q-chip size="sm" color="green-2" text-color="green-8" icon="priority_high">
+                    Urgent
+                  </q-chip>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-title-enhanced">Notifications</div>
+                <div class="card-value-container">
+                  <div class="card-value-enhanced">
+                    <q-spinner v-if="statsLoading" size="md" color="green" />
+                    <span v-else class="value-number">{{ dashboardStats.notifications || 12 }}</span>
+                  </div>
+                  <div class="card-trend">
+                    <q-icon name="fiber_new" size="sm" color="warning" />
+                    <span class="trend-text">3 new</span>
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+
       <div class="q-pa-md">
         <!-- Calendar Navigation Bar -->
         <div class="calendar-navigation-bar q-mb-md">
@@ -375,136 +500,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Upcoming Appointments Section -->
-        <div class="upcoming-appointments-section q-mt-xl q-pa-lg">
-          <q-card class="appointments-card">
-            <q-card-section>
-              <div class="section-header">
-                <h3 class="section-title">Upcoming Appointments</h3>
-                <div class="filter-controls">
-                  <q-btn-group flat class="status-filter">
-                    <q-btn
-                      flat
-                      label="All"
-                      :class="{ 'active-filter': selectedStatus === 'all' }"
-                      @click="filterByStatus('all')"
-                    />
-                    <q-btn
-                      flat
-                      label="Confirmed"
-                      :class="{ 'active-filter': selectedStatus === 'confirmed' }"
-                      @click="filterByStatus('confirmed')"
-                    />
-                    <q-btn
-                      flat
-                      label="Pending"
-                      :class="{ 'active-filter': selectedStatus === 'pending' }"
-                      @click="filterByStatus('pending')"
-                    />
-                    <q-btn
-                      flat
-                      label="Completed"
-                      :class="{ 'active-filter': selectedStatus === 'completed' }"
-                      @click="filterByStatus('completed')"
-                    />
-                    <q-btn
-                      flat
-                      label="Cancelled"
-                      :class="{ 'active-filter': selectedStatus === 'cancelled' }"
-                      @click="filterByStatus('cancelled')"
-                    />
-                  </q-btn-group>
-                </div>
-              </div>
-
-              <!-- Appointments List -->
-              <div class="appointments-list">
-                <q-card
-                  v-for="appointment in filteredAppointments"
-                  :key="appointment.id"
-                  class="appointment-card q-mb-md"
-                >
-                  <q-card-section>
-                    <div class="appointment-header">
-                      <div class="patient-info">
-                        <div class="patient-name">{{ appointment.patient_name }}</div>
-                        <div class="appointment-details">
-                          <q-icon name="schedule" size="sm" />
-                          <span>{{
-                            formatAppointmentDateTime(
-                              appointment.appointment_date,
-                              appointment.appointment_time,
-                            )
-                          }}</span>
-                          <q-chip
-                            :color="getStatusColor(appointment.status)"
-                            :label="appointment.status"
-                            size="sm"
-                            class="q-ml-sm"
-                          />
-                        </div>
-                      </div>
-                      <div class="appointment-actions">
-                        <q-btn
-                          round
-                          flat
-                          icon="visibility"
-                          color="primary"
-                          @click="viewMedicalAssessment(appointment)"
-                          class="q-mr-sm"
-                        >
-                          <q-tooltip>View Medical Assessment</q-tooltip>
-                        </q-btn>
-                        <q-btn
-                          round
-                          flat
-                          icon="check_circle"
-                          color="positive"
-                          @click="markAsCompleted(appointment)"
-                          v-if="appointment.status === 'confirmed'"
-                          class="q-mr-sm"
-                        >
-                          <q-tooltip>Mark as Completed</q-tooltip>
-                        </q-btn>
-                        <q-btn
-                          round
-                          flat
-                          icon="schedule"
-                          color="warning"
-                          @click="scheduleFollowUp(appointment)"
-                          v-if="appointment.status === 'confirmed'"
-                          class="q-mr-sm"
-                        >
-                          <q-tooltip>Schedule Follow-up</q-tooltip>
-                        </q-btn>
-                        <q-btn
-                          round
-                          flat
-                          icon="cancel"
-                          color="negative"
-                          @click="cancelAppointment(appointment)"
-                          v-if="
-                            appointment.status === 'confirmed' || appointment.status === 'pending'
-                          "
-                        >
-                          <q-tooltip>Cancel Appointment</q-tooltip>
-                        </q-btn>
-                      </div>
-                    </div>
-                  </q-card-section>
-                </q-card>
-
-                <!-- Empty State -->
-                <div v-if="filteredAppointments.length === 0" class="empty-state">
-                  <q-icon name="event_busy" size="4rem" color="grey-4" />
-                  <h4>No appointments found</h4>
-                  <p>No appointments match the selected filter criteria.</p>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
       </div>
     </q-page-container>
 
@@ -613,134 +608,134 @@
       </q-card>
     </q-dialog>
 
-    <!-- Medical Assessment Dialog -->
-    <q-dialog v-model="showMedicalAssessmentDialog" maximized>
-      <q-card>
-        <q-card-section class="row items-center">
-          <div class="text-h6">Medical Assessment - {{ selectedAppointment?.patient_name }}</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <q-card-section v-if="selectedAppointment?.medical_assessment">
-          <div class="assessment-content">
-            <div class="assessment-section">
-              <h5>Vital Signs</h5>
-              <div class="vital-signs-grid">
-                <div class="vital-sign">
-                  <span class="label">Blood Pressure:</span>
-                  <span class="value">{{
-                    selectedAppointment.medical_assessment?.blood_pressure || 'Not recorded'
-                  }}</span>
-                </div>
-                <div class="vital-sign">
-                  <span class="label">Heart Rate:</span>
-                  <span class="value">{{
-                    selectedAppointment.medical_assessment?.heart_rate
-                      ? `${selectedAppointment.medical_assessment.heart_rate} bpm`
-                      : 'Not recorded'
-                  }}</span>
-                </div>
-                <div class="vital-sign">
-                  <span class="label">Temperature:</span>
-                  <span class="value">{{
-                    selectedAppointment.medical_assessment?.temperature
-                      ? `${selectedAppointment.medical_assessment.temperature}°C`
-                      : 'Not recorded'
-                  }}</span>
-                </div>
-                <div class="vital-sign">
-                  <span class="label">Weight:</span>
-                  <span class="value">{{
-                    selectedAppointment.medical_assessment?.weight
-                      ? `${selectedAppointment.medical_assessment.weight} kg`
-                      : 'Not recorded'
-                  }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="assessment-section">
-              <h5>Symptoms</h5>
-              <p>
-                {{ selectedAppointment.medical_assessment?.symptoms || 'No symptoms recorded' }}
-              </p>
-            </div>
-
-            <div class="assessment-section">
-              <h5>Nurse's Notes</h5>
-              <p>
-                {{ selectedAppointment.medical_assessment?.nurse_notes || 'No notes recorded' }}
-              </p>
-            </div>
-
-            <div class="assessment-section">
-              <h5>Assessment Date</h5>
-              <p>
-                {{
-                  selectedAppointment.medical_assessment?.assessment_date
-                    ? formatDate(selectedAppointment.medical_assessment.assessment_date)
-                    : 'Not recorded'
-                }}
-              </p>
-            </div>
+    <!-- Medical Requests Dialog -->
+    <q-dialog v-model="showMedicalRequestsDialog" persistent>
+      <q-card style="min-width: 600px; max-width: 800px;">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">
+            <q-icon name="folder_shared" class="q-mr-sm" color="primary" />
+            Medical History Requests
           </div>
-        </q-card-section>
-
-        <q-card-section v-else>
-          <div class="no-assessment">
-            <q-icon name="medical_services" size="4rem" color="grey-4" />
-            <h4>No Medical Assessment Available</h4>
-            <p>No medical assessment has been completed for this patient yet.</p>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Follow-up Scheduling Dialog -->
-    <q-dialog v-model="showFollowUpDialog" persistent>
-      <q-card style="min-width: 400px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Schedule Follow-up</div>
           <q-space />
           <q-btn icon="close" flat round dense v-close-popup />
         </q-card-section>
 
         <q-card-section>
-          <q-form @submit="confirmFollowUp" class="q-gutter-md">
-            <q-input
-              v-model="followUpData.date"
-              label="Follow-up Date"
-              outlined
-              type="date"
-              :rules="[(val) => !!val || 'Date is required']"
-            />
+          <div v-if="medicalRequests.length === 0" class="text-center q-pa-lg">
+            <q-icon name="inbox" size="4rem" color="grey-5" />
+            <div class="text-h6 q-mt-md text-grey-6">No pending requests</div>
+            <div class="text-body2 text-grey-5">All medical history requests have been processed</div>
+          </div>
 
-            <q-input
-              v-model="followUpData.time"
-              label="Follow-up Time"
-              outlined
-              type="time"
-              :rules="[(val) => !!val || 'Time is required']"
-            />
+          <div v-else>
+            <q-list separator>
+              <q-item 
+                v-for="request in medicalRequests" 
+                :key="request.id"
+                clickable
+                @click="viewRequestDetails(request)"
+                class="q-pa-md"
+              >
+                <q-item-section avatar>
+                  <q-avatar color="primary" text-color="white" icon="person" />
+                </q-item-section>
 
-            <q-input
-              v-model="followUpData.notes"
-              label="Follow-up Notes"
-              outlined
-              type="textarea"
-              rows="3"
-              placeholder="Reason for follow-up, instructions, etc."
-            />
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">
+                    {{ request.patientName || 'Unknown Patient' }}
+                  </q-item-label>
+                  <q-item-label caption>
+                    {{ request.type }} - {{ request.details }}
+                  </q-item-label>
+                  <q-item-label caption class="text-grey-6">
+                    Requested: {{ new Date(request.createdAt).toLocaleDateString() }}
+                  </q-item-label>
+                </q-item-section>
 
-            <div class="row q-gutter-sm justify-end">
-              <q-btn label="Cancel" color="grey" v-close-popup />
-              <q-btn label="Schedule Follow-up" type="submit" color="primary" />
-            </div>
-          </q-form>
+                <q-item-section side>
+                  <q-chip 
+                    :color="request.status === 'pending' ? 'orange' : 'green'" 
+                    text-color="white" 
+                    size="sm"
+                  >
+                    {{ request.status }}
+                  </q-chip>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Request Details Dialog -->
+    <q-dialog v-model="showRequestDetailsDialog" persistent>
+      <q-card style="min-width: 500px;">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">
+            <q-icon name="assignment" class="q-mr-sm" color="primary" />
+            Request Details
+          </div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section v-if="selectedRequest">
+          <div class="q-gutter-md">
+            <div class="row">
+              <div class="col-4 text-weight-medium">Patient:</div>
+              <div class="col-8">{{ selectedRequest.patientName || 'Unknown' }}</div>
+            </div>
+            
+            <div class="row">
+              <div class="col-4 text-weight-medium">Email:</div>
+              <div class="col-8">{{ selectedRequest.patientEmail || 'Not provided' }}</div>
+            </div>
+            
+            <div class="row">
+              <div class="col-4 text-weight-medium">Request Type:</div>
+              <div class="col-8">{{ selectedRequest.type }}</div>
+            </div>
+            
+            <div class="row">
+              <div class="col-4 text-weight-medium">Details:</div>
+              <div class="col-8">{{ selectedRequest.details }}</div>
+            </div>
+            
+            <div class="row">
+              <div class="col-4 text-weight-medium">Date Requested:</div>
+              <div class="col-8">{{ new Date(selectedRequest.createdAt).toLocaleString() }}</div>
+            </div>
+            
+            <div class="row">
+              <div class="col-4 text-weight-medium">Status:</div>
+              <div class="col-8">
+                <q-chip 
+                  :color="selectedRequest.status === 'pending' ? 'orange' : 'green'" 
+                  text-color="white" 
+                  size="sm"
+                >
+                  {{ selectedRequest.status }}
+                </q-chip>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn label="Cancel" color="grey" flat v-close-popup />
+          <q-btn 
+            v-if="selectedRequest?.status === 'pending'"
+            label="Send Medical History" 
+            color="primary" 
+            @click="sendMedicalHistory(selectedRequest)"
+            icon="email"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+
   </q-layout>
 </template>
 
@@ -757,6 +752,32 @@ const $q = useQuasar();
 const rightDrawerOpen = ref(false);
 const text = ref('');
 const showNotifications = ref(false);
+
+// Dashboard stats
+const statsLoading = ref(false);
+const dashboardStats = ref({
+  medicalRecords: 15,
+  todayAppointments: 28,
+  performanceScore: '94%',
+  notifications: 12
+});
+
+// Medical requests functionality
+const medicalRequests = ref<MedicalRequest[]>([]);
+const showMedicalRequestsDialog = ref(false);
+const selectedRequest = ref<MedicalRequest | null>(null);
+const showRequestDetailsDialog = ref(false);
+
+interface MedicalRequest {
+  id: number;
+  type: string;
+  recipient: string;
+  details: string;
+  status: string;
+  createdAt: string;
+  patientName?: string;
+  patientEmail?: string;
+}
 
 // Real-time time and weather
 const currentTime = ref('');
@@ -869,17 +890,6 @@ const appointments = ref<Appointment[]>([]);
 const blockedDates = ref<string[]>([]);
 const currentView = ref<'day' | 'week' | 'month'>('month');
 const showExportMenu = ref(false);
-
-// Upcoming appointments
-const selectedStatus = ref<'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled'>('all');
-const showMedicalAssessmentDialog = ref(false);
-const showFollowUpDialog = ref(false);
-const selectedAppointment = ref<Appointment | null>(null);
-const followUpData = ref({
-  date: '',
-  time: '',
-  notes: '',
-});
 
 // Notification system
 const notifications = ref<
@@ -1398,153 +1408,6 @@ function setView(view: 'day' | 'week' | 'month') {
   console.log('Switched to view:', view);
 }
 
-// Upcoming appointments functions
-const filteredAppointments = computed(() => {
-  if (selectedStatus.value === 'all') {
-    return appointments.value;
-  }
-  return appointments.value.filter((appointment) => appointment.status === selectedStatus.value);
-});
-
-function filterByStatus(status: 'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled') {
-  selectedStatus.value = status;
-}
-
-function formatAppointmentDateTime(date: string, time: string): string {
-  const dateObj = new Date(date);
-  const formattedDate = dateObj.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-  return `${formattedDate} at ${time}`;
-}
-
-function getStatusColor(status: string): string {
-  switch (status) {
-    case 'confirmed':
-      return 'primary';
-    case 'pending':
-      return 'warning';
-    case 'completed':
-      return 'positive';
-    case 'cancelled':
-      return 'negative';
-    default:
-      return 'grey';
-  }
-}
-
-function viewMedicalAssessment(appointment: Appointment) {
-  selectedAppointment.value = appointment;
-  showMedicalAssessmentDialog.value = true;
-}
-
-async function markAsCompleted(appointment: Appointment) {
-  try {
-    await api.patch(`/operations/appointments/${appointment.id}/`, {
-      status: 'completed',
-    });
-
-    // Update local appointment
-    const index = appointments.value.findIndex((a) => a.id === appointment.id);
-    if (index !== -1 && appointments.value[index]) {
-      appointments.value[index].status = 'completed';
-    }
-
-    $q.notify({
-      type: 'positive',
-      message: 'Appointment marked as completed',
-      position: 'top',
-    });
-  } catch (error) {
-    console.error('Failed to mark appointment as completed:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to update appointment status',
-      position: 'top',
-    });
-  }
-}
-
-function scheduleFollowUp(appointment: Appointment) {
-  selectedAppointment.value = appointment;
-  followUpData.value = {
-    date: '',
-    time: '',
-    notes: '',
-  };
-  showFollowUpDialog.value = true;
-}
-
-async function confirmFollowUp() {
-  if (!selectedAppointment.value) return;
-
-  try {
-    const followUpAppointment = {
-      patient_name: selectedAppointment.value.patient_name,
-      appointment_date: followUpData.value.date,
-      appointment_time: followUpData.value.time,
-      appointment_type: 'follow_up',
-      notes: followUpData.value.notes,
-      original_appointment_id: selectedAppointment.value.id,
-    };
-
-    await api.post('/operations/create-appointment/', followUpAppointment);
-
-    showFollowUpDialog.value = false;
-    await fetchAppointments();
-
-    $q.notify({
-      type: 'positive',
-      message: 'Follow-up appointment scheduled successfully',
-      position: 'top',
-    });
-  } catch (error) {
-    console.error('Failed to schedule follow-up:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to schedule follow-up appointment',
-      position: 'top',
-    });
-  }
-}
-
-async function cancelAppointment(appointment: Appointment) {
-  try {
-    await api.patch(`/operations/appointments/${appointment.id}/`, {
-      status: 'cancelled',
-    });
-
-    // Update local appointment
-    const index = appointments.value.findIndex((a) => a.id === appointment.id);
-    if (index !== -1 && appointments.value[index]) {
-      appointments.value[index].status = 'cancelled';
-    }
-
-    $q.notify({
-      type: 'positive',
-      message: 'Appointment cancelled successfully',
-      position: 'top',
-    });
-  } catch (error) {
-    console.error('Failed to cancel appointment:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to cancel appointment',
-      position: 'top',
-    });
-  }
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
 // Lifecycle
 // Notification functions
 const unreadNotificationsCount = computed(() => {
@@ -1616,6 +1479,67 @@ const formatTime = (dateString: string): string => {
   });
 };
 
+// Medical requests functions
+const loadMedicalRequests = (): void => {
+  try {
+    const storedRequests = localStorage.getItem('medicalRequests');
+    if (storedRequests) {
+      const requests = JSON.parse(storedRequests);
+      medicalRequests.value = requests.filter((req: MedicalRequest) => req.status === 'pending');
+      
+      // Update dashboard stats
+      dashboardStats.value.medicalRecords = medicalRequests.value.length;
+    }
+  } catch (error) {
+    console.error('Error loading medical requests:', error);
+  }
+};
+
+const viewMedicalRequests = (): void => {
+  loadMedicalRequests();
+  showMedicalRequestsDialog.value = true;
+};
+
+const viewRequestDetails = (request: MedicalRequest): void => {
+  selectedRequest.value = request;
+  showRequestDetailsDialog.value = true;
+};
+
+const sendMedicalHistory = (request: MedicalRequest) => {
+  try {
+    // Simulate sending email
+    $q.notify({
+      type: 'positive',
+      message: `Medical history sent to ${request.patientName || 'patient'} via email`,
+      position: 'top',
+    });
+
+    // Update request status
+    request.status = 'completed';
+    
+    // Update localStorage
+    const storedRequests = localStorage.getItem('medicalRequests');
+    if (storedRequests) {
+      const allRequests = JSON.parse(storedRequests);
+      const updatedRequests = allRequests.map((req: MedicalRequest) => 
+        req.id === request.id ? { ...req, status: 'completed' } : req
+      );
+      localStorage.setItem('medicalRequests', JSON.stringify(updatedRequests));
+    }
+
+    // Refresh the requests list
+    loadMedicalRequests();
+    showRequestDetailsDialog.value = false;
+  } catch (error) {
+    console.error('Error sending medical history:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to send medical history',
+      position: 'top',
+    });
+  }
+};
+
 onMounted(async () => {
   console.log('DoctorAppointment component mounted successfully!');
 
@@ -1624,6 +1548,9 @@ onMounted(async () => {
 
   // Load notifications
   void loadNotifications();
+
+  // Load medical requests
+  loadMedicalRequests();
 
   // Initialize real-time features
   updateTime(); // Set initial time
@@ -1637,6 +1564,9 @@ onMounted(async () => {
 
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
+
+  // Refresh medical requests every 30 seconds
+  setInterval(() => loadMedicalRequests(), 30000);
 
   try {
     await fetchAppointments();
@@ -1684,7 +1614,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  max-width: 1200px;
   margin: 0 auto 20px;
 }
 
@@ -1841,75 +1770,142 @@ onUnmounted(() => {
 
 /* Calendar Navigation Bar Styles */
 .calendar-navigation-bar {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(25px);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  margin: 0 auto 24px;
 }
 
 .month-navigation {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
 }
 
 .nav-btn {
-  color: #666;
-  border: 1px solid #e0e0e0;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  color: #374151;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .nav-btn:hover {
-  background: #f5f5f5;
+  background: rgba(40, 102, 96, 0.2);
+  border: 1px solid rgba(40, 102, 96, 0.4);
+  color: #1a4e47;
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(40, 102, 96, 0.3);
 }
 
 .month-year {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #286660 0%, #1a4e47 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0;
-  min-width: 120px;
+  min-width: 200px;
   text-align: center;
+  text-shadow: 0 2px 4px rgba(40, 102, 96, 0.2);
 }
 
 .today-btn {
-  color: #666;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-weight: 500;
+  background: linear-gradient(135deg, 
+    rgba(59, 130, 246, 0.2) 0%, 
+    rgba(37, 99, 235, 0.15) 100%);
+  backdrop-filter: blur(10px);
+  color: #1e40af;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .today-btn:hover {
-  background: #f5f5f5;
+  background: linear-gradient(135deg, 
+    rgba(59, 130, 246, 0.3) 0%, 
+    rgba(37, 99, 235, 0.25) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
 .view-export-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .view-selector {
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .view-selector .q-btn {
   border-radius: 0;
-  color: #666;
+  color: #286660;
   font-weight: 500;
-  padding: 8px 16px;
+  padding: 10px 18px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: transparent;
+}
+
+.view-selector .q-btn:hover {
+  background: rgba(40, 102, 96, 0.1);
+  color: #1a4e47;
 }
 
 .view-selector .q-btn.active-view {
-  background: white;
-  color: #333;
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.2) 0%, 
+    rgba(26, 78, 71, 0.15) 100%);
+  color: #1a4e47;
   font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.export-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-btn {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  color: #374151;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.export-btn:hover {
+  background: rgba(34, 197, 94, 0.2);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #15803d;
+  transform: scale(1.1);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
 }
 
 .export-controls {
@@ -1928,100 +1924,6 @@ onUnmounted(() => {
 .export-btn:hover {
   background: #f5f5f5;
   color: #333;
-}
-
-/* Upcoming Appointments Styles */
-.upcoming-appointments-section {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.appointments-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e0e0e0;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.section-title {
-  color: #333;
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.status-filter {
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.status-filter .q-btn {
-  border-radius: 0;
-  color: #666;
-  font-weight: 500;
-  padding: 8px 16px;
-}
-
-.status-filter .q-btn.active-filter {
-  background: #286660;
-  color: white;
-  font-weight: 600;
-}
-
-.appointment-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.appointment-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.patient-info {
-  flex: 1;
-}
-
-.patient-name {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
-}
-
-.appointment-details {
-  display: flex;
-  align-items: center;
-  color: #666;
-  font-size: 14px;
-}
-
-.appointment-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-
-.empty-state h4 {
-  margin: 16px 0 8px 0;
-  color: #333;
-}
-
-.empty-state p {
-  margin: 0;
 }
 
 /* Medical Assessment Dialog Styles */
@@ -2084,17 +1986,27 @@ onUnmounted(() => {
 
 /* Calendar Styles */
 .calendar-header {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  margin-bottom: 20px;
 }
 
 .calendar-grid {
-  background: white;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 12px 40px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  margin: 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .calendar-row {
@@ -2103,52 +2015,106 @@ onUnmounted(() => {
 }
 
 .calendar-cell {
-  min-height: 80px;
-  padding: 8px;
-  border: 1px solid #e0e0e0;
+  min-height: 90px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   position: relative;
-  transition: background-color 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .calendar-cell:hover {
-  background-color: #f5f5f5;
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
 .calendar-cell.header-cell {
-  background-color: #f8f9fa;
-  font-weight: bold;
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.1) 0%, 
+    rgba(26, 78, 71, 0.1) 100%);
+  font-weight: 700;
   text-align: center;
-  min-height: 40px;
+  min-height: 50px;
   cursor: default;
+  color: #286660;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .calendar-cell.header-cell:hover {
-  background-color: #f8f9fa;
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.1) 0%, 
+    rgba(26, 78, 71, 0.1) 100%);
+  transform: none;
+  box-shadow: none;
 }
 
 .calendar-cell.other-month {
-  background-color: #f8f9fa;
-  color: #999;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(156, 163, 175, 0.6);
+  opacity: 0.5;
 }
 
 .calendar-cell.today {
-  background-color: #e3f2fd;
-  border: 2px solid #2196f3;
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.2) 0%, 
+    rgba(26, 78, 71, 0.15) 100%);
+  border: 2px solid rgba(40, 102, 96, 0.6);
+  color: #1a4e47;
+  font-weight: 700;
+  box-shadow: 
+    0 4px 20px rgba(40, 102, 96, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.calendar-cell.today:hover {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.3) 0%, 
+    rgba(26, 78, 71, 0.25) 100%);
+  border: 2px solid rgba(40, 102, 96, 0.8);
 }
 
 .calendar-cell.selected {
-  background-color: #2196f3;
+  background: linear-gradient(135deg, 
+    rgba(52, 168, 83, 0.25) 0%, 
+    rgba(34, 139, 34, 0.2) 100%);
   color: white;
+  border: 2px solid rgba(52, 168, 83, 0.6);
+  box-shadow: 
+    0 6px 25px rgba(52, 168, 83, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .calendar-cell.has-appointments {
-  background-color: #fff3e0;
+  background: linear-gradient(135deg, 
+    rgba(52, 168, 83, 0.15) 0%, 
+    rgba(34, 139, 34, 0.1) 100%);
+  border: 1px solid rgba(52, 168, 83, 0.3);
+}
+
+.calendar-cell.has-appointments:hover {
+  background: linear-gradient(135deg, 
+    rgba(52, 168, 83, 0.25) 0%, 
+    rgba(34, 139, 34, 0.2) 100%);
+  border: 1px solid rgba(52, 168, 83, 0.5);
 }
 
 .calendar-cell.blocked {
-  background-color: #ffebee;
-  color: #d32f2f;
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.15) 0%, 
+    rgba(255, 183, 77, 0.1) 100%);
+  color: #e65100;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.calendar-cell.blocked:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.25) 0%, 
+    rgba(255, 183, 77, 0.2) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.5);
 }
 
 .day-number {
@@ -2603,8 +2569,8 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
   margin: 0 auto;
+  min-height: 120px;
 }
 
 .greeting-card::before {
@@ -2633,6 +2599,246 @@ onUnmounted(() => {
   font-size: 16px;
   color: #666;
   margin: 0;
+}
+
+/* Dashboard Cards Section */
+.dashboard-cards-section {
+  padding: 0 24px 24px;
+  background: transparent;
+}
+
+.dashboard-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 26px;
+  margin: 0 auto;
+}
+
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.dashboard-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 20px 20px 0 0;
+}
+
+/* Doctor-Centric Medical Color Schemes */
+.medical-records-card::before {
+  background: linear-gradient(90deg, #286660, #3d8b7c, #52a899);
+}
+
+.schedule-card::before {
+  background: linear-gradient(90deg, #34a853, #48bb78, #68cc8a);
+}
+
+.performance-card::before {
+  background: linear-gradient(90deg, #1e88e5, #42a5f5, #64b5f6);
+}
+
+.notifications-card::before {
+  background: linear-gradient(90deg, #ff9800, #ffb74d, #ffcc80);
+}
+
+/* Enhanced Card Styling with Medical Theme */
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.card-content {
+  padding: 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  min-height: 120px;
+}
+
+.card-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #286660;
+  margin: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-description {
+  font-size: 13px;
+  color: #5a8a82;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.card-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a4e47;
+  margin: 8px 0 0 0;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(26, 78, 71, 0.2);
+}
+
+/* Card-specific value colors */
+.medical-records-card .card-value {
+  color: #286660;
+  text-shadow: 0 2px 4px rgba(40, 102, 96, 0.3);
+}
+
+.schedule-card .card-value {
+  color: #34a853;
+  text-shadow: 0 2px 4px rgba(52, 168, 83, 0.3);
+}
+
+.performance-card .card-value {
+  color: #1e88e5;
+  text-shadow: 0 2px 4px rgba(30, 136, 229, 0.3);
+}
+
+.notifications-card .card-value {
+  color: #ff9800;
+  text-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+}
+
+.card-icon {
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.dashboard-card:hover .card-icon {
+  opacity: 0.9;
+  transform: scale(1.1);
+}
+
+/* Medical-Themed Card Icon Colors */
+.medical-records-card .card-icon {
+  color: #286660;
+  filter: drop-shadow(0 2px 4px rgba(40, 102, 96, 0.4));
+}
+
+.schedule-card .card-icon {
+  color: #34a853;
+  filter: drop-shadow(0 2px 4px rgba(52, 168, 83, 0.4));
+}
+
+.performance-card .card-icon {
+  color: #1e88e5;
+  filter: drop-shadow(0 2px 4px rgba(30, 136, 229, 0.4));
+}
+
+.notifications-card .card-icon {
+  color: #ff9800;
+  filter: drop-shadow(0 2px 4px rgba(255, 152, 0, 0.4));
+}
+
+/* Enhanced Card Backgrounds with Medical Theme */
+.medical-records-card {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.15) 0%, 
+    rgba(61, 139, 124, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(40, 102, 96, 0.3);
+}
+
+.medical-records-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.25) 0%, 
+    rgba(61, 139, 124, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(40, 102, 96, 0.5);
+}
+
+.schedule-card {
+  background: linear-gradient(135deg, 
+    rgba(52, 168, 83, 0.15) 0%, 
+    rgba(72, 187, 120, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(52, 168, 83, 0.3);
+}
+
+.schedule-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(52, 168, 83, 0.25) 0%, 
+    rgba(72, 187, 120, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(52, 168, 83, 0.5);
+}
+
+.performance-card {
+  background: linear-gradient(135deg, 
+    rgba(30, 136, 229, 0.15) 0%, 
+    rgba(66, 165, 245, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(30, 136, 229, 0.3);
+}
+
+.performance-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(30, 136, 229, 0.25) 0%, 
+    rgba(66, 165, 245, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(30, 136, 229, 0.5);
+}
+
+.notifications-card {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.15) 0%, 
+    rgba(255, 183, 77, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.notifications-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.25) 0%, 
+    rgba(255, 183, 77, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.5);
 }
 
 /* Notification styles */
@@ -2717,6 +2923,68 @@ onUnmounted(() => {
   }
 }
 
+/* Mobile Portrait - Single Column */
+@media (max-width: 480px) {
+  .dashboard-cards-section {
+    padding: 0 12px 12px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card-content {
+    padding: 16px;
+    min-height: 90px;
+  }
+
+  .card-title {
+    font-size: 14px;
+  }
+
+  .card-description {
+    font-size: 11px;
+  }
+
+  .card-value {
+    font-size: 24px;
+  }
+
+  .card-icon .q-icon {
+    font-size: 1.8rem !important;
+  }
+}
+
+/* Tablet Responsive */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .dashboard-cards-section {
+    padding: 0 20px 20px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .card-content {
+    padding: 22px;
+    min-height: 110px;
+  }
+
+  .card-title {
+    font-size: 15px;
+  }
+
+  .card-description {
+    font-size: 12px;
+  }
+
+  .card-value {
+    font-size: 30px;
+  }
+}
+
 @media (max-width: 480px) {
   .prototype-header {
     padding-top: max(env(safe-area-inset-top), 12px);
@@ -2761,6 +3029,101 @@ onUnmounted(() => {
 
   .weather-location {
     display: none;
+  }
+}
+
+/* Dashboard Cards Responsive Styles */
+@media (max-width: 768px) {
+  .dashboard-cards-section {
+    padding: 0 16px 16px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .card-content {
+    padding: 20px;
+    min-height: 100px;
+  }
+
+  .card-title {
+    font-size: 15px;
+  }
+
+  .card-description {
+    font-size: 12px;
+  }
+
+  .card-value {
+    font-size: 28px;
+  }
+
+  .card-icon .q-icon {
+    font-size: 2rem !important;
+  }
+}
+
+/* Mobile Portrait - Single Column */
+@media (max-width: 480px) {
+  .dashboard-cards-section {
+    padding: 0 12px 12px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card-content {
+    padding: 16px;
+    min-height: 90px;
+  }
+
+  .card-title {
+    font-size: 14px;
+  }
+
+  .card-description {
+    font-size: 11px;
+  }
+
+  .card-value {
+    font-size: 24px;
+  }
+
+  .card-icon .q-icon {
+    font-size: 1.8rem !important;
+  }
+}
+
+/* Tablet Responsive */
+@media (min-width: 481px) and (max-width: 1024px) {
+  .dashboard-cards-section {
+    padding: 0 20px 20px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .card-content {
+    padding: 22px;
+    min-height: 110px;
+  }
+
+  .card-title {
+    font-size: 15px;
+  }
+
+  .card-description {
+    font-size: 12px;
+  }
+
+  .card-value {
+    font-size: 30px;
   }
 }
 </style>

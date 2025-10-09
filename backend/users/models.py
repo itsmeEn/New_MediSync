@@ -4,6 +4,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 
 from .managers import CustomUserManager
+from .image_utils import get_upload_path, validate_profile_picture
 
 class User(AbstractUser):
     """
@@ -19,7 +20,13 @@ class User(AbstractUser):
         DOCTOR = "doctor", "Doctor"
         PATIENT = "patient", "Patient"
         
-    profile_picture = models.ImageField(upload_to='profile_pictures/%Y/%m/%d/', blank=True, null=True)
+    profile_picture = models.ImageField(
+        upload_to=get_upload_path,
+        blank=True,
+        null=True,
+        validators=[validate_profile_picture],
+        help_text="Upload a profile picture (JPG, PNG, or WebP, max 5MB)"
+    )
     verification_document = models.FileField(
         upload_to='verification_documents/%Y/%m/%d/',
         blank=True,
@@ -35,6 +42,8 @@ class User(AbstractUser):
     full_name = models.CharField(max_length=255, blank=True)
     date_of_birth = models.DateField(blank=True, null=True)
     gender = models.CharField(max_length=10, blank=True, null=True)
+    hospital_name = models.CharField(max_length=255, blank=True, help_text="Hospital or medical facility name")
+    hospital_address = models.TextField(blank=True, help_text="Hospital address")
     is_verified = models.BooleanField(default=False)
     verification_status = models.CharField(
         max_length=20,

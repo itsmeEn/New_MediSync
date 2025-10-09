@@ -1,258 +1,11 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header safe-area-top">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+    <DoctorHeader @toggle-drawer="rightDrawerOpen = !rightDrawerOpen" />
 
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="text"
-              placeholder="Search Analytics, Reports and Insights"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-
-      <!-- Mobile Header Layout -->
-      <div class="mobile-header-layout">
-        <!-- Top Row: Menu, Time, Weather, Notifications -->
-        <div class="header-top-row">
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-
-          <div class="header-info">
-            <!-- Time Display -->
-            <div class="time-display">
-              <q-icon name="schedule" size="sm" />
-              <span class="time-text">{{ currentTime }}</span>
-            </div>
-
-            <!-- Weather Display -->
-            <div class="weather-display" v-if="weatherData">
-              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-              <span class="weather-text">{{ weatherData.temperature }}°C</span>
-              <span class="weather-location">{{ weatherData.location }}</span>
-            </div>
-
-            <!-- Loading Weather -->
-            <div class="weather-loading" v-else-if="weatherLoading">
-              <q-spinner size="sm" />
-              <span class="weather-text">Loading...</span>
-            </div>
-
-            <!-- Weather Error -->
-            <div class="weather-error" v-else-if="weatherError">
-              <q-icon name="error" size="sm" />
-              <span class="weather-text">Weather Update</span>
-            </div>
-          </div>
-
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-        </div>
-
-        <!-- Bottom Row: Search Bar -->
-        <div class="header-bottom-row">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="text"
-              placeholder="Search Analytics, Reports and Insights"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </div>
-    </q-header>
-
-    <q-drawer
+    <DoctorSidebar 
       v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('doctor-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('appointments')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="event" />
-            </q-item-section>
-            <q-item-section>Appointments</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patients')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="people" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('analytics')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Predictive Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" icon="logout" label="LOGOUT" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+      active-route="analytics"
+    />
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Greeting Section -->
@@ -754,19 +507,18 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import { Chart, registerables } from 'chart.js';
+import DoctorHeader from '../components/DoctorHeader.vue';
+import DoctorSidebar from '../components/DoctorSidebar.vue';
 
 // Register Chart.js components
 Chart.register(...registerables);
 
-const router = useRouter();
 const $q = useQuasar();
 
 const rightDrawerOpen = ref(false);
-const text = ref('');
 const showNotifications = ref(false);
 
 // Chart refs
@@ -845,16 +597,7 @@ const zoomedData = ref<{
   visible: false,
 });
 
-// Real-time features
-const currentTime = ref('');
-const weatherData = ref<{
-  temperature: number;
-  condition: string;
-  location: string;
-} | null>(null);
-const weatherLoading = ref(false);
-const weatherError = ref(false);
-let timeInterval: NodeJS.Timeout | null = null;
+// Real-time features are now handled by DoctorHeader component
 
 // Notification system
 const notifications = ref<
@@ -889,38 +632,6 @@ const userProfile = ref<{
   verification_status: 'not_submitted',
 });
 
-// File input reference for profile picture upload
-const fileInput = ref<HTMLInputElement | null>(null);
-
-/**
- * Computed property that generates user initials from the full name
- * @returns {string} The initials of the user's name in uppercase
- *
- * How it works:
- * 1. Checks if full_name exists, returns 'U' if not
- * 2. Splits the full name by spaces to get individual names
- * 3. Maps each name to its first character
- * 4. Joins all first characters together
- * 5. Converts to uppercase for consistency
- */
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U';
-  return userProfile.value.full_name
-    .split(' ')
-    .map((name) => name.charAt(0))
-    .join('')
-    .toUpperCase();
-});
-
-/**
- * Computed property that formats the current date for display in the greeting
- * @returns {string} Formatted date string (e.g., "Monday, January 15, 2024")
- *
- * How it works:
- * 1. Gets the current date using new Date()
- * 2. Formats it using toLocaleDateString with specific options
- * 3. Returns a human-readable date string with weekday, month, day, and year
- */
 const currentDate = computed(() => {
   const now = new Date();
   return now.toLocaleDateString('en-US', {
@@ -931,298 +642,8 @@ const currentDate = computed(() => {
   });
 });
 
-/**
- * Computed property that formats the profile picture URL for display
- * @returns {string | null} Complete URL for the profile picture or null if no picture
- *
- * How it works:
- * 1. Checks if profile_picture exists, returns null if not
- * 2. If the URL already starts with 'http', returns it as-is (external URL)
- * 3. Otherwise, prepends the backend server URL to create a complete path
- * 4. This handles both relative paths from the backend and absolute URLs
- */
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
 
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
 
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
-});
-
-/**
- * Updates the current time display in the header
- * @returns {void}
- *
- * How it works:
- * 1. Gets the current date and time using new Date()
- * 2. Formats it using toLocaleTimeString with 12-hour format
- * 3. Updates the currentTime reactive reference
- * 4. This function is called every second by setInterval
- */
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString('en-US', {
-    hour12: true,
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-};
-
-/**
- * Maps weather conditions to appropriate Material Design icons
- * @param {string} condition - The weather condition (sunny, cloudy, rainy, etc.)
- * @returns {string} The corresponding Material Design icon name
- *
- * How it works:
- * 1. Takes a weather condition string as input
- * 2. Converts it to lowercase for case-insensitive matching
- * 3. Looks up the condition in the iconMap object
- * 4. Returns the corresponding icon name or defaults to 'wb_sunny' if not found
- * 5. This ensures the weather widget always displays an appropriate icon
- */
-const getWeatherIcon = (condition: string) => {
-  const iconMap: { [key: string]: string } = {
-    sunny: 'wb_sunny',
-    cloudy: 'cloud',
-    rainy: 'grain',
-    stormy: 'thunderstorm',
-    snowy: 'ac_unit',
-    foggy: 'foggy',
-  };
-  return iconMap[condition.toLowerCase()] || 'wb_sunny';
-};
-
-/**
- * Fetches weather data for display in the header
- * @returns {Promise<void>}
- *
- * How it works:
- * 1. Sets loading state to true and clears any previous errors
- * 2. Simulates API call with a 1-second delay (replace with real API)
- * 3. Sets mock weather data (temperature, condition, location)
- * 4. Handles errors by setting error state and logging to console
- * 5. Always sets loading to false in the finally block
- *
- * Note: Currently uses mock data - replace with actual weather API integration
- */
-const fetchWeatherData = async () => {
-  weatherLoading.value = true;
-  weatherError.value = false;
-
-  try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    weatherData.value = {
-      temperature: 28,
-      condition: 'sunny',
-      location: 'Mandaluyong City',
-    };
-  } catch (error) {
-    console.error('Failed to fetch weather data:', error);
-    weatherError.value = true;
-  } finally {
-    weatherLoading.value = false;
-  }
-};
-
-/**
- * Toggles the sidebar drawer open/closed state
- * @returns {void}
- *
- * How it works:
- * 1. Flips the boolean value of rightDrawerOpen
- * 2. This controls the visibility of the sidebar navigation
- * 3. Used by the menu button in the header
- */
-const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value;
-};
-
-/**
- * Triggers the file input dialog for profile picture upload
- * @returns {void}
- *
- * How it works:
- * 1. Uses optional chaining to safely access the file input reference
- * 2. Programmatically clicks the hidden file input element
- * 3. This opens the native file selection dialog
- * 4. The actual file handling is done in handleProfilePictureUpload
- */
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-/**
- * Handles profile picture upload with validation and error handling
- * @param {Event} event - The file input change event
- * @returns {Promise<void>}
- *
- * How it works:
- * 1. Extracts the file from the input event
- * 2. Validates file type (only JPG, PNG allowed)
- * 3. Validates file size (max 5MB)
- * 4. Creates FormData and sends to backend API
- * 5. Updates user profile with new picture URL
- * 6. Shows success/error notifications
- * 7. Clears the file input after processing
- *
- * Error handling includes:
- * - File type validation with user feedback
- * - File size validation with user feedback
- * - API error handling with specific error messages
- * - Network error handling with fallback messages
- */
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store the updated profile picture in localStorage for cross-page sync
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      currentUser.profile_picture = response.data.user.profile_picture;
-      localStorage.setItem('user', JSON.stringify(currentUser));
-
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: { data?: { profile_picture?: string[]; detail?: string } };
-        };
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
-
-/**
- * Fetches user profile data from the API and updates the local state
- * @returns {Promise<void>}
- *
- * How it works:
- * 1. Makes API call to /users/profile/ endpoint
- * 2. Extracts user data from the response
- * 3. Updates the userProfile reactive reference with the data
- * 4. Handles errors by falling back to localStorage data
- * 5. Shows error notification if both API and localStorage fail
- *
- * Fallback strategy:
- * - If API fails, tries to load from localStorage
- * - If localStorage also fails, shows error notification
- * - This ensures the app doesn't break if the API is down
- */
-const fetchUserProfile = async () => {
-  try {
-    const response = await api.get('/users/profile/');
-    const userData = response.data.user;
-
-    // Check localStorage for updated profile picture
-    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-
-    userProfile.value = {
-      full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization,
-      role: userData.role,
-      profile_picture: storedUser.profile_picture || userData.profile_picture || null,
-      verification_status: userData.verification_status,
-    };
-
-    console.log('User profile loaded:', userProfile.value);
-  } catch (error) {
-    console.error('Failed to fetch user profile:', error);
-
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      userProfile.value = {
-        full_name: user.full_name,
-        specialization: user.doctor_profile?.specialization,
-        role: user.role,
-        profile_picture: user.profile_picture || null,
-        verification_status: user.verification_status || 'not_submitted',
-      };
-    } else {
-      $q.notify({
-        type: 'negative',
-        message: 'Failed to load user profile',
-        position: 'top',
-        timeout: 3000,
-      });
-    }
-  }
-};
-
-/**
- * Fetches doctor-specific analytics data from the API
- * @returns {Promise<void>}
- *
- * How it works:
- * 1. Makes API call to /analytics/doctor/ endpoint
- * 2. Extracts analytics data from the response
- * 3. Updates the analyticsData reactive reference
- * 4. Handles errors by showing notification to user
- * 5. Logs errors to console for debugging
- *
- * Analytics data includes:
- * - Patient demographics (age, gender distribution)
- * - Illness prediction (statistical analysis)
- * - Health trends (top medical conditions)
- * - Surge prediction (forecasted cases)
- */
 const fetchDoctorAnalytics = async () => {
   try {
     const response = await api.get('/analytics/doctor/');
@@ -1242,84 +663,6 @@ const fetchDoctorAnalytics = async () => {
   }
 };
 
-/**
- * Handles navigation between different pages in the application
- * @param {string} route - The route name to navigate to
- * @returns {void}
- *
- * How it works:
- * 1. Closes the sidebar drawer first
- * 2. Uses a switch statement to handle different routes
- * 3. Uses Vue Router to navigate to the appropriate page
- * 4. Shows notifications for pages that are not yet implemented
- * 5. Logs unknown routes to console for debugging
- *
- * Supported routes:
- * - doctor-dashboard: Navigate to main dashboard
- * - appointments: Navigate to appointments page
- * - messaging: Navigate to messaging page
- * - patients: Show "coming soon" notification
- * - analytics: Already on analytics page (no action)
- * - settings: Navigate to settings page
- */
-const navigateTo = (route: string) => {
-  rightDrawerOpen.value = false;
-
-  switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
-      break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
-      break;
-    case 'messaging':
-      void router.push('/doctor-messaging');
-      break;
-    case 'patients':
-      void router.push('/doctor-patient-management');
-      break;
-    case 'analytics':
-      // Already on analytics page
-      break;
-    case 'settings':
-      void router.push('/doctor-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
-  }
-};
-
-/**
- * Handles user logout by clearing stored data and redirecting to login
- * @returns {void}
- *
- * How it works:
- * 1. Removes access token from localStorage
- * 2. Removes refresh token from localStorage
- * 3. Removes user data from localStorage
- * 4. Redirects to the login page
- *
- * This ensures a clean logout by removing all authentication data
- * and user information from the browser's local storage
- */
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
-
-/**
- * Shows notification when demographics card is clicked
- * @returns {void}
- *
- * How it works:
- * 1. Displays an info notification to the user
- * 2. Indicates that demographics data is being viewed
- * 3. Auto-dismisses after 2 seconds
- *
- * Future enhancement: Could navigate to detailed demographics view
- */
 const viewDemographics = () => {
   $q.notify({
     type: 'info',
@@ -1775,15 +1118,6 @@ const createPredictionChart = () => {
   });
 };
 
-/**
- * Creates all charts after data is loaded
- * @returns {void}
- *
- * How it works:
- * 1. Waits for next tick to ensure DOM is updated
- * 2. Creates all five charts (age, gender, trends, surge, prediction)
- * 3. Handles any errors during chart creation
- */
 const createAllCharts = async () => {
   await nextTick();
 
@@ -1798,23 +1132,6 @@ const createAllCharts = async () => {
   }
 };
 
-/**
- * Vue lifecycle hook that runs when the component is mounted
- * @returns {void}
- *
- * How it works:
- * 1. Fetches user profile data from API
- * 2. Fetches doctor analytics data from API
- * 3. Sets initial time display
- * 4. Starts interval to update time every second
- * 5. Fetches weather data for display
- *
- * This ensures all necessary data is loaded when the page opens
- */
-// Notification functions
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter((n) => !n.is_read).length;
-});
 
 const loadNotifications = async (): Promise<void> => {
   try {
@@ -1897,36 +1214,15 @@ const formatTime = (dateString: string): string => {
 };
 
 onMounted(() => {
-  void fetchUserProfile();
-  void fetchDoctorAnalytics();
-
   // Load notifications
   void loadNotifications();
-
-  updateTime();
-  timeInterval = setInterval(updateTime, 1000);
-
-  void fetchWeatherData();
 
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
 });
 
-/**
- * Vue lifecycle hook that runs when the component is unmounted
- * @returns {void}
- *
- * How it works:
- * 1. Checks if timeInterval exists
- * 2. Clears the interval to prevent memory leaks
- * 3. This prevents the time update from continuing after component destruction
- *
- * This is important for preventing memory leaks and unnecessary background processes
- */
 onUnmounted(() => {
-  if (timeInterval) {
-    clearInterval(timeInterval);
-  }
+ 
 });
 </script>
 

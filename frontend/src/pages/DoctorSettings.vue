@@ -1,193 +1,11 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header safe-area-top">
-      <!-- Mobile Header Layout -->
-      <div class="mobile-header-layout">
-        <!-- Top Row: Menu, Time, Weather, Notifications -->
-        <div class="header-top-row">
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+    <DoctorHeader @toggle-drawer="rightDrawerOpen = !rightDrawerOpen" />
 
-          <div class="header-info">
-            <!-- Time Display -->
-            <div class="time-display">
-              <q-icon name="schedule" size="sm" />
-              <span class="time-text">{{ currentTime }}</span>
-            </div>
-
-            <!-- Weather Display -->
-            <div class="weather-display" v-if="weatherData">
-              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-              <span class="weather-text">{{ weatherData.temperature }}°C</span>
-              <span class="weather-location">{{ weatherData.location }}</span>
-            </div>
-
-            <!-- Loading Weather -->
-            <div class="weather-loading" v-else-if="weatherLoading">
-              <q-spinner size="sm" />
-              <span class="weather-text">Loading...</span>
-            </div>
-
-            <!-- Weather Error -->
-            <div class="weather-error" v-else-if="weatherError">
-              <q-icon name="error" size="sm" />
-              <span class="weather-text">Weather Update</span>
-            </div>
-          </div>
-
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-        </div>
-
-        <!-- Bottom Row: Search Bar -->
-        <div class="header-bottom-row">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="text"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </div>
-    </q-header>
-
-    <q-drawer
+    <DoctorSidebar 
       v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile?.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile?.full_name || 'Loading...' }}</h6>
-            <p class="user-role">
-              {{ userProfile?.specialization || 'Loading specialization...' }}
-            </p>
-            <q-chip
-              :color="userProfile?.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile?.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('doctor-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('appointments')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="event" />
-            </q-item-section>
-            <q-item-section>Appointments</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patients')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="people" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+      active-route="settings"
+    />
 
     <!-- Main Content -->
     <q-page-container class="page-container-with-fixed-header">
@@ -285,6 +103,24 @@
                         </div>
                         <div class="col-12">
                           <q-input
+                            v-model="profileForm.hospitalName"
+                            label="Hospital Name"
+                            outlined
+                            placeholder="Enter your hospital or clinic name"
+                            class="large-input"
+                          />
+                        </div>
+                        <div class="col-12">
+                          <q-input
+                            v-model="profileForm.hospitalAddress"
+                            label="Hospital Address"
+                            outlined
+                            placeholder="Enter hospital address"
+                            class="large-input"
+                          />
+                        </div>
+                        <div class="col-12">
+                          <q-input
                             v-model="profileForm.licenseNumber"
                             label="Medical License Number"
                             outlined
@@ -292,17 +128,7 @@
                             class="large-input"
                           />
                         </div>
-                        <div class="col-12">
-                          <q-input
-                            v-model="profileForm.bio"
-                            label="Bio"
-                            type="textarea"
-                            outlined
-                            rows="4"
-                            placeholder="Tell us about yourself..."
-                            class="large-input"
-                          />
-                        </div>
+
                       </div>
                     </div>
                   </div>
@@ -314,8 +140,8 @@
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Security Settings</h6>
 
-                  <div class="row q-gutter-md">
-                    <div class="col-12">
+                  <div class="security-form-container">
+                    <div class="security-field">
                       <q-input
                         v-model="securityForm.currentPassword"
                         label="Current Password"
@@ -325,7 +151,7 @@
                         class="large-input"
                       />
                     </div>
-                    <div class="col-12">
+                    <div class="security-field">
                       <q-input
                         v-model="securityForm.newPassword"
                         label="New Password"
@@ -338,7 +164,7 @@
                         class="large-input"
                       />
                     </div>
-                    <div class="col-12">
+                    <div class="security-field">
                       <q-input
                         v-model="securityForm.confirmPassword"
                         label="Confirm New Password"
@@ -351,7 +177,7 @@
                         class="large-input"
                       />
                     </div>
-                    <div class="col-12">
+                    <div class="security-field">
                       <q-toggle
                         v-model="securityForm.twoFactorAuth"
                         label="Enable Two-Factor Authentication"
@@ -423,37 +249,32 @@
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Account Status</h6>
 
-                  <div class="row q-gutter-md">
-                    <div class="col-12 col-md-6">
-                      <div class="status-item">
-                        <div class="status-label">Account Type</div>
-                        <div class="status-value-right">Doctor</div>
+                  <div class="account-status-grid">
+                    <div class="status-item">
+                      <div class="status-label">Account Type</div>
+                      <div class="status-value">Doctor</div>
+                    </div>
+
+                    <div class="status-item">
+                      <div class="status-label">Verification Status</div>
+                      <div class="status-value">
+                        <q-chip
+                          :color="getVerificationColor(userProfile.verification_status)"
+                          text-color="white"
+                          :label="getVerificationLabel(userProfile.verification_status)"
+                          size="sm"
+                        />
                       </div>
                     </div>
-                    <div class="col-12 col-md-6">
-                      <div class="status-item">
-                        <div class="status-label">Verification Status</div>
-                        <div class="status-value-right">
-                          <q-chip
-                            :color="getVerificationColor(userProfile.verification_status)"
-                            text-color="white"
-                            :label="getVerificationLabel(userProfile.verification_status)"
-                            size="sm"
-                          />
-                        </div>
-                      </div>
+
+                    <div class="status-item">
+                      <div class="status-label">Last Login</div>
+                      <div class="status-value">{{ accountStatus.lastLogin }}</div>
                     </div>
-                    <div class="col-12 col-md-6">
-                      <div class="status-item">
-                        <div class="status-label">Last Login</div>
-                        <div class="status-value-right">{{ accountStatus.lastLogin }}</div>
-                      </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <div class="status-item">
-                        <div class="status-label">Member Since</div>
-                        <div class="status-value-right">{{ accountStatus.memberSince }}</div>
-                      </div>
+
+                    <div class="status-item">
+                      <div class="status-label">Member Since</div>
+                      <div class="status-value">{{ accountStatus.memberSince }}</div>
                     </div>
                   </div>
                 </div>
@@ -546,23 +367,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
+import DoctorHeader from '../components/DoctorHeader.vue';
+import DoctorSidebar from '../components/DoctorSidebar.vue';
 // import { AxiosError } from 'axios' // Unused import
 
 // Reactive data
 const rightDrawerOpen = ref(false);
-const text = ref('');
 const showNotifications = ref(false);
-// const loading = ref(false) // Unused variable
-
-// Header functions
-const toggleRightDrawer = () => {
-  console.log('Toggle drawer called, current state:', rightDrawerOpen.value);
-  rightDrawerOpen.value = !rightDrawerOpen.value;
-  console.log('New state:', rightDrawerOpen.value);
-};
+// Unused variables removed: text, loading
+// Header functions removed: toggleRightDrawer - now handled by DoctorHeader component
 
 // User profile data
 const userProfile = ref({
@@ -576,16 +391,7 @@ const userProfile = ref({
   verification_status: 'approved',
 });
 
-// Real-time data
-const currentTime = ref('');
-const weatherData = ref<{
-  temperature: number;
-  condition: string;
-  location: string;
-} | null>(null);
-const weatherLoading = ref(false);
-const weatherError = ref(false);
-const timeInterval = ref<ReturnType<typeof setInterval> | null>(null);
+// Real-time data functionality removed - now handled by DoctorHeader component
 
 // Notification system
 const notifications = ref<
@@ -614,8 +420,9 @@ const profileForm = ref({
   email: '',
   phone: '',
   specialization: '',
+  hospitalName: '',
+  hospitalAddress: '',
   licenseNumber: '',
-  bio: '',
 });
 
 const securityForm = ref({
@@ -636,7 +443,7 @@ const notificationSettings = ref({
 const accountStatus = ref({
   verified: true,
   lastLogin: '2024-01-15 10:30 AM',
-  memberSince: '2023-06-15',
+  memberSince: '',
 });
 
 // Options
@@ -678,48 +485,9 @@ const profilePictureUrl = computed(() => {
   return `http://localhost:8000${userProfile.value.profile_picture}`;
 });
 
-// Router and Quasar
-const router = useRouter();
-// const route = useRoute() // Unused variable
+
 const $q = useQuasar();
 
-// Methods
-
-const navigateTo = (route: string) => {
-  // Close drawer first
-  rightDrawerOpen.value = false;
-
-  // Navigate to different sections
-  switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
-      break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
-      break;
-    case 'messaging':
-      void router.push('/doctor-messaging');
-      break;
-    case 'patients':
-      void router.push('/doctor-patient-management');
-      break;
-    case 'analytics':
-      void router.push('/doctor-predictive-analytics');
-      break;
-    case 'settings':
-      // Already on settings page
-      break;
-    default:
-      void router.push(`/${route}`);
-  }
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
 
 // Profile picture upload functions
 const triggerFileUpload = () => {
@@ -731,35 +499,43 @@ const handleProfilePictureUpload = async (event: Event) => {
   if (target.files && target.files[0]) {
     const file = target.files[0];
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
+    // Enhanced file validation
+    const validationResult = await validateProfilePicture(file);
+    if (!validationResult.isValid) {
       $q.notify({
         type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
+        message: validationResult.message,
         position: 'top',
-        timeout: 3000,
+        timeout: 4000,
+        actions: [
+          {
+            label: 'Dismiss',
+            color: 'white',
+            handler: () => {}
+          }
+        ]
       });
+      target.value = ''; // Clear the input
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
+    // Show loading notification
+    const loadingNotification = $q.notify({
+      type: 'ongoing',
+      message: 'Uploading profile picture...',
+      position: 'top',
+      timeout: 0,
+      spinner: true
+    });
 
     try {
       const formData = new FormData();
       formData.append('profile_picture', file);
 
-      const response = await api.post('/users/profile/update/picture/', formData);
+      // Enhanced API call with timeout and retry logic
+      const response = await uploadProfilePictureWithRetry(formData);
 
+      // Update profile picture
       userProfile.value.profile_picture = response.data.user.profile_picture;
 
       // Store the updated profile picture in localStorage for cross-page sync
@@ -767,109 +543,306 @@ const handleProfilePictureUpload = async (event: Event) => {
       currentUser.profile_picture = response.data.user.profile_picture;
       localStorage.setItem('user', JSON.stringify(currentUser));
 
-      // Show success toast
+      // Dismiss loading notification
+      loadingNotification();
+
+      // Show success notification
       $q.notify({
         type: 'positive',
         message: 'Profile picture updated successfully!',
         position: 'top',
         timeout: 3000,
+        icon: 'check_circle',
+        actions: [
+          {
+            label: 'Dismiss',
+            color: 'white',
+            handler: () => {}
+          }
+        ]
       });
 
       // Clear the file input
       target.value = '';
     } catch (error: unknown) {
+      // Dismiss loading notification
+      loadingNotification();
+      
       console.error('Profile picture upload failed:', error);
 
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
+      const errorDetails = parseUploadError(error);
+      
+      const baseNotifyOptions = {
+        type: 'negative' as const,
+        message: errorDetails.message,
+        position: 'top' as const,
+        timeout: 6000,
+        icon: 'error',
+        actions: [
+          {
+            label: 'Retry',
+            color: 'white' as const,
+            handler: () => {
+              // Trigger file upload again
+              triggerFileUpload();
+            }
+          },
+          {
+            label: 'Dismiss',
+            color: 'white' as const,
+            handler: () => {}
+          }
+        ]
+      };
 
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: { data?: { profile_picture?: string[]; detail?: string } };
-        };
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
+      const notifyOptions = errorDetails.caption 
+        ? { ...baseNotifyOptions, caption: errorDetails.caption }
+        : baseNotifyOptions;
 
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
+      $q.notify(notifyOptions);
+
+      // Clear the file input
+      target.value = '';
     }
   }
 };
 
-// Real-time functions
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString('en-US', {
-    hour12: true,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+// Enhanced file validation function
+const validateProfilePicture = (file: File): Promise<{ isValid: boolean; message: string }> => {
+  // Check if file exists
+  if (!file) {
+    return Promise.resolve({ isValid: false, message: 'No file selected. Please choose an image file.' });
+  }
+
+  // Enhanced file type validation
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  
+  const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+  
+  if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+    return Promise.resolve({ 
+      isValid: false, 
+      message: 'Invalid file format. Please select a JPG, PNG, or WebP image file.' 
+    });
+  }
+
+  // Enhanced file size validation with detailed messages
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  const minSize = 1024; // 1KB minimum
+  
+  if (file.size > maxSize) {
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    return Promise.resolve({ 
+      isValid: false, 
+      message: `File size (${fileSizeMB}MB) exceeds the 5MB limit. Please choose a smaller image.` 
+    });
+  }
+
+  if (file.size < minSize) {
+    return Promise.resolve({ 
+      isValid: false, 
+      message: 'File is too small. Please select a valid image file.' 
+    });
+  }
+
+  // Image dimension validation
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      
+      // Check minimum dimensions
+      if (img.width < 100 || img.height < 100) {
+        resolve({ 
+          isValid: false, 
+          message: 'Image dimensions are too small. Minimum size is 100x100 pixels.' 
+        });
+        return;
+      }
+
+      // Check maximum dimensions
+      if (img.width > 4000 || img.height > 4000) {
+        resolve({ 
+          isValid: false, 
+          message: 'Image dimensions are too large. Maximum size is 4000x4000 pixels.' 
+        });
+        return;
+      }
+
+      resolve({ isValid: true, message: '' });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ 
+        isValid: false, 
+        message: 'Invalid image file. The file appears to be corrupted or not a valid image.' 
+      });
+    };
+
+    img.src = url;
   });
 };
 
-const fetchWeather = async () => {
-  if (!navigator.geolocation) {
-    weatherError.value = true;
-    return;
+// Enhanced API call with retry logic and timeout
+const uploadProfilePictureWithRetry = async (formData: FormData, maxRetries = 2): Promise<{ data: { user: { profile_picture: string } } }> => {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Upload timeout')), 30000); // 30 second timeout
+      });
+
+      // Create the upload promise
+      const uploadPromise = api.post('/users/profile/update/picture/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 30000, // 30 second timeout
+      });
+
+      // Race between upload and timeout
+      const response = await Promise.race([uploadPromise, timeoutPromise]);
+      return response;
+
+    } catch (error: unknown) {
+      lastError = error as Error;
+      
+      // Don't retry on certain errors
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 400 || axiosError.response?.status === 413 || axiosError.response?.status === 415) {
+          throw error;
+        }
+      }
+
+      // If this is the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+    }
   }
 
-  weatherLoading.value = true;
-  weatherError.value = false;
+  throw lastError || new Error('Upload failed after retries');
+};
 
-  try {
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject);
-    });
+// Enhanced error parsing function
+const parseUploadError = (error: unknown): { message: string; caption?: string } => {
+  // Network/timeout errors
+  if (error instanceof Error) {
+    if (error.message === 'Upload timeout') {
+      return {
+        message: 'Upload timed out',
+        caption: 'The upload took too long. Please check your internet connection and try again.'
+      };
+    }
+    if (error.message.includes('Network Error') || error.message.includes('ERR_NETWORK')) {
+      return {
+        message: 'Network connection failed',
+        caption: 'Please check your internet connection and try again.'
+      };
+    }
+  }
 
-    const { latitude, longitude } = position.coords;
-    const apiKey = 'YOUR_OPENWEATHER_API_KEY'; // Replace with actual API key
-    const response = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}&units=metric`,
-    );
-
-    if (!response.ok) throw new Error('Weather API request failed');
-
-    const data = await response.json();
-    weatherData.value = {
-      temperature: Math.round(data.main.temp),
-      condition: data.weather[0].main.toLowerCase(),
-      location: data.name,
+  // API response errors
+  if (error && typeof error === 'object' && 'response' in error) {
+    const axiosError = error as {
+      response?: { 
+        status?: number;
+        data?: { 
+          profile_picture?: string[]; 
+          detail?: string;
+          error?: string;
+          message?: string;
+        } 
+      };
     };
-  } catch (error) {
-    console.error('Weather fetch error:', error);
-    weatherError.value = true;
-  } finally {
-    weatherLoading.value = false;
+
+    const status = axiosError.response?.status;
+    const data = axiosError.response?.data;
+
+    // Handle specific HTTP status codes
+    switch (status) {
+      case 400:
+        if (data?.profile_picture?.[0]) {
+          return { message: data.profile_picture[0] };
+        }
+        return { 
+          message: 'Invalid file or request',
+          caption: 'Please ensure you\'re uploading a valid image file.'
+        };
+
+      case 401:
+        return { 
+          message: 'Authentication failed',
+          caption: 'Please log in again and try uploading.'
+        };
+
+      case 403:
+        return { 
+          message: 'Permission denied',
+          caption: 'You don\'t have permission to update your profile picture.'
+        };
+
+      case 413:
+        return { 
+          message: 'File too large',
+          caption: 'The image file exceeds the server\'s size limit. Please choose a smaller image.'
+        };
+
+      case 415:
+        return { 
+          message: 'Unsupported file type',
+          caption: 'Please upload a JPG, PNG, or WebP image file.'
+        };
+
+      case 429:
+        return { 
+          message: 'Too many requests',
+          caption: 'Please wait a moment before trying to upload again.'
+        };
+
+      case 500:
+        return { 
+          message: 'Server error occurred',
+          caption: 'There was a problem on our end. Please try again in a few minutes.'
+        };
+
+      case 503:
+        return { 
+          message: 'Service temporarily unavailable',
+          caption: 'The upload service is temporarily down. Please try again later.'
+        };
+
+      default:
+        if (data?.detail) {
+          return { message: data.detail };
+        }
+        if (data?.error) {
+          return { message: data.error };
+        }
+        if (data?.message) {
+          return { message: data.message };
+        }
+    }
   }
+
+  // Generic fallback error
+  return { 
+    message: 'Upload failed',
+    caption: 'An unexpected error occurred. Please try again or contact support if the problem persists.'
+  };
 };
 
-const getWeatherIcon = (condition: string): string => {
-  const iconMap: Record<string, string> = {
-    clear: 'wb_sunny',
-    clouds: 'cloud',
-    rain: 'opacity',
-    snow: 'ac_unit',
-    thunderstorm: 'flash_on',
-    drizzle: 'grain',
-    mist: 'cloud',
-    smoke: 'cloud',
-    haze: 'cloud',
-    dust: 'cloud',
-    fog: 'cloud',
-    sand: 'cloud',
-    ash: 'cloud',
-    squall: 'air',
-    tornado: 'air',
-  };
-  return iconMap[condition] || 'wb_sunny';
-};
+// Real-time functions removed - now handled by DoctorHeader component
 
 const saveSettings = async () => {
   saving.value = true;
@@ -879,9 +852,10 @@ const saveSettings = async () => {
     await api.put('/users/profile/update/', {
       email: profileForm.value.email,
       phone: profileForm.value.phone,
-      bio: profileForm.value.bio,
       doctor_profile: {
         specialization: profileForm.value.specialization,
+        hospital_name: profileForm.value.hospitalName,
+        hospital_address: profileForm.value.hospitalAddress,
       },
     });
 
@@ -951,7 +925,6 @@ const exportData = async () => {
         phone: profileData.phone || 'Not provided',
         specialization: profileData.doctor_profile?.specialization || 'Not specified',
         licenseNumber: profileData.doctor_profile?.license_number || 'Not provided',
-        bio: profileData.bio || 'Not provided',
         verificationStatus: profileData.verification_status,
         memberSince: accountStatus.value.memberSince,
         lastLogin: accountStatus.value.lastLogin,
@@ -1106,6 +1079,11 @@ const fetchUserProfile = async () => {
       verification_status: userData.verification_status,
     };
 
+    // Update memberSince with formatted date_joined
+    if (userData.date_joined) {
+      accountStatus.value.memberSince = formatDate(userData.date_joined);
+    }
+
     // Show notification if verification status changed to approved
     if (previousStatus !== newStatus && newStatus === 'approved') {
       $q.notify({
@@ -1138,8 +1116,9 @@ const loadUserProfile = async () => {
       email: userData.email || '',
       phone: userData.phone || '',
       specialization: userData.doctor_profile?.specialization || '',
+      hospitalName: userData.doctor_profile?.hospital_name || '',
+      hospitalAddress: userData.doctor_profile?.hospital_address || '',
       licenseNumber: userData.doctor_profile?.license_number || '',
-      bio: userData.bio || '',
     };
   } catch (error) {
     console.error('Failed to load user profile:', error);
@@ -1153,18 +1132,16 @@ const loadUserProfile = async () => {
         email: user.email || '',
         phone: user.phone || '',
         specialization: user.doctor_profile?.specialization || '',
+        hospitalName: user.doctor_profile?.hospital_name || '',
+        hospitalAddress: user.doctor_profile?.hospital_address || '',
         licenseNumber: user.doctor_profile?.license_number || '',
-        bio: user.bio || '',
       };
     }
   }
 };
 
-// Lifecycle hooks
 // Notification functions
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter((n) => !n.is_read).length;
-});
+// unreadNotificationsCount removed - now handled by DoctorHeader component
 
 const loadNotifications = async (): Promise<void> => {
   try {
@@ -1231,6 +1208,15 @@ const formatTime = (dateString: string): string => {
   });
 };
 
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
 onMounted(() => {
   void loadUserProfile();
   void fetchUserProfile();
@@ -1238,11 +1224,8 @@ onMounted(() => {
   // Load notifications
   void loadNotifications();
 
-  // Initialize real-time features
-  updateTime();
-  timeInterval.value = setInterval(updateTime, 1000);
-  void fetchWeather();
-
+  // Real-time features removed - now handled by DoctorHeader component
+  
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
 
@@ -1251,9 +1234,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (timeInterval.value) {
-    clearInterval(timeInterval.value);
-  }
+  // Time interval cleanup removed - now handled by DoctorHeader component
 });
 </script>
 
@@ -1294,6 +1275,16 @@ onUnmounted(() => {
   margin-bottom: 20px;
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.settings-card .q-card-section {
+  padding: 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .setting-item {
@@ -1714,7 +1705,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  background: #286660;
   border-radius: 16px 16px 0 0;
 }
 
@@ -1877,11 +1868,17 @@ onUnmounted(() => {
 /* Large Input Styles */
 .large-input {
   font-size: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .large-input .q-field__control {
   min-height: 56px;
   font-size: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .large-input .q-field__label {
@@ -1892,6 +1889,9 @@ onUnmounted(() => {
 .large-input .q-field__native {
   font-size: 16px;
   padding: 12px 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .large-toggle {
@@ -1901,6 +1901,28 @@ onUnmounted(() => {
 .large-toggle .q-toggle__label {
   font-size: 16px;
   font-weight: 500;
+}
+
+/* Security Settings Form Container */
+.security-form-container {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+.security-form-container > div {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.security-field {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Quick Actions Container */
@@ -2133,5 +2155,67 @@ onUnmounted(() => {
   .weather-location {
     display: none;
   }
+
+  .account-status-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* On mobile, all items stack vertically */
+  .account-status-grid .status-item:nth-child(1),
+  .account-status-grid .status-item:nth-child(2),
+  .account-status-grid .status-item:nth-child(3),
+  .account-status-grid .status-item:nth-child(4) {
+    grid-column: span 1;
+  }
+
+  .account-status-grid .status-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+}
+
+/* Account Status Grid */
+.account-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* First row: Account Type and Verification Status */
+.account-status-grid .status-item:nth-child(1),
+.account-status-grid .status-item:nth-child(2) {
+  grid-column: span 1;
+}
+
+/* Second row: Last Login and Member Since side by side */
+.account-status-grid .status-item:nth-child(3),
+.account-status-grid .status-item:nth-child(4) {
+  grid-column: span 1;
+}
+
+.account-status-grid .status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.account-status-grid .status-label {
+  font-weight: 500;
+  color: #666;
+  font-size: 14px;
+}
+
+.account-status-grid .status-value {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
 }
 </style>

@@ -37,7 +37,12 @@
         <!-- User Profile Section -->
         <div class="sidebar-user-profile">
           <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
+            <q-avatar 
+              size="80px" 
+              class="profile-avatar clickable-avatar" 
+              @click="navigateToProfile"
+              v-ripple
+            >
               <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
               <div v-else class="profile-placeholder">
                 {{ userInitials || 'NU' }}
@@ -66,7 +71,7 @@
           </div>
 
           <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
+            <h6 class="user-name clickable-name" @click="navigateToProfile">{{ userProfile.full_name || 'Loading...' }}</h6>
             <p class="user-role">Nurse</p>
             <q-chip
               :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
@@ -1041,6 +1046,11 @@ const navigateTo = (route: string) => {
   }
 };
 
+const navigateToProfile = () => {
+  void router.push('/nurse-settings');
+  rightDrawerOpen.value = false; // Close the sidebar on mobile
+};
+
 const logout = () => {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
@@ -1054,6 +1064,10 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
+    // Check for verification status change
+    const previousStatus = userProfile.value.verification_status;
+    const newStatus = userData.verification_status;
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -1064,6 +1078,25 @@ const fetchUserProfile = async () => {
       verification_status: userData.verification_status,
       email: userData.email,
     };
+
+    // Show notification if verification status changed to approved
+    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
+      $q.notify({
+        type: 'positive',
+        message: '🎉 Congratulations! Your account has been verified and approved.',
+        position: 'top',
+        timeout: 5000,
+        actions: [
+          {
+            label: 'Dismiss',
+            color: 'white',
+            handler: () => {
+              // Notification will auto-dismiss
+            }
+          }
+        ]
+      });
+    }
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
@@ -1818,6 +1851,16 @@ onUnmounted(() => {
   overflow: hidden !important;
 }
 
+.clickable-avatar {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(30, 118, 104, 0.3);
+}
+
 .profile-avatar img {
   border-radius: 50% !important;
   width: 100% !important;
@@ -1870,6 +1913,15 @@ onUnmounted(() => {
   color: #333;
   font-size: 18px;
   font-weight: 600;
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable-name:hover {
+  color: #1e7668;
 }
 
 .user-specialization {

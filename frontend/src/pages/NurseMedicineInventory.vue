@@ -1553,6 +1553,10 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
+    // Check for verification status change
+    const previousStatus = userProfile.value.verification_status;
+    const newStatus = userData.verification_status;
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -1563,6 +1567,25 @@ const fetchUserProfile = async () => {
       profile_picture: userData.profile_picture || localStorage.getItem('profile_picture'),
       email: userData.email,
     };
+
+    // Show notification if verification status changed to approved
+    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
+      $q.notify({
+        type: 'positive',
+        message: '🎉 Congratulations! Your account has been verified and approved.',
+        position: 'top',
+        timeout: 5000,
+        actions: [
+          {
+            label: 'Dismiss',
+            color: 'white',
+            handler: () => {
+              // Notification will auto-dismiss
+            }
+          }
+        ]
+      });
+    }
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {

@@ -1,778 +1,405 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Header -->
-    <q-header class="dashboard-header safe-area-top">
-      <!-- Mobile Header Layout -->
-      <div class="mobile-header-layout">
-        <!-- Top Row: Profile, User Info, Logout -->
-        <div class="header-top-row">
-          <q-avatar size="40px" class="profile-avatar uploadable-avatar">
-            <img v-if="profileImageUrl" :src="profileImageUrl" alt="Profile" />
-            <q-icon v-else name="person" size="32px" />
-            <!-- Avatar upload overlay -->
-            <input
-              type="file"
-              accept="image/*"
-              class="avatar-upload-input"
-              @change="handleProfilePictureUpload"
-              title="Upload profile picture"
-            />
-            <q-tooltip anchor="bottom middle" self="top middle" class="avatar-tooltip">
-              Upload profile picture
-            </q-tooltip>
-          </q-avatar>
-
-          <div class="user-info">
-            <div class="user-name">{{ user?.full_name || 'Fetch Users Name Here' }}</div>
-            <div class="user-age">Age: {{ age !== null ? age : '' }}</div>
+    <!-- Tailwind-based Header replicating Random.html -->
+    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
+      <div class="flex justify-between items-center max-w-7xl mx-auto">
+        <!-- App Title/Logo -->
+        <div class="flex items-center space-x-3 text-white">
+          <!-- Project Logo -->
+          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
+          <div>
+            <p class="text-lg font-semibold leading-none">Patient Portal</p>
+            <p class="text-sm font-light text-teal-300 leading-none">Healthcare Dashboard</p>
           </div>
+        </div>
+        
+        <!-- User Profile Section (Right Side) -->
+        <div class="flex items-center space-x-4">
+          <!-- Notification Bell -->
+          <button class="relative p-2 text-white hover:text-teal-200 transition duration-150" @click="navigateTo('/patient-notifications')">
+            <i data-lucide="bell" class="w-6 h-6"></i>
+            <span class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-teal-800 bg-red-500"></span>
+          </button>
+          
+          <!-- User Profile Button -->
+          <div class="relative">
+            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
+              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
+                {{ userInitials }}
+              </div>
+              <div class="text-left">
+                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
+                <p class="text-xs text-teal-300 leading-none">Patient</p>
+              </div>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
+            </button>
 
-          <q-btn
-            flat
-            round
-            dense
-            icon="logout"
-            @click="logout"
-            class="logout-btn"
-            aria-label="Logout"
-          />
+            <!-- Dropdown Menu -->
+            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
+              <a href="#" @click.prevent="navigateTo('/patient-settings'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
+                <i data-lucide="settings" class="w-4 h-4 text-teal-600"></i>
+                <span>Settings</span>
+              </a>
+              <a href="#" @click.prevent="navigateTo('/patient-settings#faq'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
+                <i data-lucide="help-circle" class="w-4 h-4 text-teal-600"></i>
+                <span>FAQ</span>
+              </a>
+              <div class="border-t border-gray-100 my-2"></div>
+              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                <span>Logout</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
-    </q-header>
+    </header>
 
-    <!-- Main content area -->
-    <q-page-container class="page-background">
-      <div class="q-pa-md">
-        <div v-if="activeTab === 0">
-          <div class="text-subtitle1 q-mb-sm">Home</div>
-          <div class="text-body2">Welcome back, {{ user?.full_name || 'Patient' }}.</div>
-        </div>
-        <div v-else-if="activeTab === 1">
-          <div class="text-subtitle1 q-mb-sm">Appointments</div>
-          <div class="text-body2">Your appointments will appear here.</div>
-        </div>
-        <div v-else-if="activeTab === 2">
-          <div class="text-subtitle1 q-mb-sm">Medical Request</div>
-          <div class="text-body2">Create and track your medical requests here.</div>
-        </div>
-        <div v-else-if="activeTab === 3">
-          <div class="text-subtitle1 q-mb-sm">Notification History</div>
-          <div class="text-body2">Past notifications will be listed here.</div>
-        </div>
-        <div v-else-if="activeTab === 4">
-          <div class="text-subtitle1 q-mb-sm">Account Settings</div>
-          <div class="text-body2">Manage your account preferences here.</div>
-        </div>
-      </div>
-    </q-page-container>
+    <!-- Main Content -->
+    <q-page-container>
+      <q-page class="bg-teal-50 q-pa-none pb-safe">
+        <main class="flex-grow min-h-screen overflow-y-auto w-full p-4 md:p-8 max-w-7xl mx-auto pb-safe">
+          <!-- Quick Access Tiles -->
+          <section class="mt-4">
+            <div class="grid grid-cols-2 gap-6">
+              <!-- Queue Status -->
+              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-queue')">
+                <div class="p-3 bg-teal-100 rounded-xl mb-2">
+                  <i data-lucide="list-ordered" class="w-8 h-8"></i>
+                </div>
+                <p class="text-base font-bold text-gray-800 mt-2">Queue Status</p>
+              </div>
 
-    <!-- Footer with Quasar QTabs -->
-    <q-footer class="custom-footer transparent-footer">
-      <div class="footer-tabs-wrapper">
-        <q-tabs
-          v-model="activeTab"
-          class="footer-tabs"
-          align="justify"
-          dense
-          inverted
-          indicator-color="transparent"
-        >
-          <q-tab
-            v-for="(item, idx) in navItems"
-            :key="item.name"
-            :name="idx"
-            class="footer-tab"
-            :class="{ 'highlighted-tab': activeTab === idx }"
-          >
-            <div class="footer-tab-inner">
-              <div class="footer-highlight-bg" v-if="activeTab === idx" />
-              <q-icon
-                :name="item.icon"
-                class="footer-icon"
-                :class="{ active: activeTab === idx }"
-              />
-              <div class="footer-tab-label" :class="{ active: activeTab === idx }">
-                {{ capitalize(item.label) }}
+              <!-- Appointments -->
+              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-appointments')">
+                <div class="p-3 bg-teal-100 rounded-xl mb-2">
+                  <i data-lucide="calendar-check" class="w-8 h-8"></i>
+                </div>
+                <p class="text-base font-bold text-gray-800 mt-2">Appointments</p>
+              </div>
+
+              <!-- Notifications -->
+              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-notifications')">
+                <div class="p-3 bg-teal-100 rounded-xl mb-2">
+                  <i data-lucide="bell" class="w-8 h-8"></i>
+                </div>
+                <p class="text-base font-bold text-gray-800 mt-2">Notifications</p>
+              </div>
+              
+              <!-- Medical Requests -->
+              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-medical-request')">
+                <div class="p-3 bg-teal-100 rounded-xl mb-2">
+                  <i data-lucide="message-square" class="w-8 h-8"></i>
+                </div>
+                <p class="text-base font-bold text-gray-800 mt-2">Medical Request</p>
               </div>
             </div>
-          </q-tab>
-        </q-tabs>
+          </section>
+          
+          <!-- Live Queue Status -->
+          <section class="mt-8">
+            <h2 class="text-xl font-bold text-gray-700 mb-3">Live Queue Status</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Now Serving Card -->
+              <div class="status-card bg-teal-600 text-white p-4 shadow-xl rounded-xl">
+                <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">Now Serving</p>
+                <p class="status-number text-white">{{ dashboardSummary?.nowServing ?? '—' }}</p>
+                <p class="text-sm font-semibold mt-1">{{ dashboardSummary?.currentPatient ?? '—' }}</p>
+              </div>
+              <!-- My Queue Status Card -->
+              <div class="status-card bg-teal-700 text-white p-4 shadow-xl rounded-xl">
+                <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">My Queue Status</p>
+                <p class="status-number text-white">{{ dashboardSummary?.myPosition ?? '—' }}</p>
+                <p class="text-sm font-semibold mt-1">{{ userName }}</p>
+              </div>
+            </div>
+          </section>
+          
+          <!-- Appointment History -->
+          <section class="mt-8">
+            <h2 class="text-xl font-bold text-gray-700 mb-3">Appointment History</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <!-- Next Appointment Card -->
+              <div
+                class="bg-white p-4 rounded-xl shadow-md border-l-4 border-teal-600 cursor-pointer"
+                @click="openNextApptModal"
+                :class="{ 'opacity-60 cursor-default': !nextAppointment }"
+              >
+                <p class="text-xs font-medium uppercase tracking-wider text-teal-700 mb-1">Next Appointment</p>
+                <p class="text-lg font-extrabold text-gray-900">
+                  {{ nextAppointment ? getAppointmentTypeLabel(nextAppointment.type) : 'No upcoming appointments' }}
+                </p>
+                <p v-if="nextAppointment" class="text-sm text-gray-600 mt-1">
+                  Dr. {{ nextAppointment.doctor || 'Amelia Chen' }}
+                  |
+                  {{ formatShortDate(nextAppointment.date) }}, {{ formatTime(nextAppointment.time) }}
+                </p>
+                <p v-else class="text-sm text-gray-500 mt-1">Your upcoming appointment will appear here</p>
+              </div>
+
+              <!-- Last Appointment Card -->
+              <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-teal-600">
+                <p class="text-xs font-medium uppercase tracking-wider text-teal-700 mb-1">Last Appointment</p>
+                <p class="text-lg font-extrabold text-gray-900">
+                  {{ lastAppointment ? getAppointmentTypeLabel(lastAppointment.type) : 'No previous appointments' }}
+                </p>
+                <p v-if="lastAppointment" class="text-sm text-gray-600 mt-1">
+                  Dr. {{ lastAppointment.doctor || 'Amelia Chen' }}
+                  |
+                  {{ formatShortDate(lastAppointment.date) }}, {{ formatTime(lastAppointment.time) }}
+                </p>
+                <p v-else class="text-sm text-gray-500 mt-1">Your appointment history will appear here</p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </q-page>
+    </q-page-container>
+
+    <!-- Bottom Navigation with closer spacing -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
+      <div class="flex justify-center px-2 py-2">
+        <div class="flex items-center space-x-8">
+          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
+            <i data-lucide="list-ordered" class="w-5 h-5"></i>
+            <span class="text-xs mt-1">Queue</span>
+          </button>
+          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
+            <i data-lucide="calendar-check" class="w-5 h-5"></i>
+            <span class="text-xs mt-1">Appointments</span>
+          </button>
+          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
+            <i data-lucide="home" class="w-5 h-5"></i>
+            <span class="text-xs mt-1">Home</span>
+          </button>
+          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
+            <i data-lucide="bell" class="w-5 h-5"></i>
+            <span class="text-xs mt-1">Alerts</span>
+          </button>
+          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
+            <i data-lucide="message-square" class="w-5 h-5"></i>
+            <span class="text-xs mt-1">Requests</span>
+          </button>
+        </div>
       </div>
-    </q-footer>
+    </nav>
+
+    <!-- Next Appointment Modal -->
+    <q-dialog v-model="showNextApptModal" persistent>
+      <q-card class="w-[560px] max-w-full rounded-2xl">
+        <q-card-section>
+          <div class="text-xl font-bold text-teal-700">Next Appointment Details</div>
+        </q-card-section>
+        <q-card-section>
+          <div class="rounded-xl border border-teal-200 bg-teal-50 p-4">
+            <p class="text-teal-800 font-semibold mb-3">Appointment Information:</p>
+            <div class="space-y-3">
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Type:</span>
+                <span class="text-gray-700">{{ getAppointmentTypeLabel(nextAppointment?.type || '') }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Department:</span>
+                <span class="text-gray-700">{{ getDepartmentLabel(nextAppointment?.department || '') }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Doctor:</span>
+                <span class="text-gray-700">Dr. {{ (nextAppointment && nextAppointment.doctor) || 'Amelia Chen' }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Date:</span>
+                <span class="text-gray-700">{{ formatLongDate(nextAppointment?.date || '') }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Time:</span>
+                <span class="text-gray-700">{{ formatTime(nextAppointment?.time || '') }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Reason:</span>
+                <span class="text-gray-700">{{ nextAppointment?.reason || '—' }}</span>
+              </div>
+              
+              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                <span class="font-semibold text-teal-800">Status:</span>
+                <span class="text-teal-700 font-medium">{{ capitalize(nextAppointment?.status || 'Upcoming') }}</span>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn color="primary" label="Close" class="px-6" @click="showNextApptModal = false" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useQuasar } from 'quasar';
-import { api } from '../boot/axios';
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
+import logoUrl from 'src/assets/logo.png'
 
-interface User {
-  id: number;
-  email: string;
-  full_name: string;
-  role: string;
-  is_verified: boolean;
-  date_of_birth?: string | null;
-  profile_picture?: string | null;
+const router = useRouter()
+
+const showUserMenu = ref(false)
+const toggleUserMenu = () => {
+  showUserMenu.value = !showUserMenu.value
 }
 
-// Type definitions for API error handling
-interface ApiErrorResponse {
-  profile_picture?: string[];
-  detail?: string;
-}
-
-interface ApiError {
-  response?: {
-    data?: ApiErrorResponse;
-  };
-}
-
-const router = useRouter();
-const $q = useQuasar();
-
-const user = ref<User | null>(null);
-const activeTab = ref(2);
-
-const navItems = [
-  { name: 'home', icon: 'home', label: 'dashboard' },
-  { name: 'calendar', icon: 'event_note', label: 'appointment' },
-  { name: 'appointments', icon: 'event_note', label: 'medical history' },
-  { name: 'notifications', icon: 'notifications_none', label: 'notification' },
-  { name: 'settings', icon: 'settings', label: 'account settings' },
-];
-
-// Profile Image URL (computed)
-const profileImageUrl = computed(() => {
-  const pic = user.value?.profile_picture || null;
-  if (!pic) return null;
-  if (/^https?:/i.test(pic)) return pic;
+const userName = computed(() => {
   try {
-    const u = new URL(api.defaults.baseURL || '');
-    return `${u.origin}${pic.startsWith('/') ? '' : '/'}${pic}`;
+    const u = JSON.parse(localStorage.getItem('user') || '{}')
+    return u.full_name || u.email || 'User'
   } catch {
-    return `${window.location.origin}${pic.startsWith('/') ? '' : '/'}${pic}`;
+    return 'User'
   }
-});
+})
 
-// Avatar upload handler - all fixes applied
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
+const userInitials = computed(() => {
+  const name = userName.value || ''
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 0) return 'U'
+  const initials = parts.slice(0, 2).map((p: string) => p[0]?.toUpperCase() ?? '').join('')
+  return initials || (name[0]?.toUpperCase() ?? 'U')
+})
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Update user.value.profile_picture (not userProfile)
-      if (user.value) {
-        user.value.profile_picture = response.data.user.profile_picture;
-      }
-
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-      // Defensive error extraction
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as ApiError;
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
-
-function calcAge(dobStr?: string | null): number | null {
-  if (!dobStr) return null;
-  const dob = new Date(dobStr);
-  if (isNaN(dob.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age--;
-  }
-  return age;
+interface DashboardSummary {
+  nowServing: string | number
+  currentPatient: string
+  myPosition: string | number
 }
 
-const age = computed(() => calcAge(user.value?.date_of_birth));
+const dashboardSummary = ref<DashboardSummary | null>(null)
 
-function capitalize(str: string) {
-  return str.replace(/\b\w/g, (c) => c.toUpperCase());
+const navigateTo = (path: string) => {
+  void router.push(path)
 }
 
 const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  localStorage.removeItem('user')
+  void router.push('/login')
+}
 
-async function loadUser() {
-  try {
-    const resp = await api.get('/users/profile/');
-    user.value = resp.data.user;
-    localStorage.setItem('user', JSON.stringify(user.value));
-  } catch {
-    const cached = localStorage.getItem('user');
-    if (cached) {
-      try {
-        user.value = JSON.parse(cached);
-        return;
-      } catch {
-        localStorage.removeItem('user');
-        user.value = null;
-      }
-    }
-    $q.notify({
-      type: 'negative',
-      message: 'Session expired. Please log in again.',
-      position: 'top',
-    });
-    void router.push('/login');
+// Appointment functionality
+const showNextApptModal = ref(false)
+// Use shared appointments store
+import { useAppointmentsStore } from '../stores/appointments'
+const appointmentsStore = useAppointmentsStore()
+const nextAppointment = computed(() => appointmentsStore.nextAppointment)
+const lastAppointment = computed(() => appointmentsStore.lastAppointment)
+
+const getAppointmentTypeLabel = (type: string) => {
+  const types: Record<string, string> = {
+    'general': 'General Consultation',
+    'specialist': 'Specialist Consultation',
+    'follow_up': 'Follow-up Visit',
+    'emergency': 'Emergency Visit'
+  }
+  return types[type] || 'General Consultation'
+}
+
+const getDepartmentLabel = (department: string) => {
+  const departments: Record<string, string> = {
+    'general': 'General Medicine',
+    'cardiology': 'Cardiology',
+    'neurology': 'Neurology',
+    'pediatrics': 'Pediatrics'
+  }
+  return departments[department] || 'General Medicine'
+}
+
+const formatShortDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+const formatLongDate = (dateStr: string) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })
+}
+
+const formatTime = (timeStr?: string) => {
+  if (!timeStr) return ''
+  const [hours = '0', minutes = '00'] = timeStr.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+  return `${displayHour}:${minutes} ${ampm}`
+}
+
+const capitalize = (str: string) => {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+}
+
+const openNextApptModal = () => {
+  if (nextAppointment.value) {
+    showNextApptModal.value = true
   }
 }
 
-onMounted(loadUser);
+// Combined onMounted hook for all initialization
+onMounted(async () => {
+  // Load dashboard summary
+  try {
+    const res = await api.get('/patient/dashboard/summary/')
+    dashboardSummary.value = res.data as DashboardSummary
+  } catch (err) {
+    console.warn('Failed to fetch dashboard summary', err)
+    dashboardSummary.value = {
+      nowServing: '001',
+      currentPatient: userName.value,
+      myPosition: '005'
+    }
+  }
+
+  // Load appointments via store
+  try {
+    await appointmentsStore.loadAppointments()
+  } catch (error) {
+    console.warn('Failed to load appointments via store:', error)
+  }
+
+  // Initialize lucide icons from global CDN
+  try {
+    (window as { lucide?: { createIcons(): void } }).lucide?.createIcons()
+  } catch {
+    // ignore if lucide not available
+  }
+})
 </script>
 
 <style scoped>
-.page-background {
-  background: url('/background.png') no-repeat center center;
-  background-size: cover;
-  min-height: 100vh;
-  position: relative;
+.status-number {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
 }
-
-.page-background::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.25) 0%,
-    rgba(248, 249, 250, 0.15) 50%,
-    rgba(240, 242, 245, 0.08) 100%
-  );
-  z-index: 0;
-  pointer-events: none;
-}
-
-.page-background > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Safe Area Support */
-.safe-area-top {
-  padding-top: env(safe-area-inset-top);
-}
-
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Ensure mobile header is always visible on mobile devices */
-@media (max-width: 768px) {
-  .mobile-header-layout {
-    display: flex !important;
-  }
-
-  .header-toolbar {
-    display: none !important;
-  }
-
-  /* Force header visibility on iOS */
-  .prototype-header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 2000 !important;
-    padding-top: max(env(safe-area-inset-top), 8px) !important;
-  }
-
-  /* Ensure main content doesn't overlap header */
-  .q-page {
-    padding-top: calc(env(safe-area-inset-top) + 120px) !important;
-  }
-}
-
-/* Global Modal Safe Area Support */
-@media (max-width: 768px) {
-  :deep(.q-dialog) {
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  :deep(.q-dialog__inner) {
-    padding: max(env(safe-area-inset-top), 20px) max(env(safe-area-inset-right), 8px)
-      max(env(safe-area-inset-bottom), 8px) max(env(safe-area-inset-left), 8px) !important;
-    margin: 0 !important;
-    min-height: 100vh !important;
-    display: flex !important;
-    align-items: flex-start !important;
-    justify-content: center !important;
-    padding-top: max(env(safe-area-inset-top), 20px) !important;
-  }
-
-  :deep(.q-dialog__inner > div) {
-    max-height: calc(
-      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 8px)
-    ) !important;
-    width: 100% !important;
-    max-width: calc(
-      100vw - max(env(safe-area-inset-left), 8px) - max(env(safe-area-inset-right), 8px)
-    ) !important;
-    margin: 0 !important;
-  }
-}
-
-@media (max-width: 480px) {
-  :deep(.q-dialog__inner) {
-    padding: max(env(safe-area-inset-top), 24px) max(env(safe-area-inset-right), 4px)
-      max(env(safe-area-inset-bottom), 4px) max(env(safe-area-inset-left), 4px) !important;
-  }
-
-  :deep(.q-dialog__inner > div) {
-    max-height: calc(
-      100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
-    ) !important;
-    max-width: calc(
-      100vw - max(env(safe-area-inset-left), 4px) - max(env(safe-area-inset-right), 4px)
-    ) !important;
-  }
-}
-
-/* Modal Close Button Styles */
-.modal-close-btn {
-  padding: 4px;
-  transition: all 0.2s ease;
-}
-
-/* Desktop close button styling */
-@media (min-width: 769px) {
-  .modal-close-btn {
-    padding: 6px;
-    min-width: 36px;
-    min-height: 36px;
-    font-size: 18px;
-  }
-
-  .modal-close-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 50%;
-  }
-}
-
-/* Mobile close button styling */
-@media (max-width: 768px) {
-  .modal-close-btn {
-    padding: 8px !important;
-    min-width: 44px !important;
-    min-height: 44px !important;
-    font-size: 20px !important;
-    background: rgba(0, 0, 0, 0.1) !important;
-    border-radius: 50% !important;
-  }
-
-  .modal-close-btn:hover {
-    background: rgba(0, 0, 0, 0.2) !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .modal-close-btn {
-    padding: 10px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    font-size: 22px !important;
-    background: rgba(0, 0, 0, 0.1) !important;
-    border-radius: 50% !important;
-  }
-
-  .modal-close-btn:hover {
-    background: rgba(0, 0, 0, 0.2) !important;
-  }
-}
-
-/* Mobile Header Layout */
-.mobile-header-layout {
+.action-tile {
+  height: 150px;
   display: flex;
   flex-direction: column;
-  width: 100%;
-}
-
-.header-top-row {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  min-height: 56px;
-}
-
-.dashboard-header {
-  background: #286660;
-  min-height: 70px;
-  max-height: 70px;
-  display: flex;
-  align-items: center;
-  box-shadow: 0 2px 12px 0 rgba(64, 110, 101, 0.08);
-}
-.header-content {
-  display: flex;
-  align-items: center;
-  padding: 0 18px;
-  height: 100%;
-  width: 100%;
-}
-.profile-avatar {
-  background: #b8d2ce;
-  border-radius: 50%;
-  margin-right: 14px;
-  flex-shrink: 0;
-  position: relative;
-}
-.uploadable-avatar:hover .avatar-upload-input {
-  opacity: 1;
-}
-.avatar-upload-input {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  opacity: 0;
-  z-index: 10;
-}
-.avatar-tooltip {
-  font-size: 0.9em;
-}
-.user-info {
-  display: flex;
-  flex-direction: column;
   justify-content: center;
-}
-.user-name {
-  color: #fff;
-  font-weight: 600;
-  font-size: 1.12rem;
-  line-height: 1.2;
-  margin-bottom: 2px;
-}
-.user-age {
-  color: #e0e0e0;
-  font-size: 0.99rem;
-  font-weight: 400;
-}
-.logout-btn {
-  color: white;
-  margin-left: 16px;
-}
-
-/* Footer (transparent background) */
-.custom-footer {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 100vw;
-  background: transparent !important;
-  box-shadow: none;
-  border: none;
-  z-index: 1000;
-  padding: 0;
-}
-.transparent-footer {
-  background: transparent !important;
-}
-
-.footer-tabs-wrapper {
-  width: 100vw;
-  background: transparent !important;
-}
-.footer-tabs {
-  width: 100vw;
-  background: transparent !important;
-  min-height: 74px;
-  border-bottom: none;
-  box-shadow: none;
-}
-.footer-tab {
-  flex: 1 1 0;
-  min-width: 0;
-  background: transparent !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: 20vw;
-}
-.footer-tab-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 0;
-  width: 100%;
-  padding: 0;
-  position: relative;
-}
-
-/* Highlighted tab background and border - now on top of icon */
-.footer-highlight-bg {
-  position: absolute;
-  left: 50%;
-  top: -9px;
-  width: 44px;
-  height: 24px;
-  background: #eaf6f3;
-  border-radius: 10px 10px 12px 12px;
-  transform: translateX(-50%);
-  z-index: 3;
-  box-sizing: border-box;
-  border-top: 5px solid #6ca299;
-  border-bottom: none;
-  border-left: none;
-  border-right: none;
-  pointer-events: none;
-}
-.footer-icon {
-  color: #6ca299b3;
-  font-size: 29px;
-  min-width: 32px;
-  min-height: 32px;
-  transition: color 0.2s;
-  margin-bottom: 2px;
-  z-index: 2;
-  position: relative;
-}
-.footer-icon.active {
-  color: #6ca299 !important;
-  z-index: 4;
-}
-.footer-tab-label {
-  font-size: 0.82rem;
-  color: #6ca299b3;
-  font-weight: 500;
-  letter-spacing: 0.01em;
   text-align: center;
-  margin-bottom: 2px;
-  margin-top: 2px;
-  transition:
-    color 0.2s,
-    font-weight 0.2s;
-  max-width: 95px;
-  overflow: visible;
-  white-space: normal;
-  z-index: 2;
-  text-transform: capitalize;
-  line-height: 1.1;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
 }
-.footer-tab-label.active {
-  font-weight: 700;
-  color: #6ca299;
-}
-.highlighted-tab .footer-icon,
-.highlighted-tab .footer-tab-label {
-  color: #6ca299 !important;
-}
-.highlighted-tab .footer-icon {
-  font-weight: 700;
-  z-index: 4;
-}
-
-/* Mobile responsiveness for main content */
-@media (max-width: 768px) {
-  .dashboard-header {
-    padding-top: max(env(safe-area-inset-top), 8px);
-    min-height: 64px;
-  }
-
-  .header-content {
-    padding: 12px 0;
-  }
-
-  .header-top-row {
-    padding: 4px 12px;
-    min-height: 48px;
-  }
-
-  .profile-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .user-name {
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .user-age {
-    font-size: 11px;
-    color: #666;
-  }
-
-  .logout-btn {
-    margin-left: 12px;
-    padding: 8px;
-  }
-
-  .q-page-container {
-    padding-bottom: 80px;
-  }
-
-  .q-pa-md {
-    padding: 16px;
-  }
-
-  .text-subtitle1 {
-    font-size: 1.2rem;
-    margin-bottom: 12px;
-  }
-
-  .text-body2 {
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-}
-
-@media (max-width: 480px) {
-  .dashboard-header {
-    padding-top: max(env(safe-area-inset-top), 12px);
-    min-height: 56px;
-  }
-
-  .header-content {
-    padding: 8px 0;
-  }
-
-  .header-top-row {
-    padding: 2px 8px;
-    min-height: 44px;
-  }
-
-  .profile-avatar {
-    width: 32px;
-    height: 36px;
-  }
-
-  .user-name {
-    font-size: 0.95rem;
-  }
-
-  .user-age {
-    font-size: 0.85rem;
-  }
-
-  .logout-btn {
-    margin-left: 8px;
-    padding: 6px;
-  }
-
-  .q-pa-md {
-    padding: 12px;
-  }
-
-  .text-subtitle1 {
-    font-size: 1.1rem;
-    margin-bottom: 10px;
-  }
-
-  .text-body2 {
-    font-size: 0.9rem;
-  }
-}
-
-/* Responsive adjustments for mobile footer */
-@media (max-width: 600px) {
-  .footer-tabs,
-  .footer-tabs-wrapper {
-    min-height: 60px;
-    height: 60px;
-  }
-  .footer-tab-label {
-    font-size: 0.74rem;
-    max-width: 80px;
-    margin-bottom: 2px;
-    margin-top: 1px;
-    line-height: 1.1;
-    overflow: visible;
-    white-space: normal;
-  }
-  .footer-tab {
-    max-width: 24vw;
-  }
-  .footer-icon {
-    font-size: 20px;
-    min-width: 20px;
-    min-height: 20px;
-    margin-bottom: 1px;
-    margin-top: 1px;
-  }
-  .footer-tab-inner {
-    min-width: 0;
-    width: 100%;
-    padding: 0 1px;
-  }
-  .footer-highlight-bg {
-    border-radius: 8px 8px 10px 10px;
-    border-top-width: 4px;
-    width: 35px;
-    height: 18px;
-    top: -7px;
-  }
+.card, .status-card {
+  border-radius: 0.75rem;
 }
 </style>

@@ -26,7 +26,16 @@ SECRET_KEY = "django-insecure-jkac^7ayyqz9=+ksgij@fva4f&cv($)9+w=#d^u)mkozs&#hq&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '192.168.55.101']
+ALLOWED_HOSTS = [
+    'localhost', 
+    '127.0.0.1', 
+    'testserver', 
+    '172.20.29.202',  # Current network IP for mobile connectivity
+    '192.168.55.101',
+    '10.0.2.2',  # Android emulator
+    '10.0.3.2',  # Alternative Android emulator IP
+    '0.0.0.0',   # Allow all IPs for development (mobile testing)
+]
 
 
 # Application definition
@@ -148,6 +157,21 @@ MEDIA_ROOT = os.path.join('/tmp', 'medisync_media')
 
 # Ensure the directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
+
+# File upload settings for enhanced security
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5MB
+FILE_UPLOAD_PERMISSIONS = 0o644  # Read/write for owner, read for group and others
+
+# Profile picture specific settings
+PROFILE_PICTURE_MAX_SIZE = 5 * 1024 * 1024  # 5MB
+PROFILE_PICTURE_ALLOWED_FORMATS = ['JPEG', 'PNG', 'WEBP']
+PROFILE_PICTURE_MAX_DIMENSIONS = (2000, 2000)  # Max width, height
+PROFILE_PICTURE_MIN_DIMENSIONS = (50, 50)  # Min width, height
+
+# Security settings for file uploads
+SECURE_FILE_UPLOADS = True
+ALLOWED_UPLOAD_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.pdf']
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

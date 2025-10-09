@@ -13,6 +13,7 @@ const config: EnhancedCapacitorConfig = {
     iosScheme: 'capacitor',
     allowNavigation: [
       'http://localhost:8000',
+      'http://172.20.29.202:8000',
       'http://192.168.55.101:8000',
       'http://192.168.1.100:8000',
       'http://10.0.2.2:8000',

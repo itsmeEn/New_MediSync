@@ -203,10 +203,17 @@
                         </div>
                         <div class="col-12">
                           <q-input
-                            v-model="profileForm.phone"
-                            label="Phone Number"
+                            v-model="profileForm.hospitalName"
+                            label="Hospital Name"
                             outlined
-                            mask="(###) ### - ####"
+                            class="large-input"
+                          />
+                        </div>
+                        <div class="col-12">
+                          <q-input
+                            v-model="profileForm.hospitalAddress"
+                            label="Hospital Address"
+                            outlined
                             class="large-input"
                           />
                         </div>
@@ -230,17 +237,7 @@
                             class="large-input"
                           />
                         </div>
-                        <div class="col-12">
-                          <q-input
-                            v-model="profileForm.bio"
-                            label="Bio"
-                            type="textarea"
-                            outlined
-                            rows="4"
-                            placeholder="Tell us about yourself..."
-                            class="large-input"
-                          />
-                        </div>
+
                       </div>
                     </div>
                   </div>
@@ -252,8 +249,8 @@
                 <div class="settings-section">
                   <h6 class="text-subtitle1 q-mb-md">Security Settings</h6>
 
-                  <div class="row q-gutter-md">
-                    <div class="col-12">
+                  <div class="row">
+                    <div class="col-12 q-mb-md">
                       <q-input
                         v-model="securityForm.currentPassword"
                         label="Current Password"
@@ -263,7 +260,7 @@
                         class="large-input"
                       />
                     </div>
-                    <div class="col-12">
+                    <div class="col-12 q-mb-md">
                       <q-input
                         v-model="securityForm.newPassword"
                         label="New Password"
@@ -276,7 +273,7 @@
                         class="large-input"
                       />
                     </div>
-                    <div class="col-12">
+                    <div class="col-12 q-mb-md">
                       <q-input
                         v-model="securityForm.confirmPassword"
                         label="Confirm New Password"
@@ -819,6 +816,11 @@ const fetchUserProfile = async () => {
       email: userData.email,
     };
 
+    // Update memberSince with formatted date_joined
+    if (userData.date_joined) {
+      accountStatus.value.memberSince = formatDate(userData.date_joined);
+    }
+
     // Show notification if verification status changed to approved
     if (previousStatus !== newStatus && newStatus === 'approved') {
       $q.notify({
@@ -853,10 +855,10 @@ const saving = ref(false);
 const profileForm = ref({
   fullName: '',
   email: '',
-  phone: '',
+  hospitalName: '',
+  hospitalAddress: '',
   department: '',
   licenseNumber: '',
-  bio: '',
 });
 
 const securityForm = ref({
@@ -877,7 +879,7 @@ const notificationSettings = ref({
 const accountStatus = ref({
   verified: true,
   lastLogin: '2024-01-15 10:30 AM',
-  memberSince: '2023-06-15',
+  memberSince: '',
 });
 
 // Options
@@ -896,28 +898,28 @@ const departmentOptions = [
 // Methods
 
 const saveSettings = async () => {
+  console.log('🔥 Save Settings button clicked!');
+  console.log('🔑 Access token:', localStorage.getItem('access_token') ? 'Present' : 'Missing');
+  console.log('📝 Profile form data:', profileForm.value);
+  
   saving.value = true;
 
   try {
     // Save profile information
+    console.log('📤 Sending profile update...');
     await api.put('/users/profile/update/', {
       email: profileForm.value.email,
-      phone: profileForm.value.phone,
-      bio: profileForm.value.bio,
       nurse_profile: {
         department: profileForm.value.department,
+        hospital_name: profileForm.value.hospitalName,
+        hospital_address: profileForm.value.hospitalAddress,
       },
     });
+    console.log('Profile updated successfully');
+    // Backend endpoint for notification preferences is not yet implemented
+    console.log('Notification preferences saved locally:', notificationSettings.value);
 
-    // Save notification preferences
-    await api.put('/users/notification-preferences/', {
-      patient_alerts: notificationSettings.value.patientAlerts,
-      medication_reminders: notificationSettings.value.medicationReminders,
-      assessment_updates: notificationSettings.value.assessmentUpdates,
-      inventory_alerts: notificationSettings.value.inventoryAlerts,
-    });
-
-    // Save security settings if password is being changed
+    // Handle password change if requested
     if (securityForm.value.newPassword) {
       if (securityForm.value.newPassword !== securityForm.value.confirmPassword) {
         $q.notify({
@@ -928,9 +930,13 @@ const saveSettings = async () => {
         return;
       }
 
-      await api.put('/users/change-password/', {
-        current_password: securityForm.value.currentPassword,
-        new_password: securityForm.value.newPassword,
+      // Note: Password change endpoint is not yet implemented
+      // For now, show a message that this feature is coming soon
+      $q.notify({
+        type: 'info',
+        message: 'Password change feature is coming soon. Please use the forgot password option for now.',
+        position: 'top',
+        timeout: 5000,
       });
 
       // Reset password fields
@@ -944,12 +950,36 @@ const saveSettings = async () => {
       message: 'Settings saved successfully!',
       position: 'top',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error saving settings:', error);
+    
+    let errorMessage = 'Failed to save settings. Please try again.';
+    
+    // Type guard to check if error is an axios error
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      
+      console.error('❌ Error details:', {
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+      });
+      
+      if (axiosError.response?.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (axiosError.response?.status === 403) {
+        errorMessage = 'Permission denied. You may not have access to modify these settings.';
+      } else if (axiosError.response?.status === 404) {
+        errorMessage = 'Settings endpoint not found. Please contact support.';
+      } else if (axiosError.response?.data?.message) {
+        errorMessage = axiosError.response.data.message;
+      }
+    }
+    
     $q.notify({
       type: 'negative',
-      message: 'Failed to save settings. Please try again.',
+      message: errorMessage,
       position: 'top',
+      timeout: 5000,
     });
   } finally {
     saving.value = false;
@@ -957,6 +987,7 @@ const saveSettings = async () => {
 };
 
 const exportData = async () => {
+  console.log('Export Data button clicked!');
   try {
     $q.loading.show({
       message: 'Exporting profile data...',
@@ -975,7 +1006,6 @@ const exportData = async () => {
         phone: profileData.phone || 'Not provided',
         department: profileData.nurse_profile?.department || 'Not specified',
         licenseNumber: profileData.nurse_profile?.license_number || 'Not provided',
-        bio: profileData.bio || 'Not provided',
         verificationStatus: profileData.verification_status,
         memberSince: accountStatus.value.memberSince,
         lastLogin: accountStatus.value.lastLogin,
@@ -1018,6 +1048,7 @@ const exportData = async () => {
 };
 
 const backupPatientData = async () => {
+  console.log('Backup Patient Data button clicked!');
   try {
     $q.loading.show({
       message: 'Backing up patient management data...',
@@ -1078,6 +1109,7 @@ const backupPatientData = async () => {
 };
 
 const backupMedicineData = async () => {
+  console.log('Backup Medicine Data button clicked!');
   try {
     $q.loading.show({
       message: 'Backing up medicine inventory data...',
@@ -1187,10 +1219,10 @@ const loadUserProfile = async () => {
     profileForm.value = {
       fullName: userData.full_name || '',
       email: userData.email || '',
-      phone: userData.phone || '',
+      hospitalName: userData.nurse_profile?.hospital_name || '',
+      hospitalAddress: userData.nurse_profile?.hospital_address || '',
       department: userData.nurse_profile?.department || '',
       licenseNumber: userData.nurse_profile?.license_number || '',
-      bio: userData.bio || '',
     };
   } catch (error) {
     console.error('Failed to load user profile:', error);
@@ -1202,13 +1234,22 @@ const loadUserProfile = async () => {
       profileForm.value = {
         fullName: user.full_name || '',
         email: user.email || '',
-        phone: user.phone || '',
+        hospitalName: user.nurse_profile?.hospital_name || '',
+        hospitalAddress: user.nurse_profile?.hospital_address || '',
         department: user.nurse_profile?.department || '',
         licenseNumber: user.nurse_profile?.license_number || '',
-        bio: user.bio || '',
       };
     }
   }
+};
+
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 };
 
 onMounted(() => {

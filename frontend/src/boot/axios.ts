@@ -21,9 +21,10 @@ const resolveBaseURL = (): string => {
   if (platform.isCapacitor) {
     // For mobile devices, use primary endpoint initially
     const mobileEndpoints = [
-      'http://192.168.55.101:8000/api', // Primary development IP
-      'http://192.168.1.100:8000/api', // Alternative common IP
+      'http://172.20.29.202:8000/api', // Current network IP
       'http://10.0.2.2:8000/api', // Android emulator
+      'http://192.168.55.101:8000/api', // Alternative development IP
+      'http://192.168.1.100:8000/api', // Alternative common IP
       'http://localhost:8000/api', // Fallback
     ];
 
@@ -45,9 +46,10 @@ export const optimizeEndpointForMobile = async (): Promise<void> => {
   }
 
   const mobileEndpoints = [
+    'http://172.20.29.202:8000/api',
+    'http://10.0.2.2:8000/api',
     'http://192.168.55.101:8000/api',
     'http://192.168.1.100:8000/api',
-    'http://10.0.2.2:8000/api',
     'http://localhost:8000/api',
   ];
 
@@ -67,7 +69,7 @@ const testMobileEndpoints = async (endpoints: string[]): Promise<string> => {
   for (const endpoint of endpoints) {
     try {
       // Quick connectivity test with short timeout
-      const testResponse = await axios.get(`${endpoint}/health/`, {
+      const testResponse = await axios.get(`${endpoint}/users/profile/`, {
         timeout: 3000,
         validateStatus: () => true, // Accept any status for connectivity test
       });

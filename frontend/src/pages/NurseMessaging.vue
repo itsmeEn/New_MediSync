@@ -225,7 +225,7 @@
                       <div
                         v-for="user in userGroup"
                         :key="user.id"
-                        class="user-avatar-card"
+                        class="user-item"
                         @click="startConversation(user)"
                       >
                         <div class="avatar-container">
@@ -246,11 +246,33 @@
                               color="white"
                             />
                           </q-avatar>
+                          
+                          <!-- Verification Badge -->
+                          <q-badge
+                            v-if="user.verification_status === 'approved'"
+                            floating
+                            color="positive"
+                            class="verification-badge"
+                          >
+                            <q-icon name="verified" size="16px" />
+                          </q-badge>
                         </div>
 
                         <div class="avatar-info">
                           <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
                           <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
+                          
+                          <!-- Verification Status Chip -->
+                          <q-chip
+                            v-if="user.verification_status === 'approved'"
+                            color="positive"
+                            text-color="white"
+                            size="xs"
+                            icon="verified_user"
+                            class="verification-chip"
+                          >
+                            Verified
+                          </q-chip>
                         </div>
 
                         <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
@@ -529,6 +551,8 @@ interface User {
   role: string;
   profile_picture?: string;
   is_active?: boolean;
+  verification_status?: string;
+  is_verified?: boolean;
 }
 
 interface Message {
@@ -856,20 +880,51 @@ const loadAvailableUsers = async (): Promise<void> => {
     console.log('📞 Loading available users...');
 
     const response = await api.get('/operations/messaging/available-users/');
-    availableUsers.value = response.data;
-    console.log('✅ Available users loaded:', availableUsers.value);
-    console.log('📊 Total users found:', availableUsers.value.length);
+    
+    // Handle new API response format
+    if (response.data.users) {
+      availableUsers.value = response.data.users;
+      console.log('✅ Available users loaded:', availableUsers.value);
+      console.log('📊 Total verified users found:', response.data.total_count);
+      console.log('🔒 Security message:', response.data.message);
+      
+      // Show success notification with verification info
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || `Found ${response.data.total_count} verified users`,
+        timeout: 3000
+      });
+    } else {
+      // Fallback for old API format
+      availableUsers.value = response.data;
+      console.log('Available users loaded (legacy format):', availableUsers.value);
+    }
 
     // Log each user's verification status
     availableUsers.value.forEach((user: User) => {
-      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`);
+      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Verified: ${user.verification_status === 'approved'}`);
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error loading available users:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to load users',
-    });
+    
+    // Type guard for Axios errors
+    const isAxiosError = (err: unknown): err is { response: { status: number } } => {
+      return err !== null && typeof err === 'object' && 'response' in err;
+    };
+    
+    // Handle specific verification errors
+    if (isAxiosError(error) && error.response?.status === 403) {
+      $q.notify({
+        type: 'negative',
+        message: 'Access denied: Your account must be verified to access messaging',
+        timeout: 5000
+      });
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to load users',
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -2304,25 +2359,19 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.user-avatar-card {
+.user-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 120px;
   position: relative;
 }
 
-.user-avatar-card:hover {
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+.user-item:hover {
+  transform: scale(1.05);
 }
 
 .avatar-container {
@@ -2537,9 +2586,9 @@ onUnmounted(() => {
     gap: 15px;
   }
 
-  .user-avatar-card {
+  .user-item {
     min-width: 100px;
-    padding: 12px;
+    padding: 8px;
   }
 
   .user-avatar {
@@ -2559,5 +2608,25 @@ onUnmounted(() => {
   .avatar-status {
     font-size: 10px;
   }
+}
+
+/* Verification Badge Styles */
+.verification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.verification-chip {
+  margin-top: 4px;
+  font-size: 10px;
+  height: 18px;
+}
+
+.avatar-container {
+  position: relative;
 }
 </style>

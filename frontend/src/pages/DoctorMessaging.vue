@@ -1,258 +1,10 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header safe-area-top">
-      <q-toolbar class="header-toolbar">
-        <!-- Menu button to open sidebar -->
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+    <!-- Standardized Header Component -->
+    <DoctorHeader @toggle-drawer="rightDrawerOpen = !rightDrawerOpen" />
 
-        <!-- Left side - Search bar -->
-        <div class="header-left">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="searchText"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="searchText">
-                <q-icon name="clear" class="cursor-pointer" @click="searchText = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-
-        <!-- Right side - Notifications, Time, Weather -->
-        <div class="header-right">
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-
-          <!-- Time Display -->
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-
-          <!-- Weather Display -->
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-
-          <!-- Loading Weather -->
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-
-          <!-- Weather Error -->
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-
-      <!-- Mobile Header Layout -->
-      <div class="mobile-header-layout">
-        <!-- Top Row: Menu, Time, Weather, Notifications -->
-        <div class="header-top-row">
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-
-          <div class="header-info">
-            <!-- Time Display -->
-            <div class="time-display">
-              <q-icon name="schedule" size="sm" />
-              <span class="time-text">{{ currentTime }}</span>
-            </div>
-
-            <!-- Weather Display -->
-            <div class="weather-display" v-if="weatherData">
-              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-              <span class="weather-text">{{ weatherData.temperature }}°C</span>
-              <span class="weather-location">{{ weatherData.location }}</span>
-            </div>
-
-            <!-- Loading Weather -->
-            <div class="weather-loading" v-else-if="weatherLoading">
-              <q-spinner size="sm" />
-              <span class="weather-text">Loading...</span>
-            </div>
-
-            <!-- Weather Error -->
-            <div class="weather-error" v-else-if="weatherError">
-              <q-icon name="error" size="sm" />
-              <span class="weather-text">Weather Update</span>
-            </div>
-          </div>
-
-          <!-- Notifications -->
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-        </div>
-
-        <!-- Bottom Row: Search Bar -->
-        <div class="header-bottom-row">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="searchText"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="searchText">
-                <q-icon name="clear" class="cursor-pointer" @click="searchText = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </div>
-    </q-header>
-
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="profileFileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('doctor-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('appointments')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="event" />
-            </q-item-section>
-            <q-item-section>Appointments</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('messaging')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patients')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="people" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+    <!-- Standardized Sidebar Component -->
+    <DoctorSidebar v-model="rightDrawerOpen" active-route="messaging" />
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Main Content -->
@@ -272,9 +24,29 @@
           </q-card>
         </div>
 
+        <!-- Verification Warning Card -->
+        <div v-if="userProfile.verification_status !== 'approved'" class="verification-section">
+          <q-card class="verification-card">
+            <q-card-section class="verification-content">
+              <q-icon name="warning" size="64px" color="orange" />
+              <h4 class="verification-title">Account Verification Required</h4>
+              <p class="verification-message">
+                Your account needs to be verified before you can access messaging functionality.
+                Please contact your administrator to complete the verification process.
+              </p>
+              <q-chip color="negative" text-color="white" size="lg" icon="cancel">
+                Not Verified
+              </q-chip>
+            </q-card-section>
+          </q-card>
+        </div>
+
         <!-- Main Messaging Card -->
         <div class="main-messaging-section">
-          <q-card class="glassmorphism-card main-messaging-card">
+          <q-card
+            class="glassmorphism-card main-messaging-card"
+            :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }"
+          >
             <!-- Available Users Section -->
             <q-card-section class="card-header">
               <h5 class="card-title">Available Users</h5>
@@ -320,7 +92,7 @@
                       <div
                         v-for="user in userGroup"
                         :key="user.id"
-                        class="user-avatar-card"
+                        class="user-item"
                         @click="startConversation(user)"
                       >
                         <div class="avatar-container">
@@ -341,11 +113,33 @@
                               color="white"
                             />
                           </q-avatar>
+                          
+                          <!-- Verification Badge -->
+                          <q-badge
+                            v-if="user.verification_status === 'approved'"
+                            floating
+                            color="positive"
+                            class="verification-badge"
+                          >
+                            <q-icon name="verified" size="16px" />
+                          </q-badge>
                         </div>
 
                         <div class="avatar-info">
                           <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
                           <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
+                          
+                          <!-- Verification Status Chip -->
+                          <q-chip
+                            v-if="user.verification_status === 'approved'"
+                            color="positive"
+                            text-color="white"
+                            size="xs"
+                            icon="verified_user"
+                            class="verification-chip"
+                          >
+                            Verified
+                          </q-chip>
                         </div>
 
                         <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
@@ -361,7 +155,7 @@
               <div class="new-conversation-container">
                 <q-btn
                   class="glassmorphism-btn new-conversation-btn"
-                  @click="showNewConversationDialog = true"
+                  @click="openNewConversationDialog"
                 >
                   <q-icon name="add" class="btn-icon" />
                   Start New Conversation
@@ -377,7 +171,7 @@
                   color="secondary"
                   icon="add"
                   size="sm"
-                  @click="showNewConversationDialog = true"
+                  @click="openNewConversationDialog"
                 />
               </div>
 
@@ -611,8 +405,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useQuasar } from 'quasar';
-import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
+import DoctorHeader from '../components/DoctorHeader.vue';
+import DoctorSidebar from '../components/DoctorSidebar.vue';
 
 // Types
 interface User {
@@ -621,6 +416,8 @@ interface User {
   role: string;
   profile_picture?: string;
   is_active?: boolean;
+  verification_status?: string;
+  is_verified?: boolean;
 }
 
 interface Message {
@@ -639,11 +436,9 @@ interface Conversation {
 
 // Reactive data
 const $q = useQuasar();
-const router = useRouter();
 const rightDrawerOpen = ref(false);
 const loading = ref(false);
-const searchText = ref('');
-const currentTime = ref('');
+// Search and time functionality now handled by DoctorHeader
 
 // Notification system
 const showNotifications = ref(false);
@@ -668,17 +463,7 @@ const selectedConversation = ref<Conversation | null>(null);
 const showChatModal = ref(false);
 const showNewConversationDialog = ref(false);
 const newMessage = ref('');
-const profileFileInput = ref<HTMLInputElement | null>(null);
 const currentSlide = ref(0);
-
-// Weather data
-const weatherData = ref<{
-  temperature: number;
-  condition: string;
-  location: string;
-} | null>(null);
-const weatherLoading = ref(false);
-const weatherError = ref(false);
 
 // User profile
 const userProfile = ref<{
@@ -696,32 +481,6 @@ const userProfile = ref<{
 });
 
 // Computed
-const userInitials = computed(() => {
-  const name = currentUser.value.full_name || '';
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
-});
-
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter((n) => !n.isRead).length;
-});
-
-const profilePictureUrl = computed(() => {
-  if (!currentUser.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (currentUser.value.profile_picture.startsWith('http')) {
-    return currentUser.value.profile_picture;
-  }
-
-  // Otherwise, construct the full URL
-  return `http://localhost:8000${currentUser.value.profile_picture}`;
-});
 
 const userGroups = computed(() => {
   const groups = [];
@@ -785,110 +544,57 @@ const fetchUserProfile = async () => {
   }
 };
 
-// Profile picture upload functions
-const triggerFileUpload = () => {
-  profileFileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      // Update both currentUser and userProfile
-      currentUser.value.profile_picture = response.data.user.profile_picture;
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store the updated profile picture in localStorage for cross-page sync
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      storedUser.profile_picture = response.data.user.profile_picture;
-      localStorage.setItem('user', JSON.stringify(storedUser));
-
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: { data?: { profile_picture?: string[]; detail?: string } };
-        };
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
-
 const loadAvailableUsers = async (): Promise<void> => {
   try {
     loading.value = true;
     console.log('📞 Loading available users...');
 
     const response = await api.get('/operations/messaging/available-users/');
-    availableUsers.value = response.data;
-    console.log('✅ Available users loaded:', availableUsers.value);
-    console.log('📊 Total users found:', availableUsers.value.length);
+    
+    // Handle new API response format
+    if (response.data.users) {
+      availableUsers.value = response.data.users;
+      console.log('✅ Available users loaded:', availableUsers.value);
+      console.log('📊 Total verified users found:', response.data.total_count);
+      console.log('🔒 Security message:', response.data.message);
+      
+      // Show success notification with verification info
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || `Found ${response.data.total_count} verified users`,
+        timeout: 3000
+      });
+    } else {
+      // Fallback for old API format
+      availableUsers.value = response.data;
+      console.log('Available users loaded (legacy format):', availableUsers.value);
+    }
 
     // Log each user's verification status
     availableUsers.value.forEach((user: User) => {
-      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`);
+      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Verified: ${user.verification_status === 'approved'}`);
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error loading available users:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to load users',
-    });
+    
+    // Type guard for Axios errors
+    const isAxiosError = (err: unknown): err is { response: { status: number } } => {
+      return err !== null && typeof err === 'object' && 'response' in err;
+    };
+    
+    // Handle specific verification errors
+    if (isAxiosError(error) && error.response?.status === 403) {
+      $q.notify({
+        type: 'negative',
+        message: 'Access denied: Your account must be verified to access messaging',
+        timeout: 5000
+      });
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to load users',
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -900,19 +606,39 @@ const loadConversations = async (): Promise<void> => {
 
     const response = await api.get('/operations/messaging/conversations/');
     conversations.value = response.data;
-    console.log('✅ Conversations loaded:', conversations.value);
+    console.log('Conversations loaded:', conversations.value);
   } catch (error) {
-    console.error('❌ Error loading conversations:', error);
+    console.error('Error loading conversations:', error);
   }
 };
 
 const startConversation = (user: User): void => {
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to access messaging',
+      position: 'top',
+    });
+    return;
+  }
+
   selectedUser.value = user;
   showChatModal.value = true;
   void loadMessagesForUser(user.id);
 };
 
 const selectConversation = (conversation: Conversation): void => {
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to access messaging',
+      position: 'top',
+    });
+    return;
+  }
+
   selectedConversation.value = conversation;
   if (conversation.other_participant) {
     selectedUser.value = conversation.other_participant;
@@ -932,33 +658,59 @@ const loadMessagesForUser = async (userId: number): Promise<void> => {
         `/operations/messaging/conversations/${conversation.id}/messages/`,
       );
       messages.value = response.data;
-      console.log('✅ Messages loaded:', messages.value);
+      console.log('Messages loaded:', messages.value);
     } else {
       messages.value = [];
-      console.log('ℹ️ No conversation found, starting fresh');
+      console.log('No conversation found, starting fresh');
     }
   } catch (error) {
-    console.error('❌ Error loading messages:', error);
+    console.error('Error loading messages:', error);  
     messages.value = [];
   }
+};
+
+
+
+const openNewConversationDialog = (): void => {
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to start new conversations',
+      position: 'top',
+    });
+    return;
+  }
+
+  showNewConversationDialog.value = true;
 };
 
 const sendMessage = async (): Promise<void> => {
   if (!newMessage.value.trim() || !selectedUser.value) return;
 
+  // Check if user is verified before allowing messaging
+  if (userProfile.value.verification_status !== 'approved') {
+    $q.notify({
+      type: 'negative',
+      message: 'Account verification required to send messages',
+      position: 'top',
+    });
+    return;
+  }
+
   try {
-    console.log('📤 Sending message:', newMessage.value);
+    console.log('Sending message:', newMessage.value);
 
     let conversation = conversations.value.find(
       (c) => c.other_participant?.id === selectedUser.value?.id,
     );
 
     if (!conversation) {
-      console.log('📝 Creating new conversation with user:', selectedUser.value.id);
+      console.log('Creating new conversation with user:', selectedUser.value.id);
       const response = await api.post('/operations/messaging/conversations/create/', {
         other_user_id: selectedUser.value.id,
       });
-      console.log('✅ Conversation created:', response.data);
+      console.log('Conversation created:', response.data);
       conversation = response.data as Conversation;
       conversations.value.unshift(conversation);
     }
@@ -998,52 +750,6 @@ const formatTime = (dateString?: string): string => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const toggleRightDrawer = (): void => {
-  rightDrawerOpen.value = !rightDrawerOpen.value;
-};
-
-const navigateTo = (route: string): void => {
-  rightDrawerOpen.value = false;
-
-  switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
-      break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
-      break;
-    case 'messaging':
-      // Already on messaging page
-      break;
-    case 'patients':
-      void router.push('/doctor-patient-management');
-      break;
-    case 'analytics':
-      void router.push('/doctor-predictive-analytics');
-      break;
-    case 'settings':
-      void router.push('/doctor-settings');
-      break;
-  }
-};
-
-const logout = (): void => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
-
-const updateTime = (): void => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString('en-US', {
-    hour12: true,
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-};
-
 // Notification functions
 const loadNotifications = async (): Promise<void> => {
   try {
@@ -1081,51 +787,14 @@ const markAllNotificationsRead = (): void => {
   });
 };
 
-// Weather icon mapping
-const getWeatherIcon = (condition: string): string => {
-  const iconMap: { [key: string]: string } = {
-    sunny: 'wb_sunny',
-    cloudy: 'cloud',
-    rainy: 'grain',
-    stormy: 'thunderstorm',
-    snowy: 'ac_unit',
-    foggy: 'foggy',
-  };
-  return iconMap[condition.toLowerCase()] || 'wb_sunny';
-};
-
-// Fetch weather data
-const fetchWeatherData = async (): Promise<void> => {
-  weatherLoading.value = true;
-  weatherError.value = false;
-
-  try {
-    // Mock weather data - replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    weatherData.value = {
-      temperature: 28,
-      condition: 'sunny',
-      location: 'Mandaluyong City',
-    };
-  } catch (error) {
-    console.error('Failed to fetch weather data:', error);
-    weatherError.value = true;
-  } finally {
-    weatherLoading.value = false;
-  }
-};
-
 // Lifecycle
 onMounted(() => {
-  console.log('🚀 DoctorMessaging component mounted');
+  console.log('DoctorMessaging component mounted');
   getCurrentUser();
   void fetchUserProfile();
-  updateTime();
-  setInterval(updateTime, 1000);
   void loadAvailableUsers();
   void loadConversations();
   void loadNotifications();
-  void fetchWeatherData();
 
   // Refresh user profile every 30 seconds to check for verification status updates
   setInterval(() => {
@@ -1136,8 +805,43 @@ onMounted(() => {
 
 <style scoped>
 /* Import the same styles as DoctorDashboard */
-/* Prototype Header Styles */
+/* Verification Styles */
+.verification-section {
+  margin-bottom: 20px;
+}
 
+.verification-card {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  border: 2px solid #f39c12;
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(243, 156, 18, 0.2);
+}
+
+.verification-content {
+  text-align: center;
+  padding: 30px;
+}
+
+.verification-title {
+  color: #d68910;
+  margin: 20px 0 15px 0;
+  font-weight: 600;
+}
+
+.verification-message {
+  color: #8e6a00;
+  margin-bottom: 20px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.disabled-content {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(50%);
+}
+
+/* Prototype Header Styles */
 .header-toolbar {
   padding: 0 24px;
   min-height: 64px;
@@ -2102,25 +1806,19 @@ onMounted(() => {
   width: 100%;
 }
 
-.user-avatar-card {
+.user-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 120px;
   position: relative;
 }
 
-.user-avatar-card:hover {
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+.user-item:hover {
+  transform: scale(1.05);
 }
 
 .avatar-container {
@@ -2174,9 +1872,9 @@ onMounted(() => {
     gap: 15px;
   }
 
-  .user-avatar-card {
+  .user-item {
     min-width: 100px;
-    padding: 12px;
+    padding: 8px;
   }
 
   .user-avatar {
@@ -2315,5 +2013,25 @@ onMounted(() => {
   .weather-location {
     display: none;
   }
+}
+
+/* Verification Badge Styles */
+.verification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.verification-chip {
+  margin-top: 4px;
+  font-size: 10px;
+  height: 18px;
+}
+
+.avatar-container {
+  position: relative;
 }
 </style>

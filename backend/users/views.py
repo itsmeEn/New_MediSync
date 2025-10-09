@@ -19,7 +19,7 @@ from datetime import datetime, date
 from decimal import Decimal
 
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
-from .serializers import UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, ProfilePictureSerializer
+from .serializers import UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, ProfilePictureSerializer, ProfileUpdateSerializer
 
 # These classes are correctly defined and can be used as they are.
 # They are included here for the sake of a complete, organized file.
@@ -240,6 +240,22 @@ def update_profile_picture(request):
         serializer.save()
         return Response({
             'message': 'Profile picture updated successfully',
+            'user': UserSerializer(request.user).data
+        }, status=status.HTTP_200_OK)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_profile(request):
+    """
+    Update user's profile information including hospital details
+    """
+    serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            'message': 'Profile updated successfully',
             'user': UserSerializer(request.user).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1149,6 +1149,10 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
 
+    // Check for verification status change
+    const previousStatus = userProfile.value.verification_status;
+    const newStatus = userData.verification_status;
+
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -1157,6 +1161,25 @@ const fetchUserProfile = async () => {
       profile_picture: userData.profile_picture || localStorage.getItem('profile_picture'),
       email: userData.email,
     };
+
+    // Show notification if verification status changed to approved
+    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
+      $q.notify({
+        type: 'positive',
+        message: '🎉 Congratulations! Your account has been verified and approved.',
+        position: 'top',
+        timeout: 5000,
+        actions: [
+          {
+            label: 'Dismiss',
+            color: 'white',
+            handler: () => {
+              // Notification will auto-dismiss
+            }
+          }
+        ]
+      });
+    }
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
@@ -1650,21 +1673,52 @@ onUnmounted(() => {
 /* Sidebar Styles */
 .prototype-sidebar {
   background: white;
-  border-right: 1px solid #e0e0e0;
-  position: relative;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-content {
+  padding: 20px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding-bottom: 80px; /* Space for footer */
 }
 
+/* Logo Section */
+.logo-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-avatar {
+  border: 2px solid #286660;
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #286660;
+}
+
+.menu-btn {
+  color: #666;
+}
+
+/* User Profile Section */
 .sidebar-user-profile {
-  padding: 24px 20px;
-  border-bottom: 1px solid #e0e0e0;
   text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
 }
 
 .profile-picture-container {
@@ -1673,32 +1727,16 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.profile-avatar {
-  border: 3px solid #286660;
-  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.2);
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  background: #286660 !important;
-  color: white !important;
-  font-weight: 600;
-  font-size: 1.5rem;
-  border-radius: 50%;
-  position: relative;
-  z-index: 1;
-}
-
 .upload-btn {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  background: white;
-  border: 2px solid #286660;
+  bottom: -5px;
+  right: -5px;
+  background: #1e7668 !important;
+  border-radius: 50% !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
 }
 
 .verified-badge {
@@ -1707,7 +1745,38 @@ onUnmounted(() => {
   right: -5px;
   background: white;
   border-radius: 50%;
-  padding: 2px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.profile-avatar {
+  border: 3px solid #1e7668 !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+}
+
+.profile-avatar img {
+  border-radius: 50% !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.profile-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #286660;
+  color: white;
+  font-weight: 600;
+  font-size: 1.5rem;
+  border-radius: 50%;
 }
 
 .user-info {
@@ -1715,21 +1784,22 @@ onUnmounted(() => {
 }
 
 .user-name {
-  margin: 0 0 4px 0;
   font-size: 16px;
   font-weight: 600;
   color: #333;
+  margin: 0 0 4px 0;
 }
 
 .user-role {
-  margin: 0 0 8px 0;
   font-size: 14px;
   color: #666;
+  margin: 0 0 12px 0;
 }
 
+/* Navigation Menu */
 .navigation-menu {
   flex: 1;
-  padding: 8px 0;
+  padding: 16px 0;
 }
 
 .nav-item {
@@ -1751,34 +1821,42 @@ onUnmounted(() => {
   background: #f5f5f5;
 }
 
+/* Logout Section */
 .logout-section {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
   padding: 20px;
   border-top: 1px solid #e0e0e0;
-  background: #f8f9fa;
 }
 
 .logout-btn {
   width: 100%;
-  border-radius: 8px;
-  font-weight: 600;
-  text-transform: uppercase;
 }
 
-.verified-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
+/* Responsive Design */
+@media (max-width: 768px) {
+  .sidebar-content {
+    padding: 16px;
+  }
+
+  .logo-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+
+  .sidebar-user-profile {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+  }
+
+  .profile-picture-container {
+    margin-bottom: 12px;
+  }
+
+  .navigation-menu {
+    padding: 12px 0;
+  }
+
+  .logout-section {
+    padding: 16px;
+  }
 }
 </style>
