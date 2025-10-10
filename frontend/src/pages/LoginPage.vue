@@ -2,7 +2,7 @@
   <div
     class="login-page safe-area-top safe-area-bottom"
     style="
-      background: url('http://localhost:9000/background.png') no-repeat center center;
+      background-color: white;
       background-size: cover;
     "
   >
@@ -264,7 +264,25 @@ const performLogin = async () => {
 
     if (error instanceof AxiosError) {
       if (error.response?.data) {
-        errorMessage = error.response.data.message || error.response.data.error || errorMessage;
+        // Handle specific backend error messages
+        if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      }
+
+      // Handle specific HTTP status codes
+      if (error.response?.status === 401) {
+        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. Your account may be inactive or suspended.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'User not found. Please check your email address.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
       }
 
       // Optimized mobile-specific error handling
@@ -273,31 +291,47 @@ const performLogin = async () => {
           errorMessage = 'Network connection failed. Please check your connection.';
         } else if (error.response?.status === 0) {
           errorMessage = 'Server unreachable. Please check your network.';
-        } else if (error.response?.status === 403) {
-          errorMessage = 'Access denied. Please check your credentials.';
         }
       }
     } else if (error instanceof Error) {
-      errorMessage = error.message;
+      if (error.message.includes('ERR_CONNECTION_REFUSED')) {
+        errorMessage = 'Cannot connect to server. Please check if the backend server is running.';
+      } else {
+        errorMessage = error.message;
+      }
     }
 
-    // Show optimized error notification
+    // Show optimized error notification with helpful actions
+    const actions = [];
+    
+    // Add retry action for non-mobile
+    if (!isIOS.value) {
+      actions.push({
+        label: 'Retry',
+        color: 'white',
+        handler: () => {
+          onLogin();
+        },
+      });
+    }
+    
+    // Add forgot password action for authentication errors
+    if (errorMessage.includes('Invalid') || errorMessage.includes('password') || errorMessage.includes('credentials')) {
+      actions.push({
+        label: 'Forgot Password?',
+        color: 'white',
+        handler: () => {
+          void router.push('/forgot-password');
+        },
+      });
+    }
+
     $q.notify({
       type: 'negative',
       message: errorMessage,
       position: 'top',
       timeout: isIOS.value ? 4000 : 6000,
-      actions: isIOS.value
-        ? []
-        : [
-            {
-              label: 'Retry',
-              color: 'white',
-              handler: () => {
-                onLogin();
-              },
-            },
-          ],
+      actions: actions,
     });
   } finally {
     loading.value = false;
@@ -307,7 +341,7 @@ const performLogin = async () => {
 
 <style>
 body {
-  background: url('http://localhost:9000/background.png') no-repeat center center !important;
+  background-color: white !important;
   background-size: cover !important;
   background-attachment: fixed !important;
   position: relative !important;

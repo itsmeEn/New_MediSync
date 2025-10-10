@@ -1,238 +1,457 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Tailwind-based Header replicating Random.html -->
-    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
-      <div class="flex justify-between items-center max-w-7xl mx-auto">
-        <!-- App Title/Logo -->
-        <div class="flex items-center space-x-3 text-white">
-          <!-- Project Logo -->
-          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
-          <div>
-            <p class="text-lg font-semibold leading-none">Patient Portal</p>
-            <p class="text-sm font-light text-teal-300 leading-none">Healthcare Dashboard</p>
-          </div>
-        </div>
+    <!-- Patient Portal Header -->
+    <q-header class="bg-blue-8 text-white" style="height: 70px;">
+      <q-toolbar class="q-px-md" style="height: 70px;">
+        <q-avatar size="40px" class="q-mr-md">
+          <img :src="logoUrl" alt="Logo" />
+        </q-avatar>
         
-        <!-- User Profile Section (Right Side) -->
-        <div class="flex items-center space-x-4">
-          <!-- Notification Bell -->
-          <button class="relative p-2 text-white hover:text-teal-200 transition duration-150" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-6 h-6"></i>
-            <span class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-teal-800 bg-red-500"></span>
-          </button>
-          
-          <!-- User Profile Button -->
-          <div class="relative">
-            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
-              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
-                {{ userInitials }}
-              </div>
-              <div class="text-left">
-                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
-                <p class="text-xs text-teal-300 leading-none">Patient</p>
-              </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
-            </button>
-
-            <!-- Dropdown Menu -->
-            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
-              <a href="#" @click.prevent="navigateTo('/patient-settings'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="settings" class="w-4 h-4 text-teal-600"></i>
-                <span>Settings</span>
-              </a>
-              <a href="#" @click.prevent="navigateTo('/patient-settings#faq'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="help-circle" class="w-4 h-4 text-teal-600"></i>
-                <span>FAQ</span>
-              </a>
-              <div class="border-t border-gray-100 my-2"></div>
-              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-                <span>Logout</span>
-              </a>
-            </div>
-          </div>
+        <div class="column q-mr-auto">
+          <div class="text-h6 text-weight-medium">Patient Portal</div>
+          <div class="text-caption opacity-80">Healthcare Dashboard</div>
         </div>
-      </div>
-    </header>
+
+        <!-- Notification Icon -->
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+          <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
+        </q-btn>
+
+        <!-- User Menu -->
+        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
+          <q-avatar size="32px" class="bg-white text-blue-8">
+            <div class="text-weight-bold">{{ userInitials }}</div>
+          </q-avatar>
+        </q-btn>
+
+        <!-- User Dropdown Menu -->
+        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
+          <q-list style="min-width: 200px">
+            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
+            <q-separator />
+            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+              <q-item-section avatar>
+                <q-icon name="settings" />
+              </q-item-section>
+              <q-item-section>Settings</q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="logout">
+              <q-item-section avatar>
+                <q-icon name="logout" />
+              </q-item-section>
+              <q-item-section>Logout</q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+      </q-toolbar>
+    </q-header>
 
     <!-- Main Content -->
     <q-page-container>
-      <q-page class="bg-teal-50 q-pa-none pb-safe">
-        <main class="flex-grow min-h-screen overflow-y-auto w-full p-4 md:p-8 max-w-7xl mx-auto pb-safe">
-          <!-- Quick Access Tiles -->
-          <section class="mt-4">
-            <div class="grid grid-cols-2 gap-6">
-              <!-- Queue Status -->
-              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-queue')">
-                <div class="p-3 bg-teal-100 rounded-xl mb-2">
-                  <i data-lucide="list-ordered" class="w-8 h-8"></i>
-                </div>
-                <p class="text-base font-bold text-gray-800 mt-2">Queue Status</p>
-              </div>
-
-              <!-- Appointments -->
-              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-appointments')">
-                <div class="p-3 bg-teal-100 rounded-xl mb-2">
-                  <i data-lucide="calendar-check" class="w-8 h-8"></i>
-                </div>
-                <p class="text-base font-bold text-gray-800 mt-2">Appointments</p>
-              </div>
-
-              <!-- Notifications -->
-              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-notifications')">
-                <div class="p-3 bg-teal-100 rounded-xl mb-2">
-                  <i data-lucide="bell" class="w-8 h-8"></i>
-                </div>
-                <p class="text-base font-bold text-gray-800 mt-2">Notifications</p>
-              </div>
-              
-              <!-- Medical Requests -->
-              <div class="action-tile card bg-white text-teal-800 border-b-4 border-teal-600 transform hover:scale-[1.02] transition duration-300 cursor-pointer shadow-md" @click="navigateTo('/patient-medical-request')">
-                <div class="p-3 bg-teal-100 rounded-xl mb-2">
-                  <i data-lucide="message-square" class="w-8 h-8"></i>
-                </div>
-                <p class="text-base font-bold text-gray-800 mt-2">Medical Request</p>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Live Queue Status -->
-          <section class="mt-8">
-            <h2 class="text-xl font-bold text-gray-700 mb-3">Live Queue Status</h2>
-            <div class="grid grid-cols-2 gap-4">
-              <!-- Now Serving Card -->
-              <div class="status-card bg-teal-600 text-white p-4 shadow-xl rounded-xl">
-                <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">Now Serving</p>
-                <p class="status-number text-white">{{ dashboardSummary?.nowServing ?? '—' }}</p>
-                <p class="text-sm font-semibold mt-1">{{ dashboardSummary?.currentPatient ?? '—' }}</p>
-              </div>
-              <!-- My Queue Status Card -->
-              <div class="status-card bg-teal-700 text-white p-4 shadow-xl rounded-xl">
-                <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">My Queue Status</p>
-                <p class="status-number text-white">{{ dashboardSummary?.myPosition ?? '—' }}</p>
-                <p class="text-sm font-semibold mt-1">{{ userName }}</p>
-              </div>
-            </div>
-          </section>
-          
-          <!-- Appointment History -->
-          <section class="mt-8">
-            <h2 class="text-xl font-bold text-gray-700 mb-3">Appointment History</h2>
-            <div class="grid grid-cols-2 gap-4">
-              <!-- Next Appointment Card -->
-              <div
-                class="bg-white p-4 rounded-xl shadow-md border-l-4 border-teal-600 cursor-pointer"
-                @click="openNextApptModal"
-                :class="{ 'opacity-60 cursor-default': !nextAppointment }"
+      <q-page class="bg-grey-1 q-pa-md">
+        <!-- Quick Access Tiles -->
+        <div class="q-mb-lg">
+          <div class="row q-gutter-md">
+            <!-- Queue Status -->
+            <div class="col-6 col-sm-3">
+              <q-card 
+                class="action-card cursor-pointer" 
+                @click="navigateTo('/patient-queue')"
+                flat
+                bordered
               >
-                <p class="text-xs font-medium uppercase tracking-wider text-teal-700 mb-1">Next Appointment</p>
-                <p class="text-lg font-extrabold text-gray-900">
-                  {{ nextAppointment ? getAppointmentTypeLabel(nextAppointment.type) : 'No upcoming appointments' }}
-                </p>
-                <p v-if="nextAppointment" class="text-sm text-gray-600 mt-1">
-                  Dr. {{ nextAppointment.doctor || 'Amelia Chen' }}
-                  |
-                  {{ formatShortDate(nextAppointment.date) }}, {{ formatTime(nextAppointment.time) }}
-                </p>
-                <p v-else class="text-sm text-gray-500 mt-1">Your upcoming appointment will appear here</p>
-              </div>
-
-              <!-- Last Appointment Card -->
-              <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-teal-600">
-                <p class="text-xs font-medium uppercase tracking-wider text-teal-700 mb-1">Last Appointment</p>
-                <p class="text-lg font-extrabold text-gray-900">
-                  {{ lastAppointment ? getAppointmentTypeLabel(lastAppointment.type) : 'No previous appointments' }}
-                </p>
-                <p v-if="lastAppointment" class="text-sm text-gray-600 mt-1">
-                  Dr. {{ lastAppointment.doctor || 'Amelia Chen' }}
-                  |
-                  {{ formatShortDate(lastAppointment.date) }}, {{ formatTime(lastAppointment.time) }}
-                </p>
-                <p v-else class="text-sm text-gray-500 mt-1">Your appointment history will appear here</p>
-              </div>
+                <q-card-section class="text-center q-pa-lg">
+                  <q-icon 
+                    name="format_list_numbered" 
+                    size="48px" 
+                    color="teal-6" 
+                    class="q-mb-sm"
+                  />
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">
+                    Queue Status
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="4px" 
+                    :value="0.3" 
+                    class="q-mt-sm"
+                  />
+                </q-card-section>
+              </q-card>
             </div>
-          </section>
-        </main>
+
+            <!-- Appointments -->
+            <div class="col-6 col-sm-3">
+              <q-card 
+                class="action-card cursor-pointer" 
+                @click="navigateTo('/patient-appointments')"
+                flat
+                bordered
+              >
+                <q-card-section class="text-center q-pa-lg">
+                  <q-icon 
+                    name="event" 
+                    size="48px" 
+                    color="teal-6" 
+                    class="q-mb-sm"
+                  />
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">
+                    Appointments
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="4px" 
+                    :value="0.7" 
+                    class="q-mt-sm"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <!-- Notifications -->
+            <div class="col-6 col-sm-3">
+              <q-card 
+                class="action-card cursor-pointer" 
+                @click="navigateTo('/patient-notifications')"
+                flat
+                bordered
+              >
+                <q-card-section class="text-center q-pa-lg">
+                  <q-icon 
+                    name="notifications" 
+                    size="48px" 
+                    color="teal-6" 
+                    class="q-mb-sm"
+                  />
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">
+                    Notifications
+                  </div>
+                  <q-badge 
+                    v-if="notificationCount > 0" 
+                    color="red" 
+                    floating
+                  >
+                    {{ notificationCount }}
+                  </q-badge>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="4px" 
+                    :value="0.5" 
+                    class="q-mt-sm"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+            
+            <!-- Medical Requests -->
+            <div class="col-6 col-sm-3">
+              <q-card 
+                class="action-card cursor-pointer" 
+                @click="navigateTo('/patient-medical-request')"
+                flat
+                bordered
+              >
+                <q-card-section class="text-center q-pa-lg">
+                  <q-icon 
+                    name="medical_services" 
+                    size="48px" 
+                    color="teal-6" 
+                    class="q-mb-sm"
+                  />
+                  <div class="text-subtitle2 text-weight-bold text-grey-8">
+                    Medical Request
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="4px" 
+                    :value="0.2" 
+                    class="q-mt-sm"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+        </div>
+          
+        <!-- Live Queue Status -->
+        <div class="q-mb-lg">
+          <div class="text-h6 text-weight-bold text-grey-8 q-mb-md">Live Queue Status</div>
+          <div class="row q-gutter-md">
+            <!-- Now Serving Card -->
+            <div class="col-6">
+              <q-card class="bg-teal-6 text-white">
+                <q-card-section>
+                  <div class="text-caption text-weight-medium opacity-90">NOW SERVING</div>
+                  <div class="text-h3 text-weight-bold q-my-sm">
+                    {{ dashboardSummary?.nowServing ?? '—' }}
+                  </div>
+                  <div class="text-body2 text-weight-medium">
+                    {{ dashboardSummary?.currentPatient ?? '—' }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+            
+            <!-- My Queue Status Card -->
+            <div class="col-6">
+              <q-card class="bg-teal-7 text-white">
+                <q-card-section>
+                  <div class="text-caption text-weight-medium opacity-90">MY QUEUE STATUS</div>
+                  <div class="text-h3 text-weight-bold q-my-sm">
+                    {{ dashboardSummary?.myPosition ?? '—' }}
+                  </div>
+                  <div class="text-body2 text-weight-medium">
+                    {{ userName }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Appointment History -->
+        <div class="q-mb-xl">
+          <div class="text-h6 text-weight-bold text-grey-8 q-mb-md">Appointment History</div>
+          <div class="row q-gutter-md">
+            <!-- Next Appointment Card -->
+            <div class="col-6">
+              <q-card 
+                class="cursor-pointer"
+                @click="openNextApptModal"
+                :class="{ 'opacity-60': !nextAppointment }"
+                flat
+                bordered
+              >
+                <q-card-section class="q-pb-none">
+                  <div class="text-caption text-weight-medium text-teal-7">NEXT APPOINTMENT</div>
+                </q-card-section>
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold text-grey-9">
+                    {{ nextAppointment ? getAppointmentTypeLabel(nextAppointment.type) : 'No upcoming appointments' }}
+                  </div>
+                  <div v-if="nextAppointment" class="text-body2 text-grey-6 q-mt-xs">
+                    Dr. {{ nextAppointment.doctor || 'Amelia Chen' }}
+                    <br>
+                    {{ formatShortDate(nextAppointment.date) }}, {{ formatTime(nextAppointment.time) }}
+                  </div>
+                  <div v-else class="text-body2 text-grey-5 q-mt-xs">
+                    Your upcoming appointment will appear here
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="3px" 
+                    :value="nextAppointment ? 1 : 0"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+
+            <!-- Last Appointment Card -->
+            <div class="col-6">
+              <q-card flat bordered>
+                <q-card-section class="q-pb-none">
+                  <div class="text-caption text-weight-medium text-teal-7">LAST APPOINTMENT</div>
+                </q-card-section>
+                <q-card-section>
+                  <div class="text-subtitle1 text-weight-bold text-grey-9">
+                    {{ lastAppointment ? getAppointmentTypeLabel(lastAppointment.type) : 'No previous appointments' }}
+                  </div>
+                  <div v-if="lastAppointment" class="text-body2 text-grey-6 q-mt-xs">
+                    Dr. {{ lastAppointment.doctor || 'Amelia Chen' }}
+                    <br>
+                    {{ formatShortDate(lastAppointment.date) }}, {{ formatTime(lastAppointment.time) }}
+                  </div>
+                  <div v-else class="text-body2 text-grey-5 q-mt-xs">
+                    Your appointment history will appear here
+                  </div>
+                </q-card-section>
+                <q-card-section class="q-pt-none">
+                  <q-linear-progress 
+                    color="teal-6" 
+                    size="3px" 
+                    :value="lastAppointment ? 1 : 0"
+                  />
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+        </div>
       </q-page>
     </q-page-container>
 
-    <!-- Bottom Navigation with closer spacing -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
-      <div class="flex justify-center px-2 py-2">
-        <div class="flex items-center space-x-8">
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
-            <i data-lucide="list-ordered" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Queue</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
-            <i data-lucide="calendar-check" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Appointments</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Home</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Alerts</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
-            <i data-lucide="message-square" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Requests</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <!-- Mobile-First Bottom Navigation -->
+    <q-footer class="bg-teal-8">
+      <q-tabs 
+        v-model="currentTab" 
+        dense 
+        class="text-white"
+        active-color="white"
+        indicator-color="transparent"
+        align="justify"
+      >
+        <q-tab 
+          name="queue" 
+          icon="format_list_numbered" 
+          label="Queue"
+          @click="navigateTo('/patient-queue')"
+          no-caps
+        />
+        <q-tab 
+          name="appointments" 
+          icon="event" 
+          label="Appointments"
+          @click="navigateTo('/patient-appointments')"
+          no-caps
+        />
+        <q-tab 
+          name="home" 
+          icon="home" 
+          label="Home"
+          @click="navigateTo('/patient-dashboard')"
+          no-caps
+        />
+        <q-tab 
+          name="notifications" 
+          icon="notifications" 
+          label="Alerts"
+          @click="navigateTo('/patient-notifications')"
+          no-caps
+        >
+          <q-badge 
+            v-if="notificationCount > 0" 
+            color="red" 
+            floating
+          >
+            {{ notificationCount }}
+          </q-badge>
+        </q-tab>
+        <q-tab 
+          name="requests" 
+          icon="medical_services" 
+          label="Requests"
+          @click="navigateTo('/patient-medical-request')"
+          no-caps
+        />
+      </q-tabs>
+    </q-footer>
 
-    <!-- Next Appointment Modal -->
-    <q-dialog v-model="showNextApptModal" persistent>
-      <q-card class="w-[560px] max-w-full rounded-2xl">
-        <q-card-section>
-          <div class="text-xl font-bold text-teal-700">Next Appointment Details</div>
+    <!-- Mobile-Optimized Appointment Modal -->
+    <q-dialog 
+      v-model="showNextApptModal" 
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Next Appointment Details</div>
+          <q-space />
+          <q-btn 
+            icon="close" 
+            flat 
+            round 
+            dense 
+            v-close-popup 
+            color="grey-7"
+          />
         </q-card-section>
-        <q-card-section>
-          <div class="rounded-xl border border-teal-200 bg-teal-50 p-4">
-            <p class="text-teal-800 font-semibold mb-3">Appointment Information:</p>
-            <div class="space-y-3">
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Type:</span>
-                <span class="text-gray-700">{{ getAppointmentTypeLabel(nextAppointment?.type || '') }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Department:</span>
-                <span class="text-gray-700">{{ getDepartmentLabel(nextAppointment?.department || '') }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Doctor:</span>
-                <span class="text-gray-700">Dr. {{ (nextAppointment && nextAppointment.doctor) || 'Amelia Chen' }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Date:</span>
-                <span class="text-gray-700">{{ formatLongDate(nextAppointment?.date || '') }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Time:</span>
-                <span class="text-gray-700">{{ formatTime(nextAppointment?.time || '') }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Reason:</span>
-                <span class="text-gray-700">{{ nextAppointment?.reason || '—' }}</span>
-              </div>
-              
-              <div class="flex justify-between items-center p-3 bg-white rounded-lg">
-                <span class="font-semibold text-teal-800">Status:</span>
-                <span class="text-teal-700 font-medium">{{ capitalize(nextAppointment?.status || 'Upcoming') }}</span>
-              </div>
-            </div>
-          </div>
+
+        <q-card-section v-if="nextAppointment">
+          <q-list>
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="category" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Type</q-item-label>
+                <q-item-label caption>{{ getAppointmentTypeLabel(nextAppointment.type || '') }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="business" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Department</q-item-label>
+                <q-item-label caption>{{ getDepartmentLabel(nextAppointment.department || '') }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="person" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Doctor</q-item-label>
+                <q-item-label caption>Dr. {{ nextAppointment.doctor || 'Amelia Chen' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="event" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Date</q-item-label>
+                <q-item-label caption>{{ formatLongDate(nextAppointment.date || '') }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="schedule" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Time</q-item-label>
+                <q-item-label caption>{{ formatTime(nextAppointment.time || '') }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="description" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Reason</q-item-label>
+                <q-item-label caption>{{ nextAppointment.reason || '—' }}</q-item-label>
+              </q-item-section>
+            </q-item>
+
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="info" color="teal" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Status</q-item-label>
+                <q-item-label caption class="text-teal-700">{{ capitalize(nextAppointment.status || 'Upcoming') }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn color="primary" label="Close" class="px-6" @click="showNextApptModal = false" />
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn 
+            flat 
+            label="Close" 
+            color="grey-7" 
+            v-close-popup 
+          />
+          <q-btn 
+            unelevated 
+            label="View Details" 
+            color="teal" 
+            class="q-ml-sm"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -243,14 +462,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.png'
+import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
-
+const currentTab = ref('home')
+const notificationCount = ref(3)
 const showUserMenu = ref(false)
-const toggleUserMenu = () => {
-  showUserMenu.value = !showUserMenu.value
-}
+const unreadCount = ref(3)
 
 const userName = computed(() => {
   try {

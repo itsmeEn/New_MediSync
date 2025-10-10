@@ -23,29 +23,12 @@
                   {{ userProfile.full_name }}
                 </h2>
                 <p class="greeting-subtitle">See what's happening today - {{ currentDate }}</p>
-                <div class="greeting-stats">
-                  <div class="stat-item">
-                    <q-icon name="schedule" size="1.2rem" />
-                    <span>{{ dashboardStats.todayAppointments }} appointments today</span>
-                  </div>
-                  <div class="stat-item">
-                    <q-icon name="people" size="1.2rem" />
-                    <span>{{ dashboardStats.totalPatients }} total patients</span>
-                  </div>
-                </div>
               </div>
               <div class="greeting-avatar-section">
                 <q-avatar size="80px" class="doctor-avatar">
-                  <img v-if="userProfile.profile_picture" :src="userProfile.profile_picture" alt="Doctor" />
+                  <img v-if="userProfile.profile_picture" :src="getProfilePictureUrl(userProfile.profile_picture)" alt="Doctor" />
                   <q-icon v-else name="person" size="3rem" />
                 </q-avatar>
-                <div class="doctor-info">
-                  <div class="doctor-specialty">{{ userProfile.specialization || 'General Practice' }}</div>
-                  <div class="doctor-status">
-                    <q-icon name="circle" size="0.5rem" color="positive" />
-                    <span>Available</span>
-                  </div>
-                </div>
               </div>
             </div>
           </q-card-section>
@@ -126,7 +109,7 @@
 
       <!-- Upcoming Appointments Section -->
       <div class="upcoming-appointments-section q-mt-xl q-pa-lg">
-        <q-card class="appointments-card">
+        <q-card>
           <q-card-section>
             <div class="section-header">
               <h3 class="section-title">Upcoming Appointments</h3>
@@ -557,6 +540,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import { api } from '../boot/axios';
 import { useIntervalManager } from '../utils/intervalManager';
 import DoctorHeader from '../components/DoctorHeader.vue';
@@ -597,6 +581,7 @@ interface Assessment {
 }
 
 const $q = useQuasar();
+const router = useRouter();
 
 const rightDrawerOpen = ref(false);
 
@@ -698,6 +683,29 @@ const getTimeOfDay = () => {
   return 'evening';
 };
 
+// Get profile picture URL
+const getProfilePictureUrl = (profilePicture: string | null): string => {
+  if (!profilePicture) {
+    return '';
+  }
+
+  // If it's already a full URL, return as is
+  if (profilePicture.startsWith('http')) {
+    return profilePicture;
+  }
+
+  // Check if it's a relative path starting with /
+  if (profilePicture.startsWith('/')) {
+    // Use the API base URL from axios configuration
+    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+    return `${baseURL}${profilePicture}`;
+  }
+
+  // If it's a relative path without leading slash, add it
+  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+  return `${baseURL}/${profilePicture}`;
+};
+
 // Current date for greeting
 const currentDate = computed(() => {
   const now = new Date();
@@ -740,6 +748,29 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
+    // Role verification - ensure only doctors can access this dashboard
+    if (userData.role !== 'doctor') {
+      $q.notify({
+        type: 'negative',
+        message: 'Access denied. This dashboard is only available for doctors.',
+        timeout: 3000,
+      });
+      
+      // Redirect based on user role
+      switch (userData.role) {
+        case 'patient':
+          await router.push('/patient-dashboard');
+          break;
+        case 'nurse':
+          await router.push('/nurse-dashboard');
+          break;
+        default:
+          await router.push('/login');
+          break;
+      }
+      return;
+    }
+
     // Check localStorage for updated profile picture
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -763,6 +794,30 @@ const fetchUserProfile = async () => {
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
+      
+      // Role verification for localStorage fallback
+      if (user.role !== 'doctor') {
+        $q.notify({
+          type: 'negative',
+          message: 'Access denied. This dashboard is only available for doctors.',
+          timeout: 3000,
+        });
+        
+        // Redirect based on user role
+        switch (user.role) {
+          case 'patient':
+            await router.push('/patient-dashboard');
+            break;
+          case 'nurse':
+            await router.push('/nurse-dashboard');
+            break;
+          default:
+            await router.push('/login');
+            break;
+        }
+        return;
+      }
+
       userProfile.value = {
         id: user.id,
         full_name: user.full_name,
@@ -777,10 +832,13 @@ const fetchUserProfile = async () => {
     } else {
       $q.notify({
         type: 'negative',
-        message: 'Failed to load user profile',
+        message: 'Failed to load user profile. Please log in again.',
         position: 'top',
         timeout: 3000,
       });
+      
+      // Redirect to login if no user data is available
+      await router.push('/login');
     }
   }
 };
@@ -1636,10 +1694,9 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-/* Page Container with Background */
+/* Page Container with Clean White Background */
 .page-container-with-fixed-header {
-  background: #f8f9fa;
-  background-size: cover;
+  background: #ffffff;
   min-height: 100vh;
   position: relative;
 }
@@ -1653,9 +1710,9 @@ onUnmounted(() => {
   height: 100%;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.25) 0%,
-    rgba(248, 249, 250, 0.15) 50%,
-    rgba(240, 242, 245, 0.08) 100%
+    rgba(248, 250, 252, 0.8) 0%,
+    rgba(241, 245, 249, 0.6) 50%,
+    rgba(248, 250, 252, 0.4) 100%
   );
   z-index: 0;
   pointer-events: none;
@@ -1666,23 +1723,31 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* Greeting Section */
+/* Enhanced Greeting Section */
 .greeting-section {
-  padding: 24px;
+  padding: 32px 24px 24px 24px;
   background: transparent;
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.1);
+  box-shadow: 
+    0 10px 25px rgba(40, 102, 96, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  min-height: 160px;
 }
 
 .greeting-card::before {
@@ -1692,8 +1757,22 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
-  border-radius: 16px 16px 0 0;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
+}
+
+.greeting-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 
+    0 20px 40px rgba(40, 102, 96, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.2);
 }
 
 .greeting-content {
@@ -1714,14 +1793,19 @@ onUnmounted(() => {
 .greeting-text {
   font-size: 28px;
   font-weight: 700;
-  color: #333;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #286660 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin: 0 0 8px 0;
+  line-height: 1.2;
 }
 
 .greeting-subtitle {
   font-size: 16px;
-  color: #666;
+  color: #64748b;
   margin: 0 0 16px 0;
+  font-weight: 500;
 }
 
 .greeting-stats {
@@ -1777,20 +1861,17 @@ onUnmounted(() => {
 
 /* Dashboard Cards Section */
 .dashboard-cards-section {
-  padding: 24px;
+  padding: 0 24px 24px;
+  background: transparent;
 }
-
-
 
 .dashboard-cards-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  max-width: 1200px;
+  gap: 26px;
   margin: 0 auto;
 }
 
-/* Glassmorphism Dashboard Cards */
 .dashboard-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(20px);
@@ -1801,7 +1882,7 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: hidden;
   position: relative;
-  min-height: 140px;
+  min-height: 240px;
 }
 
 .dashboard-card::before {
@@ -1825,6 +1906,30 @@ onUnmounted(() => {
 
 .dashboard-card:hover::before {
   opacity: 1;
+}
+
+/* Enhanced Card Styling with Medical Theme */
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .card-content {
@@ -1874,36 +1979,172 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
-/* Card-specific colors */
-.appointments-card .card-icon {
-  color: #2196f3;
+.filter-controls {
+  display: flex;
+  gap: 8px;
 }
+
+.status-filter .q-btn {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #333;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.status-filter .q-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.status-filter .q-btn.active-filter {
+  background: #286660;
+  color: white;
+  border-color: #286660;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #666;
+}
+
+.empty-state h4 {
+  margin: 16px 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Card-specific gradient backgrounds and colors */
+.appointments-card::before {
+  background: linear-gradient(90deg, #2196f3, #42a5f5, #90caf9);
+}
+
+.patients-card::before {
+  background: linear-gradient(90deg, #4caf50, #66bb6a, #a5d6a7);
+}
+
+.completed-card::before {
+  background: linear-gradient(90deg, #ff9800, #ffb74d, #ffcc80);
+}
+
+.assessment-card::before {
+  background: linear-gradient(90deg, #9c27b0, #ba68c8, #e1bee7);
+}
+
+/* Enhanced Card Backgrounds with Medical Theme */
+.appointments-card {
+  background: linear-gradient(135deg, 
+    rgba(33, 150, 243, 0.15) 0%, 
+    rgba(66, 165, 245, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.appointments-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(33, 150, 243, 0.25) 0%, 
+    rgba(66, 165, 245, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.5);
+}
+
+.patients-card {
+  background: linear-gradient(135deg, 
+    rgba(76, 175, 80, 0.15) 0%, 
+    rgba(102, 187, 106, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.patients-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(76, 175, 80, 0.25) 0%, 
+    rgba(102, 187, 106, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.completed-card {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.15) 0%, 
+    rgba(255, 183, 77, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.completed-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.25) 0%, 
+    rgba(255, 183, 77, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.5);
+}
+
+.assessment-card {
+  background: linear-gradient(135deg, 
+    rgba(156, 39, 176, 0.15) 0%, 
+    rgba(186, 104, 200, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.assessment-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(156, 39, 176, 0.25) 0%, 
+    rgba(186, 104, 200, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.5);
+}
+
+/* Card-specific value colors with text shadows */
 .appointments-card .card-value {
   color: #2196f3;
+  text-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.patients-card .card-value {
+  color: #4caf50;
+  text-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+}
+
+.completed-card .card-value {
+  color: #ff9800;
+  text-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+}
+
+.assessment-card .card-value {
+  color: #9c27b0;
+  text-shadow: 0 2px 4px rgba(156, 39, 176, 0.3);
+}
+
+/* Card-specific icon colors with drop shadows */
+.appointments-card .card-icon {
+  color: #2196f3;
+  filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.4));
 }
 
 .patients-card .card-icon {
   color: #4caf50;
-}
-.patients-card .card-value {
-  color: #4caf50;
+  filter: drop-shadow(0 2px 4px rgba(76, 175, 80, 0.4));
 }
 
 .completed-card .card-icon {
   color: #ff9800;
-}
-.completed-card .card-value {
-  color: #ff9800;
+  filter: drop-shadow(0 2px 4px rgba(255, 152, 0, 0.4));
 }
 
 .assessment-card .card-icon {
   color: #9c27b0;
+  filter: drop-shadow(0 2px 4px rgba(156, 39, 176, 0.4));
 }
-.assessment-card .card-value {
-  color: #9c27b0;
-}
-
-
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -2047,6 +2288,70 @@ onUnmounted(() => {
   .card-icon {
     margin-left: 0;
     align-self: flex-end;
+  }
+
+  /* Enhanced mobile card styling */
+  .dashboard-card {
+    min-height: 200px;
+    border-radius: 20px;
+  }
+
+  .dashboard-card:hover {
+    transform: translateY(-4px) scale(1.01);
+  }
+}
+
+/* Mobile Portrait - Single Column */
+@media (max-width: 480px) {
+  .dashboard-cards-section {
+    padding: 0 12px 12px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card-content {
+    padding: 16px;
+  }
+
+  .card-title {
+    font-size: 16px;
+  }
+
+  .card-description {
+    font-size: 12px;
+  }
+
+  .card-value {
+    font-size: 24px;
+  }
+
+  .dashboard-card {
+    min-height: 160px;
+    border-radius: 16px;
+  }
+
+  .upcoming-appointments-section {
+    margin: 16px 12px;
+  }
+
+  .upcoming-appointments-section .q-card {
+    border-radius: 20px;
+  }
+
+  .section-header {
+    padding: 20px 16px 12px 16px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+
+  .appointment-card {
+    margin: 6px 12px;
+    border-radius: 12px;
   }
 }
 
@@ -2651,6 +2956,103 @@ onUnmounted(() => {
   .q-spinner {
     margin: 16px auto;
   }
+}
+
+/* Upcoming Appointments Section - Enhanced Design */
+.upcoming-appointments-section .q-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.upcoming-appointments-section .q-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 24px 24px 0 0;
+  opacity: 1;
+}
+
+.section-header {
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  margin: 8px 16px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.appointment-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 
+    0 12px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.appointment-card .q-item-section--avatar .q-avatar {
+  border: 2px solid rgba(40, 102, 96, 0.3);
+  box-shadow: 0 2px 8px rgba(40, 102, 96, 0.2);
+}
+
+.appointment-card .q-chip {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.15) 0%, 
+    rgba(255, 255, 255, 0.2) 100%) !important;
+  color: #286660 !important;
+  border: 1px solid rgba(40, 102, 96, 0.3);
+  backdrop-filter: blur(10px);
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card .q-btn {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.15) 0%, 
+    rgba(255, 255, 255, 0.2) 100%);
+  color: #286660;
+  border: 1px solid rgba(40, 102, 96, 0.3);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card .q-btn:hover {
+  background: linear-gradient(135deg, #286660, #3d8b7c);
+  color: white;
+  border-color: #286660;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.3);
 }
 
 /* Notification styles */

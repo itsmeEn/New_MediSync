@@ -269,121 +269,69 @@
       <div class="dashboard-cards-section">
         <div class="dashboard-cards-grid">
           <!-- Patient Medical Records Card -->
-          <q-card class="dashboard-card medical-records-card enhanced-card cursor-pointer" @click="viewMedicalRequests">
-            <div class="card-gradient-bg medical-gradient"></div>
-            <q-card-section class="card-content enhanced-content">
-              <div class="card-header">
-                <div class="card-icon-container medical-icon-bg">
-                  <q-icon name="assignment" size="2rem" class="card-icon-enhanced" />
-                </div>
-                <div class="card-badge">
-                  <q-chip size="sm" color="purple-2" text-color="purple-8" icon="pending">
-                    Pending
-                  </q-chip>
+          <q-card class="dashboard-card medical-records-card" @click="viewMedicalRequests">
+            <q-card-section class="card-content">
+              <div class="card-text">
+                <div class="card-title">Patient Medical Records</div>
+                <div class="card-description">Based on completed assessments</div>
+                <div class="card-value">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>0</span>
                 </div>
               </div>
-              <div class="card-body">
-                <div class="card-title-enhanced">Patient Medical Records</div>
-                <div class="card-value-container">
-                  <div class="card-value-enhanced">
-                    <q-spinner v-if="statsLoading" size="md" color="purple" />
-                    <span v-else class="value-number">{{ dashboardStats.medicalRecords || 0 }}</span>
-                  </div>
-                  <div class="card-trend">
-                    <q-icon name="email" size="sm" color="primary" />
-                    <span class="trend-text">Click to view</span>
-                  </div>
-                </div>
+              <div class="card-icon">
+                <q-icon name="assignment" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
           <!-- Today's Schedule Card -->
-          <q-card class="dashboard-card schedule-card enhanced-card">
-            <div class="card-gradient-bg schedule-gradient"></div>
-            <q-card-section class="card-content enhanced-content">
-              <div class="card-header">
-                <div class="card-icon-container schedule-icon-bg">
-                  <q-icon name="calendar_today" size="2rem" class="card-icon-enhanced" />
-                </div>
-                <div class="card-badge">
-                  <q-chip size="sm" color="pink-2" text-color="pink-8" icon="schedule">
-                    Today
-                  </q-chip>
+          <q-card class="dashboard-card schedule-card">
+            <q-card-section class="card-content">
+              <div class="card-text">
+                <div class="card-title">Today's Schedule</div>
+                <div class="card-description">All transaction history</div>
+                <div class="card-value">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>0</span>
                 </div>
               </div>
-              <div class="card-body">
-                <div class="card-title-enhanced">Today's Schedule</div>
-                <div class="card-value-container">
-                  <div class="card-value-enhanced">
-                    <q-spinner v-if="statsLoading" size="md" color="pink" />
-                    <span v-else class="value-number">{{ dashboardStats.todayAppointments || 28 }}</span>
-                  </div>
-                  <div class="card-trend">
-                    <q-icon name="access_time" size="sm" color="info" />
-                    <span class="trend-text">8 pending</span>
-                  </div>
-                </div>
+              <div class="card-icon">
+                <q-icon name="calendar_today" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
-          <!-- Performance Score Card -->
-          <q-card class="dashboard-card performance-card enhanced-card">
-            <div class="card-gradient-bg performance-gradient"></div>
-            <q-card-section class="card-content enhanced-content">
-              <div class="card-header">
-                <div class="card-icon-container performance-icon-bg">
-                  <q-icon name="analytics" size="2rem" class="card-icon-enhanced" />
-                </div>
-                <div class="card-badge">
-                  <q-chip size="sm" color="cyan-2" text-color="cyan-8" icon="star">
-                    Excellent
-                  </q-chip>
+          <!-- Total Cancelled Appointments Card -->
+          <q-card class="dashboard-card performance-card">
+            <q-card-section class="card-content">
+              <div class="card-text">
+                <div class="card-title">Total Cancelled Appointments</div>
+                <div class="card-description">All cancelled appointments</div>
+                <div class="card-value">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>0</span>
                 </div>
               </div>
-              <div class="card-body">
-                <div class="card-title-enhanced">Performance Score</div>
-                <div class="card-value-container">
-                  <div class="card-value-enhanced">
-                    <q-spinner v-if="statsLoading" size="md" color="cyan" />
-                    <span v-else class="value-number">{{ dashboardStats.performanceScore || '94%' }}</span>
-                  </div>
-                  <div class="card-trend">
-                    <q-icon name="trending_up" size="sm" color="positive" />
-                    <span class="trend-text">+5.2%</span>
-                  </div>
-                </div>
+              <div class="card-icon">
+                <q-icon name="cancel" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
           <!-- Notifications Card -->
-          <q-card class="dashboard-card notifications-card enhanced-card">
-            <div class="card-gradient-bg notifications-gradient"></div>
-            <q-card-section class="card-content enhanced-content">
-              <div class="card-header">
-                <div class="card-icon-container notifications-icon-bg">
-                  <q-icon name="notifications_active" size="2rem" class="card-icon-enhanced" />
-                </div>
-                <div class="card-badge">
-                  <q-chip size="sm" color="green-2" text-color="green-8" icon="priority_high">
-                    Urgent
-                  </q-chip>
+          <q-card class="dashboard-card notifications-card">
+            <q-card-section class="card-content">
+              <div class="card-text">
+                <div class="card-title">Notifications</div>
+                <div class="card-description">Currently being assessed by nurses</div>
+                <div class="card-value">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>0</span>
                 </div>
               </div>
-              <div class="card-body">
-                <div class="card-title-enhanced">Notifications</div>
-                <div class="card-value-container">
-                  <div class="card-value-enhanced">
-                    <q-spinner v-if="statsLoading" size="md" color="green" />
-                    <span v-else class="value-number">{{ dashboardStats.notifications || 12 }}</span>
-                  </div>
-                  <div class="card-trend">
-                    <q-icon name="fiber_new" size="sm" color="warning" />
-                    <span class="trend-text">3 new</span>
-                  </div>
-                </div>
+              <div class="card-icon">
+                <q-icon name="notifications_active" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
@@ -812,11 +760,21 @@ const profilePictureUrl = computed(() => {
     return null;
   }
 
+  // If it's already a full URL, return as is
   if (userProfile.value.profile_picture.startsWith('http')) {
     return userProfile.value.profile_picture;
   }
 
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
+  // Check if it's a relative path starting with /
+  if (userProfile.value.profile_picture.startsWith('/')) {
+    // Use the API base URL from axios configuration
+    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+    return `${baseURL}${userProfile.value.profile_picture}`;
+  }
+
+  // If it's a relative path without leading slash, add it
+  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+  return `${baseURL}/${userProfile.value.profile_picture}`;
 });
 
 const userInitials = computed(() => {
@@ -2617,18 +2575,14 @@ onUnmounted(() => {
 .dashboard-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(20px);
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  cursor: pointer;
   overflow: hidden;
   position: relative;
-  cursor: pointer;
-}
-
-.dashboard-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  min-height: 240px;
 }
 
 .dashboard-card::before {
@@ -2638,7 +2592,20 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  border-radius: 20px 20px 0 0;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.dashboard-card:hover::before {
+  opacity: 1;
 }
 
 /* Doctor-Centric Medical Color Schemes */
@@ -2651,7 +2618,7 @@ onUnmounted(() => {
 }
 
 .performance-card::before {
-  background: linear-gradient(90deg, #1e88e5, #42a5f5, #64b5f6);
+  background: linear-gradient(90deg, #f44336, #e57373, #ffcdd2);
 }
 
 .notifications-card::before {
@@ -2683,45 +2650,38 @@ onUnmounted(() => {
 }
 
 .card-content {
-  padding: 26px;
+  padding: 24px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  min-height: 120px;
+  align-items: center;
+  height: 100%;
 }
 
 .card-text {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .card-title {
   font-size: 18px;
-  font-weight: 800;
-  color: #286660;
-  margin: 0;
-  line-height: 1.2;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  line-height: 1.3;
 }
 
 .card-description {
-  font-size: 13px;
-  color: #5a8a82;
-  margin: 0;
-  line-height: 1.3;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.4;
+  margin-bottom: 8px;
 }
 
 .card-value {
   font-size: 32px;
   font-weight: 700;
-  color: #1a4e47;
-  margin: 8px 0 0 0;
+  color: #286660;
   line-height: 1;
-  text-shadow: 0 2px 4px rgba(26, 78, 71, 0.2);
+  margin-top: 8px;
 }
 
 /* Card-specific value colors */
@@ -2736,8 +2696,8 @@ onUnmounted(() => {
 }
 
 .performance-card .card-value {
-  color: #1e88e5;
-  text-shadow: 0 2px 4px rgba(30, 136, 229, 0.3);
+  color: #f44336;
+  text-shadow: 0 2px 4px rgba(244, 67, 54, 0.3);
 }
 
 .notifications-card .card-value {
@@ -2746,12 +2706,14 @@ onUnmounted(() => {
 }
 
 .card-icon {
-  opacity: 0.7;
+  margin-left: 16px;
+  color: #286660;
+  opacity: 0.8;
   transition: all 0.3s ease;
 }
 
 .dashboard-card:hover .card-icon {
-  opacity: 0.9;
+  opacity: 1;
   transform: scale(1.1);
 }
 
@@ -2767,8 +2729,8 @@ onUnmounted(() => {
 }
 
 .performance-card .card-icon {
-  color: #1e88e5;
-  filter: drop-shadow(0 2px 4px rgba(30, 136, 229, 0.4));
+  color: #f44336;
+  filter: drop-shadow(0 2px 4px rgba(244, 67, 54, 0.4));
 }
 
 .notifications-card .card-icon {
@@ -2811,18 +2773,18 @@ onUnmounted(() => {
 
 .performance-card {
   background: linear-gradient(135deg, 
-    rgba(30, 136, 229, 0.15) 0%, 
-    rgba(66, 165, 245, 0.1) 25%,
+    rgba(244, 67, 54, 0.15) 0%, 
+    rgba(229, 115, 115, 0.1) 25%,
     rgba(255, 255, 255, 0.2) 100%);
-  border: 1px solid rgba(30, 136, 229, 0.3);
+  border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
 .performance-card:hover {
   background: linear-gradient(135deg, 
-    rgba(30, 136, 229, 0.25) 0%, 
-    rgba(66, 165, 245, 0.2) 25%,
+    rgba(244, 67, 54, 0.25) 0%, 
+    rgba(229, 115, 115, 0.2) 25%,
     rgba(255, 255, 255, 0.3) 100%);
-  border: 1px solid rgba(30, 136, 229, 0.5);
+  border: 1px solid rgba(244, 67, 54, 0.5);
 }
 
 .notifications-card {
@@ -2936,7 +2898,7 @@ onUnmounted(() => {
 
   .card-content {
     padding: 16px;
-    min-height: 90px;
+    min-height: 180px;
   }
 
   .card-title {
@@ -2969,7 +2931,7 @@ onUnmounted(() => {
 
   .card-content {
     padding: 22px;
-    min-height: 110px;
+    min-height: 220px;
   }
 
   .card-title {
@@ -3045,7 +3007,7 @@ onUnmounted(() => {
 
   .card-content {
     padding: 20px;
-    min-height: 100px;
+    min-height: 200px;
   }
 
   .card-title {
@@ -3078,7 +3040,7 @@ onUnmounted(() => {
 
   .card-content {
     padding: 16px;
-    min-height: 90px;
+    min-height: 180px;
   }
 
   .card-title {
@@ -3111,7 +3073,7 @@ onUnmounted(() => {
 
   .card-content {
     padding: 22px;
-    min-height: 110px;
+    min-height: 220px;
   }
 
   .card-title {

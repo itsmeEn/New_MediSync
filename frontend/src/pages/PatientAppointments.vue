@@ -1,162 +1,334 @@
 <template>
-  <q-layout view="hHh lpR fFf">
-    <!-- Tailwind-based Header replicating Random.html -->
-    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
-      <div class="flex justify-between items-center max-w-7xl mx-auto">
-        <!-- Left: Logo + Title -->
-        <div class="flex items-center space-x-3 text-white">
-          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
-          <div>
-            <p class="text-lg font-semibold leading-none">Patient Portal</p>
-            <p class="text-sm font-light text-teal-300 leading-none">Healthcare Dashboard</p>
-          </div>
-        </div>
+  <q-layout view="lHh Lpr lFf">
+    <!-- Patient Portal Header -->
+    <q-header class="bg-blue-8 text-white" style="height: 70px;">
+      <q-toolbar class="q-px-md" style="height: 70px;">
+        <q-avatar size="40px" class="q-mr-md">
+          <img :src="logoUrl" alt="Logo" />
+        </q-avatar>
         
-        <!-- Right: Notification Bell + User Profile -->
-        <div class="flex items-center space-x-2">
-          <button class="relative p-2 rounded-lg hover:bg-teal-700 text-white" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span v-if="unreadCount > 0" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-1">{{ unreadCount }}</span>
-          </button>
-          <div class="relative">
-            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
-              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
-                {{ userInitials }}
-              </div>
-              <div class="text-left">
-                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
-                <p class="text-xs text-teal-300 leading-none">Patient</p>
-              </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
-            </button>
-
-            <!-- Dropdown Menu -->
-            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
-              <a href="#" @click.prevent="navigateTo('/patient-settings'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="settings" class="w-4 h-4 text-teal-600"></i>
-                <span>Settings</span>
-              </a>
-              <a href="#" @click.prevent="navigateTo('/patient-settings#faq'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="help-circle" class="w-4 h-4 text-teal-600"></i>
-                <span>FAQ</span>
-              </a>
-              <div class="border-t border-gray-100 my-2"></div>
-              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-                <span>Logout</span>
-              </a>
-            </div>
-          </div>
+        <div class="column q-mr-auto">
+          <div class="text-h6 text-weight-medium">Patient Portal</div>
+          <div class="text-caption opacity-80">Healthcare Dashboard</div>
         </div>
-      </div>
-    </header>
+
+        <!-- Notification Icon -->
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+          <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
+        </q-btn>
+
+        <!-- User Menu -->
+        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
+          <q-avatar size="32px" class="bg-white text-blue-8">
+            <div class="text-weight-bold">{{ userInitials }}</div>
+          </q-avatar>
+        </q-btn>
+
+        <!-- User Dropdown Menu -->
+        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
+          <q-list style="min-width: 200px">
+            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
+            <q-separator />
+            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+              <q-item-section avatar>
+                <q-icon name="settings" />
+              </q-item-section>
+              <q-item-section>Settings</q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="logout">
+              <q-item-section avatar>
+                <q-icon name="logout" />
+              </q-item-section>
+              <q-item-section>Logout</q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+      </q-toolbar>
+    </q-header>
 
     <q-page-container>
-      <q-page class="bg-teal-50 q-pa-md pb-safe">
-        <div class="max-w-7xl mx-auto">
-          <!-- Page Title matching Random.html -->
-          <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-4 md:mb-6">Manage Your Appointments</h1>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Left: New Appointment card -->
-            <div class="md:col-span-1">
-              <div class="bg-teal-700 text-white rounded-xl shadow-xl p-6 flex flex-col justify-between h-full">
-                <div>
-                  <div class="flex items-center gap-3 mb-4">
-                    <i data-lucide="calendar-plus" class="w-6 h-6"></i>
-                    <p class="text-xl font-semibold">New Appointment</p>
-                  </div>
-                  <p class="text-sm text-teal-100">Schedule your next consultation, lab test, or procedure quickly.</p>
-                </div>
-                <div class="mt-6">
-                  <button class="w-full bg-white text-teal-700 font-semibold px-4 py-3 rounded-lg shadow hover:shadow-md transition" @click="navigateTo('/patient-appointment-schedule')">Book Now</button>
-                </div>
-              </div>
+      <q-page class="bg-grey-1 q-pa-md">
+        <!-- Mobile-First Content -->
+        <div class="q-pa-md">
+          <!-- Page Title -->
+          <div class="q-mb-lg">
+            <div class="text-h4 text-teal-8 text-weight-bold q-mb-xs">
+              Manage Your Appointments
             </div>
-
-            <!-- Right: Upcoming list + filters -->
-            <div class="md:col-span-2">
-              <div class="bg-white rounded-xl shadow-xl p-6">
-                <!-- Segmented pills container -->
-                <div class="inline-flex border border-gray-300 rounded-xl overflow-hidden mb-4">
-                  <button :class="['px-4 py-2 text-sm font-medium', selectedStatus === 'upcoming' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700']" @click="selectedStatus = 'upcoming'">Upcoming</button>
-                  <button :class="['px-4 py-2 text-sm font-medium border-l border-gray-300', selectedStatus === 'completed' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700']" @click="selectedStatus = 'completed'">Completed</button>
-                  <button :class="['px-4 py-2 text-sm font-medium border-l border-gray-300', selectedStatus === 'cancelled' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700']" @click="selectedStatus = 'cancelled'">Cancelled</button>
-                </div>
-
-                <h2 class="text-xl font-semibold text-gray-900 mb-3">{{ capitalize(selectedStatus) }} Appointments ({{ filteredAppointments.length }})</h2>
-
-                <!-- List -->
-                <div class="space-y-3">
-                  <div v-for="appt in filteredAppointments" :key="appt.id" class="bg-teal-50 rounded-lg p-4 shadow-sm border border-teal-100 hover:bg-teal-100/60 transition cursor-pointer" @click="openAppointment(appt)">
-                    <div class="flex items-center justify-between">
-                      <div class="flex-1">
-                        <div class="flex gap-2">
-                          <span class="w-1 rounded bg-teal-600"></span>
-                          <div>
-                            <p class="font-semibold text-gray-900">{{ appt.type || 'Appointment' }}</p>
-                            <p class="text-sm text-gray-700">{{ appt.department }} | {{ formatDate(appt.date) }} at {{ appt.time }}</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <q-btn dense round flat icon="edit" color="teal" v-if="appt.status === 'upcoming'" @click.stop="openEdit(appt)">
-                          <q-tooltip>Edit</q-tooltip>
-                        </q-btn>
-                        <i data-lucide="chevron-right" class="w-5 h-5 text-teal-700"></i>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div v-if="filteredAppointments.length === 0" class="text-center text-gray-500 text-sm py-6">
-                    No appointments found.
-                  </div>
-                </div>
-              </div>
+            <div class="text-grey-6">
+              View and manage your upcoming, completed, and cancelled appointments
             </div>
           </div>
+
+          <!-- New Appointment Card -->
+          <q-card class="q-mb-lg" flat bordered>
+            <q-card-section class="row items-center">
+              <q-avatar size="48px" color="teal" text-color="white" icon="add" />
+              
+              <div class="col q-ml-md">
+                <div class="text-h6 text-teal-8">Schedule New Appointment</div>
+                <div class="text-grey-6">Book your next medical appointment</div>
+              </div>
+              
+              <q-btn 
+                unelevated 
+                color="teal" 
+                label="Book Now" 
+                icon-right="arrow_forward"
+                @click="navigateTo('/patient-appointment-schedule')"
+              />
+            </q-card-section>
+          </q-card>
+
+          <!-- Mobile-Optimized Filter Tabs -->
+          <q-card flat bordered class="q-mb-lg">
+            <q-tabs 
+              v-model="selectedStatus" 
+              dense 
+              class="text-teal-8"
+              active-color="teal"
+              indicator-color="teal"
+              align="justify"
+            >
+              <q-tab name="upcoming" label="Upcoming" />
+              <q-tab name="completed" label="Completed" />
+              <q-tab name="cancelled" label="Cancelled" />
+            </q-tabs>
+          </q-card>
+
+          <!-- Search Bar -->
+          <q-input 
+            v-model="search" 
+            outlined 
+            placeholder="Search appointments..." 
+            class="q-mb-lg"
+            color="teal"
+          >
+            <template v-slot:prepend>
+              <q-icon name="search" />
+            </template>
+          </q-input>
+
+          <!-- Pull to Refresh -->
+          <q-pull-to-refresh @refresh="onRefresh">
+            <!-- Mobile-Optimized Appointments List -->
+            <q-card flat bordered>
+              <q-card-section>
+                <div class="text-h6 text-grey-8 q-mb-md">
+                  {{ capitalize(selectedStatus) }} Appointments
+                </div>
+                
+                <q-list separator v-if="filteredAppointments.length > 0">
+                  <q-item 
+                    v-for="appt in filteredAppointments" 
+                    :key="appt.id"
+                    clickable
+                    @click="openAppointment(appt)"
+                    class="q-pa-md"
+                  >
+                    <q-item-section avatar>
+                      <q-avatar 
+                        size="12px" 
+                        :color="appt.status === 'upcoming' ? 'green' : appt.status === 'completed' ? 'blue' : 'red'"
+                      />
+                    </q-item-section>
+
+                    <q-item-section>
+                      <q-item-label class="text-weight-medium">
+                        {{ getDepartmentLabel(appt.department) }}
+                      </q-item-label>
+                      <q-item-label caption>
+                        {{ getAppointmentTypeLabel(appt.type) }}
+                      </q-item-label>
+                      <q-item-label caption class="row items-center q-gutter-md q-mt-xs">
+                        <div class="row items-center">
+                          <q-icon name="event" size="16px" class="q-mr-xs" />
+                          {{ formatDate(appt.date) }}
+                        </div>
+                        <div class="row items-center">
+                          <q-icon name="schedule" size="16px" class="q-mr-xs" />
+                          {{ appt.time }}
+                        </div>
+                      </q-item-label>
+                    </q-item-section>
+
+                    <q-item-section side v-if="appt.status === 'upcoming'">
+                      <q-btn 
+                        flat 
+                        round 
+                        dense 
+                        icon="edit" 
+                        color="teal" 
+                        @click.stop="openEdit(appt)"
+                      >
+                        <q-tooltip>Edit</q-tooltip>
+                      </q-btn>
+                    </q-item-section>
+
+                    <q-item-section side>
+                      <q-icon name="chevron_right" color="teal" />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+
+                <div v-else class="text-center text-grey-6 q-py-xl">
+                  <q-icon name="event_busy" size="48px" class="q-mb-md" />
+                  <div>No appointments found.</div>
+                </div>
+              </q-card-section>
+            </q-card>
+          </q-pull-to-refresh>
         </div>
       </q-page>
     </q-page-container>
 
-    <!-- Cancel Confirmation Modal -->
-    <q-dialog v-model="showCancelDialog">
-      <q-card>
-        <q-card-section>
-          <div class="text-h6">Cancel Appointment</div>
-          <div class="text-caption">Are you sure you want to cancel this appointment?</div>
+    <!-- Mobile-Optimized Cancel Confirmation Modal -->
+    <q-dialog 
+      v-model="showCancelDialog"
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="warning" color="red" size="24px" />
+          <div class="text-h6 q-ml-sm">Cancel Appointment</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup color="grey-7" />
         </q-card-section>
-        <q-separator />
-        <q-card-actions align="right">
-          <q-btn flat color="grey" label="Close" v-close-popup />
-          <q-btn color="negative" label="Cancel Appointment" @click="confirmCancel" />
+
+        <q-card-section>
+          <div class="text-body2 q-mb-md">
+            Are you sure you want to cancel this appointment?
+          </div>
+          
+          <q-list v-if="selectedAppointment" bordered>
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="category" color="red" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Type</q-item-label>
+                <q-item-label caption>{{ getAppointmentTypeLabel(selectedAppointment.type) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="business" color="red" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Department</q-item-label>
+                <q-item-label caption>{{ getDepartmentLabel(selectedAppointment.department) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            
+            <q-item>
+              <q-item-section avatar>
+                <q-icon name="event" color="red" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>Date & Time</q-item-label>
+                <q-item-label caption>{{ formatDate(selectedAppointment.date) }} at {{ selectedAppointment.time }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Keep Appointment" color="grey-7" v-close-popup />
+          <q-btn unelevated label="Yes, Cancel" color="red" @click="confirmCancel" />
         </q-card-actions>
       </q-card>
     </q-dialog>
 
-    <!-- Reschedule Modal -->
-    <q-dialog v-model="showRescheduleDialog">
-      <q-card style="min-width: 320px">
-        <q-card-section>
-          <div class="text-h6">Reschedule Appointment</div>
-          <div class="text-caption">Do you want to reschedule with the same cancelled time or create a new appointment?</div>
+    <!-- Mobile-Optimized Reschedule Modal -->
+    <q-dialog 
+      v-model="showRescheduleDialog"
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="schedule" color="teal" size="24px" />
+          <div class="text-h6 q-ml-sm">Reschedule Options</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup color="grey-7" />
         </q-card-section>
-        <q-separator />
+
         <q-card-section>
-          <div class="q-gutter-sm">
-            <q-option-group v-model="rescheduleChoice" type="radio" :options="[
-              { label: 'Same time, choose new date', value: 'same_time' },
-              { label: 'Create new appointment', value: 'new_appt' }
-            ]" />
-            <div v-if="rescheduleChoice === 'same_time'" class="q-mt-sm">
-              <q-input v-model="rescheduleDate" label="New Date" mask="####-##-##" placeholder="YYYY-MM-DD" />
-            </div>
+          <div class="text-body2 q-mb-md">
+            Choose how you'd like to reschedule your appointment:
+          </div>
+          
+          <div class="q-gutter-md">
+            <q-btn 
+              unelevated 
+              color="teal" 
+              icon="event" 
+              label="Reschedule with Same Time"
+              class="full-width"
+              @click="rescheduleWithSameTime"
+            />
+            
+            <q-btn 
+              unelevated 
+              color="teal" 
+              icon="add" 
+              label="Create New Appointment"
+              class="full-width"
+              @click="createNewAppointment"
+            />
           </div>
         </q-card-section>
-        <q-separator />
-        <q-card-actions align="right">
-          <q-btn flat color="grey" label="Close" v-close-popup />
-          <q-btn color="primary" label="Save" @click="confirmReschedule" />
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Close" color="grey-7" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Mobile-Optimized Enhanced Cancellation Modal -->
+    <q-dialog 
+      v-model="showEnhancedCancelDialog"
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="cancel" color="red" size="24px" />
+          <div class="text-h6 q-ml-sm">Cancel Options</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup color="grey-7" />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="text-body2 q-mb-md">
+            What would you like to do with this appointment?
+          </div>
+          
+          <div class="q-gutter-md">
+            <q-btn 
+              unelevated 
+              color="orange" 
+              icon="schedule" 
+              label="Cancel and Reschedule"
+              class="full-width"
+              @click="cancellationChoice = 'reschedule'; confirmEnhancedCancel()"
+            />
+            
+            <q-btn 
+              unelevated 
+              color="red" 
+              icon="cancel" 
+              label="Cancel Only"
+              class="full-width"
+              @click="cancellationChoice = 'cancel_only'; confirmEnhancedCancel()"
+            />
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Close" color="grey-7" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -238,6 +410,37 @@
       </q-card>
     </q-dialog>
 
+    <!-- Mobile-Optimized Calendar Modal -->
+    <q-dialog 
+      v-model="showCalendarModal"
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="event" color="teal" size="24px" />
+          <div class="text-h6 q-ml-sm">Select New Date</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup color="grey-7" />
+        </q-card-section>
+
+        <q-card-section>
+          <q-date 
+            v-model="selectedDate" 
+            :options="dateOptions"
+            color="teal"
+            class="full-width"
+            :landscape="$q.screen.gt.xs"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancel" color="grey-7" v-close-popup />
+          <q-btn unelevated label="Confirm Date" color="teal" @click="confirmDateSelection" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Calendar Modal for Reschedule -->
     <q-dialog v-model="showCalendarDialog">
       <q-card style="min-width: 350px">
@@ -268,30 +471,78 @@
       </q-card>
     </q-dialog>
 
-    <!-- Edit Appointment Dialog -->
-    <q-dialog v-model="showEditDialog">
-      <q-card style="min-width: 350px; max-width: 500px">
-        <q-card-section class="text-center">
-          <div class="text-h6 text-teal-700 font-bold">Edit Appointment</div>
-          <div class="text-caption text-gray-600">Update date and time for your upcoming appointment</div>
+    <!-- Mobile-Optimized Edit Appointment Modal -->
+    <q-dialog 
+      v-model="showEditDialog"
+      position="bottom"
+      :maximized="$q.platform.is.mobile"
+    >
+      <q-card class="q-dialog-plugin">
+        <q-card-section class="row items-center q-pb-none">
+          <q-icon name="edit" color="teal" size="24px" />
+          <div class="text-h6 q-ml-sm">Edit Appointment</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup color="grey-7" />
         </q-card-section>
-        <q-separator />
+
         <q-card-section>
-          <div class="q-gutter-md">
-            <q-input v-model="editDate" label="New Date" mask="####-##-##" placeholder="YYYY-MM-DD" outlined color="teal" />
-            <q-select 
-              v-model="editTime" 
-              :options="[...Array(24)].map((_, hour) => ({ label: `${String(hour).padStart(2,'0')}:00`, value: `${String(hour).padStart(2,'0')}:00` }))" 
-              label="New Time" 
-              outlined 
-              color="teal" 
+          <q-form class="q-gutter-md">
+            <q-input 
+              v-model="editForm.date" 
+              label="Date" 
+              mask="####-##-##" 
+              placeholder="YYYY-MM-DD"
+              outlined
+              :rules="[val => !!val || 'Date is required']"
+            >
+              <template v-slot:append>
+                <q-icon name="event" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-date v-model="editForm.date" mask="YYYY-MM-DD">
+                      <div class="row items-center justify-end">
+                        <q-btn v-close-popup label="Close" color="primary" flat />
+                      </div>
+                    </q-date>
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
+            
+            <q-input 
+              v-model="editForm.time" 
+              label="Time" 
+              mask="##:##" 
+              placeholder="HH:MM"
+              outlined
+              :rules="[val => !!val || 'Time is required']"
+            >
+              <template v-slot:append>
+                <q-icon name="access_time" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-time v-model="editForm.time" mask="HH:mm" format24h>
+                      <div class="row items-center justify-end">
+                        <q-btn v-close-popup label="Close" color="primary" flat />
+                      </div>
+                    </q-time>
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
+            
+            <q-input 
+              v-model="editForm.notes" 
+              label="Notes" 
+              type="textarea" 
+              outlined
+              rows="3"
+              placeholder="Add any additional notes..."
             />
-          </div>
+          </q-form>
         </q-card-section>
-        <q-separator />
+
         <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat color="grey-7" label="Cancel" v-close-popup />
-          <q-btn color="teal" label="Save Changes" @click="confirmEdit" />
+          <q-btn flat label="Cancel" color="grey-7" v-close-popup />
+          <q-btn unelevated label="Save Changes" color="teal" @click="saveEdit" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -304,33 +555,53 @@
       </div>
     </div>
 
-    <!-- Bottom Navigation with closer spacing -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
-      <div class="flex justify-center px-2 py-2">
-        <div class="flex items-center space-x-8">
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
-            <i data-lucide="list-ordered" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Queue</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
-            <i data-lucide="calendar-check" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Appointments</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Home</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Alerts</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
-            <i data-lucide="message-square" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Requests</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <!-- Mobile-First Bottom Navigation -->
+    <q-footer class="bg-teal-8">
+      <q-tabs 
+        v-model="currentTab" 
+        dense 
+        class="text-white"
+        active-color="white"
+        indicator-color="transparent"
+        align="justify"
+      >
+        <q-tab 
+          name="queue" 
+          icon="format_list_numbered" 
+          label="Queue"
+          @click="navigateTo('/patient-queue')"
+          no-caps
+        />
+        <q-tab 
+          name="appointments" 
+          icon="event" 
+          label="Appointments"
+          @click="navigateTo('/patient-appointments')"
+          no-caps
+        />
+        <q-tab 
+          name="home" 
+          icon="home" 
+          label="Home"
+          @click="navigateTo('/patient-dashboard')"
+          no-caps
+        />
+        <q-tab 
+          name="notifications" 
+          icon="notifications" 
+          label="Alerts"
+          @click="navigateTo('/patient-notifications')"
+          no-caps
+        />
+        <q-tab 
+          name="requests" 
+          icon="medical_services" 
+          label="Requests"
+          @click="navigateTo('/patient-medical-request')"
+          no-caps
+        />
+      </q-tabs>
+    </q-footer>
   </q-layout>
 </template>
 
@@ -338,8 +609,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.png'
 import { useAppointmentsStore } from '../stores/appointments'
+import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
 // removed: const activeTab = ref('appointments')
@@ -349,7 +620,7 @@ const search = ref('')
 const appointmentsStore = useAppointmentsStore()
 const unreadCount = ref<number>(0)
 const showUserMenu = ref(false)
-const toggleUserMenu = () => { showUserMenu.value = !showUserMenu.value }
+const currentTab = ref('appointments')
 
 interface Appointment {
   id: number
@@ -364,17 +635,23 @@ interface Appointment {
 const selectedAppointment = ref<Appointment | null>(null)
 const showCancelDialog = ref(false)
 const showRescheduleDialog = ref(false)
+const showEnhancedCancelDialog = ref(false)
 const showCalendarDialog = ref(false)
-const rescheduleChoice = ref<'same_time' | 'new_appt'>('same_time')
+const showCalendarModal = ref(false)
 const rescheduleDate = ref('')
+const selectedDate = ref('')
 const showSuccessTooltip = ref(false)
 const successMessage = ref('')
 const successTooltipClass = ref('')
+const cancellationChoice = ref('')
 
 // Edit modal state
 const showEditDialog = ref(false)
-const editDate = ref('')
-const editTime = ref('')
+const editForm = ref({
+  date: '',
+  time: '',
+  notes: ''
+})
 const editingAppointmentId = ref<number | null>(null)
 
 const userName = computed(() => {
@@ -421,6 +698,18 @@ const fetchUnreadCount = async () => {
     unreadCount.value = res.data?.count ?? 0
   } catch {
     unreadCount.value = 0
+  }
+}
+
+// Pull to refresh function
+const onRefresh = async (done: () => void) => {
+  try {
+    await fetchAppointments()
+    await fetchUnreadCount()
+  } catch (error) {
+    console.warn('Failed to refresh data', error)
+  } finally {
+    done()
   }
 }
 
@@ -491,15 +780,7 @@ function createNewAppointment() {
   navigateTo('/patient-appointment-schedule')
 }
 
-function confirmReschedule() {
-  if (rescheduleChoice.value === 'same_time') {
-    rescheduleWithSameTime()
-  } else if (rescheduleChoice.value === 'new_appt') {
-    createNewAppointment()
-  } else {
-    showRescheduleDialog.value = false
-  }
-}
+
 
 async function confirmRescheduleWithSameTime() {
   if (!selectedAppointment.value || !rescheduleDate.value) return
@@ -519,18 +800,50 @@ function openEdit(appt: Appointment) {
   const yyyy = d.getFullYear()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
-  editDate.value = `${yyyy}-${mm}-${dd}`
-  editTime.value = appt.time
+  editForm.value.date = `${yyyy}-${mm}-${dd}`
+  editForm.value.time = appt.time
+  editForm.value.notes = ''
   showEditDialog.value = true
 }
 
-async function confirmEdit() {
+async function saveEdit() {
   if (!editingAppointmentId.value) return
-  const isoDate = new Date(editDate.value).toISOString()
-  await appointmentsStore.updateFields(editingAppointmentId.value, { date: isoDate, time: editTime.value })
-  showSuccessTooltipFunc('Appointment updated successfully!')
-  showEditDialog.value = false
+  try {
+    const isoDate = new Date(editForm.value.date).toISOString()
+    await appointmentsStore.updateFields(editingAppointmentId.value, { 
+      date: isoDate, 
+      time: editForm.value.time
+    })
+    showSuccessTooltipFunc('Appointment updated successfully!')
+    showEditDialog.value = false
+    await fetchAppointments()
+  } catch (error) {
+    console.error('Error updating appointment:', error)
+  }
   editingAppointmentId.value = null
+}
+
+function confirmEnhancedCancel() {
+  if (cancellationChoice.value === 'reschedule') {
+    showEnhancedCancelDialog.value = false
+    showRescheduleDialog.value = true
+  } else if (cancellationChoice.value === 'cancel_only') {
+    showEnhancedCancelDialog.value = false
+    void confirmCancel()
+  }
+}
+
+function confirmDateSelection() {
+  if (!selectedDate.value) return
+  rescheduleDate.value = selectedDate.value
+  showCalendarModal.value = false
+  void confirmRescheduleWithSameTime()
+}
+
+const dateOptions = (date: string) => {
+  const today = new Date()
+  const selectedDateObj = new Date(date)
+  return selectedDateObj >= today
 }
 
 // Success tooltip

@@ -24,7 +24,7 @@
 
 <style scoped>
 .error-page {
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
 }
 </style>

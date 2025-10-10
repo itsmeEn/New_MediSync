@@ -220,8 +220,16 @@ const profilePictureUrl = computed(() => {
     return userProfile.value.profile_picture;
   }
 
-  // Otherwise, construct the full URL
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
+  // Check if it's a relative path starting with /
+  if (userProfile.value.profile_picture.startsWith('/')) {
+    // Use the API base URL from axios configuration
+    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+    return `${baseURL}${userProfile.value.profile_picture}`;
+  }
+
+  // If it's a relative path without leading slash, add it
+  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
+  return `${baseURL}/${userProfile.value.profile_picture}`;
 });
 
 // Methods

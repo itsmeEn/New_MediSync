@@ -1,192 +1,187 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Header updated to Tailwind-based, consistent with other patient modules -->
-    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
-      <div class="flex justify-between items-center max-w-7xl mx-auto">
-        <!-- Logo + Title -->
-        <div class="flex items-center space-x-3 text-white">
-          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
-          <div>
-            <p class="text-lg font-semibold leading-none">Notifications</p>
-            <p class="text-sm font-light text-teal-300 leading-none">Patient updates</p>
-          </div>
+    <!-- Patient Portal Header -->
+    <q-header class="bg-primary text-white">
+      <q-toolbar>
+        <q-avatar size="40px" class="q-mr-md">
+          <img :src="logoUrl" alt="MediSync Logo" />
+        </q-avatar>
+        
+        <div class="header-content">
+          <div class="text-h6 text-weight-bold">Patient Portal</div>
+          <div class="text-caption">Healthcare Dashboard</div>
         </div>
-          <!-- Right: Bell + User Dropdown -->
-        <div class="flex items-center space-x-3">
-          <button class="relative p-2 rounded-lg hover:bg-teal-700 text-white" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span v-if="unreadCount > 0" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-1">{{ unreadCount }}</span>
-          </button>
-          <div class="relative">
-            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
-              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
-                {{ userInitials }}
-              </div>
-              <div class="text-left">
-                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
-                <p class="text-xs text-teal-300 leading-none">Patient</p>
-              </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
-            </button>
-            <!-- Dropdown -->
-            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
-              <a href="#" @click.prevent="toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="user" class="w-4 h-4 text-teal-600"></i>
-                <span>Profile</span>
-              </a>
-              <div class="border-t border-gray-100 my-2"></div>
-              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-                <span>Logout</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
+
+        <q-space />
+
+        <!-- Notification Icon -->
+        <q-btn flat round icon="notifications" class="q-mr-sm">
+          <q-badge color="red" floating>3</q-badge>
+        </q-btn>
+
+        <!-- User Menu -->
+        <q-btn flat round>
+          <q-avatar size="32px" color="white" text-color="primary">
+            {{ userInitials }}
+          </q-avatar>
+          <q-menu v-model="showUserMenu">
+            <q-list style="min-width: 200px">
+              <q-item clickable @click="navigateTo('/patient-settings')">
+                <q-item-section avatar>
+                  <q-icon name="settings" />
+                </q-item-section>
+                <q-item-section>Settings</q-item-section>
+              </q-item>
+              <q-item clickable @click="logout">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Logout</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </q-btn>
+      </q-toolbar>
+    </q-header>
 
     <q-page-container>
-      <q-page class="bg-teal-50 q-pa-md pb-safe">
-        <div class="max-w-7xl mx-auto">
-          <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Left Sidebar - Filter Navigation -->
-            <div class="lg:col-span-1">
-              <div class="bg-white rounded-xl shadow-lg p-4 sticky top-4">
-                <!-- Search Function -->
-                <div class="mb-6">
-                  <h4 class="text-sm font-semibold text-gray-700 mb-3">Search Notifications</h4>
-                  <div class="relative">
-                    <input 
-                      v-model="searchQuery"
-                      type="text" 
-                      placeholder="Search notifications..."
-                      class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-200"
-                    />
-                    <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                  </div>
-                </div>
-
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Filter Notifications</h3>
-                
-                <!-- Vertical Filter Navigation -->
-                <div class="space-y-2">
-                  <button 
-                    v-for="filter in filterOptions" 
+      <q-page class="bg-grey-1 q-pa-md pb-safe">
+        <div class="max-w-4xl mx-auto">
+          <!-- Search and Filter Section -->
+          <q-card class="q-mb-md">
+            <q-card-section>
+              <q-input
+                v-model="searchQuery"
+                outlined
+                placeholder="Search notifications..."
+                color="teal"
+                clearable
+              >
+                <template #prepend>
+                  <q-icon name="search" />
+                </template>
+              </q-input>
+            </q-card-section>
+            
+            <q-card-section class="q-pt-none">
+              <div class="text-subtitle2 q-mb-sm">Filter Notifications</div>
+              <q-scroll-area style="height: 60px">
+                <div class="row no-wrap q-gutter-sm">
+                  <q-chip
+                    v-for="filter in filterOptions"
                     :key="filter.value"
+                    :selected="activeTab === filter.value"
                     @click="activeTab = filter.value"
-                    :class="[
-                      'w-full text-left px-4 py-3 rounded-lg transition-all duration-200 flex items-center justify-between',
-                      activeTab === filter.value 
-                        ? 'bg-teal-600 text-white shadow-md' 
-                        : 'text-gray-700 hover:bg-teal-50 hover:text-teal-700'
-                    ]"
+                    :color="activeTab === filter.value ? 'teal' : 'grey-3'"
+                    :text-color="activeTab === filter.value ? 'white' : 'grey-8'"
+                    clickable
                   >
-                    <div class="flex items-center space-x-3">
-                      <i :data-lucide="filter.icon" class="w-4 h-4"></i>
-                      <span class="font-medium">{{ filter.label }}</span>
-                    </div>
-                    <span v-if="filter.count > 0" :class="[
-                      'px-2 py-1 rounded-full text-xs font-semibold',
-                      activeTab === filter.value ? 'bg-white text-teal-600' : 'bg-teal-100 text-teal-700'
-                    ]">
-                      {{ filter.count }}
-                    </span>
-                  </button>
+                    <q-icon :name="getFilterIcon(filter.value)" class="q-mr-xs" />
+                    {{ filter.label }}
+                    <q-badge 
+                      v-if="filter.count > 0" 
+                      :color="activeTab === filter.value ? 'white' : 'teal'"
+                      :text-color="activeTab === filter.value ? 'teal' : 'white'"
+                      :label="filter.count"
+                      class="q-ml-xs"
+                    />
+                  </q-chip>
+                </div>
+              </q-scroll-area>
+            </q-card-section>
+          </q-card>
+
+          <!-- Notifications List -->
+          <q-card>
+            <q-card-section>
+              <div class="text-h6 text-weight-bold">
+                {{ getFilterLabel() }} Notifications
+                <q-badge color="grey-5" :label="filteredNotifications.length" class="q-ml-sm" />
+              </div>
+            </q-card-section>
+
+            <q-card-section class="q-pt-none">
+              <div v-if="filteredNotifications.length === 0" class="text-center q-py-xl">
+                <q-icon name="notifications_off" size="64px" color="grey-4" class="q-mb-md" />
+                <div class="text-h6 text-weight-medium text-grey-6 q-mb-sm">
+                  No notifications found
+                </div>
+                <div class="text-body2 text-grey-5">
+                  Try adjusting your filters or search terms
                 </div>
               </div>
-            </div>
 
-            <!-- Right Content - Notifications List -->
-            <div class="lg:col-span-3">
-              <div class="bg-white rounded-xl shadow-lg">
-                <div class="p-6 border-b border-gray-200">
-                  <h2 class="text-xl font-bold text-gray-800">
-                    {{ getFilterLabel() }} Notifications
-                    <span class="text-sm font-normal text-gray-500">({{ filteredNotifications.length }})</span>
-                  </h2>
-                </div>
+              <q-list v-else separator>
+                <q-item
+                  v-for="n in filteredNotifications"
+                  :key="n.id"
+                  clickable
+                  @click="openNotification(n)"
+                  @touchstart="startLongPress(n, $event)"
+                  @touchend="endLongPress"
+                  @mousedown="startLongPress(n, $event)"
+                  @mouseup="endLongPress"
+                  @mouseleave="endLongPress"
+                  :class="n.read ? 'bg-grey-1' : 'bg-teal-1'"
+                  class="q-pa-md"
+                >
+                  <q-item-section side>
+                    <q-checkbox
+                      :model-value="n.read"
+                      @update:model-value="toggleReadStatus(n)"
+                      @click.stop
+                      color="teal"
+                    />
+                  </q-item-section>
 
-                <div class="p-6">
-                  <div v-if="filteredNotifications.length === 0" class="text-center py-12">
-                    <i data-lucide="bell-off" class="w-16 h-16 text-gray-300 mx-auto mb-4"></i>
-                    <h3 class="text-lg font-semibold text-gray-600 mb-2">No notifications found</h3>
-                    <p class="text-gray-500">Try adjusting your filters or search terms.</p>
-                  </div>
+                  <q-item-section side>
+                    <q-icon
+                      :name="getNotificationIcon(n.type)"
+                      :color="n.read ? 'grey-5' : getNotificationColor(n.type)"
+                      size="md"
+                    />
+                  </q-item-section>
 
-                  <div v-else class="space-y-3">
-                    <div 
-                      v-for="n in filteredNotifications" 
-                      :key="n.id"
-                      @click="openNotification(n)"
-                      @touchstart="startLongPress(n, $event)"
-                      @touchend="endLongPress"
-                      @mousedown="startLongPress(n, $event)"
-                      @mouseup="endLongPress"
-                      @mouseleave="endLongPress"
-                      :class="[
-                        'p-4 rounded-lg border cursor-pointer transition-all duration-200',
-                        n.read ? 'bg-gray-50 border-gray-200' : 'bg-teal-50 border-teal-200',
-                        'hover:shadow-md hover:scale-[1.02]'
-                      ]"
+                  <q-item-section>
+                    <q-item-label
+                      :class="n.read ? 'text-grey-6' : 'text-grey-9'"
+                      class="text-weight-medium"
                     >
-                      <div class="flex items-start space-x-3">
-                        <!-- Checkbox for marking as read -->
-                        <div class="flex-shrink-0 mt-1">
-                          <input 
-                            type="checkbox" 
-                            :checked="n.read"
-                            @click.stop="toggleReadStatus(n)"
-                            class="w-4 h-4 text-teal-600 border-gray-300 rounded focus:ring-teal-500"
-                          />
-                        </div>
+                      {{ n.title }}
+                    </q-item-label>
+                    <q-item-label
+                      caption
+                      :class="n.read ? 'text-grey-5' : 'text-grey-7'"
+                      lines="2"
+                    >
+                      {{ n.message }}
+                    </q-item-label>
+                    <q-item-label caption class="text-grey-5 q-mt-xs">
+                      {{ formatDate(n.createdAt) }} • {{ n.type }}
+                      <q-badge v-if="n.archived" color="orange" label="Archived" class="q-ml-xs" />
+                    </q-item-label>
+                  </q-item-section>
 
-                        <!-- Notification Icon -->
-                        <div class="flex-shrink-0">
-                          <i :data-lucide="iconForType(n.type)" :class="[
-                            'w-5 h-5',
-                            n.read ? 'text-gray-400' : getIconColorClass(n.type)
-                          ]"></i>
-                        </div>
-
-                        <!-- Notification Content -->
-                        <div class="flex-1 min-w-0">
-                          <div class="flex items-start justify-between">
-                            <div class="flex-1">
-                              <h4 :class="[
-                                'text-sm font-semibold mb-1',
-                                n.read ? 'text-gray-500' : 'text-gray-900'
-                              ]">
-                                {{ n.title }}
-                              </h4>
-                              <p :class="[
-                                'text-sm mb-2 line-clamp-2',
-                                n.read ? 'text-gray-400' : 'text-gray-600'
-                              ]">
-                                {{ n.message }}
-                              </p>
-                              <div class="flex items-center space-x-4 text-xs text-gray-500">
-                                <span>{{ formatDate(n.createdAt) }}</span>
-                                <span class="capitalize">{{ n.type }}</span>
-                                <span v-if="n.archived" class="text-orange-600 font-medium">Archived</span>
-                              </div>
-                            </div>
-                            
-                            <!-- Status Indicators -->
-                            <div class="flex items-center space-x-2">
-                              <span v-if="!n.read" class="w-2 h-2 bg-teal-500 rounded-full"></span>
-                              <span v-if="n.archived" class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
-                                Archived
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                  <q-item-section side>
+                    <div class="column items-center">
+                      <q-icon
+                        v-if="!n.read"
+                        name="circle"
+                        color="teal"
+                        size="8px"
+                        class="q-mb-xs"
+                      />
+                      <q-badge
+                        v-if="n.archived"
+                        color="orange"
+                        label="Archived"
+                      />
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-card>
         </div>
       </q-page>
     </q-page-container>
@@ -290,33 +285,59 @@
       </q-card>
     </q-dialog>
 
-    <!-- Bottom Navigation with closer spacing -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
-      <div class="flex justify-center px-2 py-2">
-        <div class="flex items-center space-x-8">
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
-          <i data-lucide="list-ordered" class="w-5 h-5"></i>
-          <span class="text-xs mt-1">Queue</span>
-        </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
-          <i data-lucide="calendar-check" class="w-5 h-5"></i>
-          <span class="text-xs mt-1">Appointments</span>
-        </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
-          <i data-lucide="home" class="w-5 h-5"></i>
-          <span class="text-xs mt-1">Home</span>
-        </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
-          <i data-lucide="bell" class="w-5 h-5"></i>
-          <span class="text-xs mt-1">Alerts</span>
-        </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
-          <i data-lucide="message-square" class="w-5 h-5"></i>
-          <span class="text-xs mt-1">Requests</span>
-        </button>
-        </div>
-      </div>
-    </nav>
+    <!-- Bottom Navigation -->
+    <q-footer class="bg-white text-grey-8 border-t">
+      <q-tabs
+        v-model="currentTab"
+        dense
+        class="text-grey-6"
+        active-color="teal"
+        indicator-color="teal"
+        align="justify"
+      >
+        <q-tab
+          name="home"
+          icon="home"
+          label="Home"
+          @click="$router.push('/patient/dashboard')"
+        />
+        
+        <q-tab
+          name="appointments"
+          icon="event"
+          label="Appointments"
+          @click="$router.push('/patient/appointments')"
+        />
+        
+        <q-tab
+          name="records"
+          icon="description"
+          label="Records"
+          @click="$router.push('/patient/medical-request')"
+        />
+        
+        <q-tab
+          name="notifications"
+          icon="notifications"
+          label="Notifications"
+          @click="$router.push('/patient/notifications')"
+        >
+          <q-badge
+            v-if="unreadCount > 0"
+            color="red"
+            :label="unreadCount > 99 ? '99+' : unreadCount"
+            floating
+          />
+        </q-tab>
+        
+        <q-tab
+          name="queue"
+          icon="people"
+          label="Queue"
+          @click="$router.push('/patient/queue')"
+        />
+      </q-tabs>
+    </q-footer>
   </q-layout>
 </template>
 
@@ -324,7 +345,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.png'
+import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
 const activeTab = ref<FilterValue>('all')
@@ -333,6 +354,7 @@ const showActionMenu = ref(false)
 const showNotificationDetail = ref(false)
 const selectedNotification = ref<Notification | null>(null)
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
+const showUserMenu = ref(false)
 
 interface Notification {
   id: number
@@ -349,8 +371,7 @@ type FilterValue = 'all' | 'unread' | 'read' | 'appointments' | 'queue' | 'medic
 
 const notifications = ref<Notification[]>([])
 
-const showUserMenu = ref(false)
-const toggleUserMenu = () => { showUserMenu.value = !showUserMenu.value }
+const currentTab = ref('notifications')
 
 const userName = computed(() => {
   try {
@@ -484,25 +505,39 @@ const filteredNotifications = computed(() => {
   return filtered
 })
 
-const iconForType = (type: Notification['type']) => {
-  switch (type) {
-    case 'appointment': return 'calendar'
-    case 'queue': return 'list-ordered'
-    case 'medical': return 'heart'
-    case 'urgent': return 'alert-triangle'
-    case 'info': return 'info'
+// Functions for Quasar components
+const getFilterIcon = (value: FilterValue) => {
+  switch (value) {
+    case 'all': return 'notifications'
+    case 'unread': return 'mark_email_unread'
+    case 'read': return 'mark_email_read'
+    case 'appointments': return 'event'
+    case 'queue': return 'people'
+    case 'medical': return 'local_hospital'
+    case 'archived': return 'archive'
+    default: return 'notifications'
   }
 }
 
-
-
-const getIconColorClass = (type: Notification['type']) => {
+const getNotificationIcon = (type: Notification['type']) => {
   switch (type) {
-    case 'appointment': return 'text-blue-600'
-    case 'queue': return 'text-indigo-600'
-    case 'medical': return 'text-red-600'
-    case 'urgent': return 'text-orange-600'
-    case 'info': return 'text-gray-600'
+    case 'appointment': return 'event'
+    case 'queue': return 'people'
+    case 'medical': return 'local_hospital'
+    case 'urgent': return 'warning'
+    case 'info': return 'info'
+    default: return 'notifications'
+  }
+}
+
+const getNotificationColor = (type: Notification['type']) => {
+  switch (type) {
+    case 'appointment': return 'blue'
+    case 'queue': return 'indigo'
+    case 'medical': return 'red'
+    case 'urgent': return 'orange'
+    case 'info': return 'grey'
+    default: return 'grey'
   }
 }
 

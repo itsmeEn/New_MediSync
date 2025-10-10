@@ -1,177 +1,201 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Tailwind-based Header replicating Random.html -->
-    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
-      <div class="flex justify-between items-center max-w-7xl mx-auto">
-        <!-- App Title/Logo -->
-        <div class="flex items-center space-x-3 text-white">
-          <!-- Project Logo -->
-          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
-          <div>
-            <p class="text-lg font-semibold leading-none">Patient Portal</p>
-            <p class="text-sm font-light text-teal-300 leading-none">Healthcare Dashboard</p>
-          </div>
+    <!-- Patient Portal Header -->
+    <q-header class="bg-blue-8 text-white" style="height: 70px;">
+      <q-toolbar class="q-px-md" style="height: 70px;">
+        <q-avatar size="40px" class="q-mr-md">
+          <img :src="logoUrl" alt="Logo" />
+        </q-avatar>
+        
+        <div class="column q-mr-auto">
+          <div class="text-h6 text-weight-medium">Patient Portal</div>
+          <div class="text-caption opacity-80">Healthcare Dashboard</div>
         </div>
 
-        <!-- User Profile Section (Right Side) -->
-        <div class="flex items-center space-x-4">
-          <!-- Notification Bell -->
-          <button class="relative p-2 text-white hover:text-teal-200 transition duration-150" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-6 h-6"></i>
-            <span class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-teal-800 bg-red-500"></span>
-          </button>
+        <!-- Notification Icon -->
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+          <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
+        </q-btn>
 
-          <!-- User Profile Button -->
-          <div class="relative">
-            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
-              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
-                {{ userInitials }}
-              </div>
-              <div class="text-left">
-                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
-                <p class="text-xs text-teal-300 leading-none">Patient</p>
-              </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
-            </button>
+        <!-- User Menu -->
+        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
+          <q-avatar size="32px" class="bg-white text-blue-8">
+            <div class="text-weight-bold">{{ userInitials }}</div>
+          </q-avatar>
+        </q-btn>
 
-            <!-- Dropdown Menu -->
-            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
-              <a href="#" @click.prevent="navigateTo('/patient-settings'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="settings" class="w-4 h-4 text-teal-600"></i>
-                <span>Settings</span>
-              </a>
-              <a href="#" @click.prevent="navigateTo('/patient-settings#faq'); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="help-circle" class="w-4 h-4 text-teal-600"></i>
-                <span>FAQ</span>
-              </a>
-              <div class="border-t border-gray-100 my-2"></div>
-              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-                <span>Logout</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
+        <!-- User Dropdown Menu -->
+        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
+          <q-list style="min-width: 200px">
+            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
+            <q-separator />
+            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+              <q-item-section avatar>
+                <q-icon name="settings" />
+              </q-item-section>
+              <q-item-section>Settings</q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="logout">
+              <q-item-section avatar>
+                <q-icon name="logout" />
+              </q-item-section>
+              <q-item-section>Logout</q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+      </q-toolbar>
+    </q-header>
 
     <!-- Main Content -->
     <q-page-container>
-      <q-page class="bg-teal-50 q-pa-none pb-safe">
-        <main class="flex-grow min-h-screen overflow-y-auto w-full p-4 md:p-8 max-w-7xl mx-auto pb-safe">
-            <div class="mb-6">
-              <h1 class="text-xl font-bold text-gray-700">Live Queue &amp; Wait Time</h1>
-            </div>
+      <q-page class="bg-grey-1 q-pa-md">
+        <div class="q-pa-md">
+          <!-- Page Title -->
+          <div class="q-mb-md">
+            <div class="text-h5 text-weight-bold text-grey-8">Live Queue & Wait Time</div>
+          </div>
 
           <!-- Current Status Cards -->
-          <section class="grid grid-cols-2 gap-4 mb-8">
-            <div class="status-card bg-teal-600 text-white p-4 shadow-xl rounded-xl">
-              <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">Now Serving</p>
-              <p class="status-number text-white">{{ nowServing || '—' }}</p>
-              <p class="text-sm font-semibold mt-1">{{ currentPatient || '—' }}</p>
+          <div class="row q-gutter-md q-mb-md">
+            <div class="col-12 col-sm-6">
+              <q-card class="bg-teal-6 text-white">
+                <q-card-section class="q-pa-md">
+                  <div class="text-caption text-weight-medium text-uppercase q-mb-xs">Now Serving</div>
+                  <div class="text-h4 text-weight-bold">{{ nowServing || '—' }}</div>
+                  <div class="text-body2 text-weight-medium q-mt-xs">{{ currentPatient || '—' }}</div>
+                </q-card-section>
+              </q-card>
             </div>
-            <div class="status-card bg-teal-700 text-white p-4 shadow-xl rounded-xl">
-              <p class="text-xs font-medium uppercase tracking-wider opacity-90 mb-1">Your Queue Status</p>
-              <p class="status-number text-white">{{ myPosition || '—' }}</p>
-              <p class="text-sm font-semibold mt-1">Estimated Wait: ~{{ estimatedWaitMins }} mins</p>
+            <div class="col-12 col-sm-6">
+              <q-card class="bg-teal-7 text-white">
+                <q-card-section class="q-pa-md">
+                  <div class="text-caption text-weight-medium text-uppercase q-mb-xs">Your Queue Status</div>
+                  <div class="text-h4 text-weight-bold">{{ myPosition || '—' }}</div>
+                  <div class="text-body2 text-weight-medium q-mt-xs">Estimated Wait: ~{{ estimatedWaitMins }} mins</div>
+                </q-card-section>
+              </q-card>
             </div>
-          </section>
-
-          <div class="grid grid-cols-7 gap-6">
-            <!-- Current Queue -->
-            <section class="col-span-7 md:col-span-4">
-              <div class="bg-white rounded-xl shadow-md p-4">
-                <div class="flex items-center mb-4">
-                  <i data-lucide="list-ordered" class="w-5 h-5 text-teal-600 mr-2"></i>
-                  <h2 class="text-lg font-semibold text-gray-800">Current Queue</h2>
-                  <div class="ml-auto inline-flex items-center px-2 py-1 rounded-full bg-teal-100 text-teal-700 text-xs">
-                    Position: {{ myPosition || '—' }}
-                  </div>
-                </div>
-
-                <ul class="divide-y divide-gray-100">
-                  <li v-for="entry in queueEntries" :key="entry.id" class="py-3 flex items-center">
-                    <i data-lucide="user" :class="['w-5 h-5 mr-3', entry.isCurrent ? 'text-teal-600' : 'text-gray-400']"></i>
-                    <div class="flex-1">
-                      <p class="text-sm font-medium text-gray-800">{{ entry.name }} ({{ entry.number }})</p>
-                      <p class="text-xs text-gray-500">{{ entry.isMe ? 'You' : entry.department }}</p>
-                    </div>
-                    <div class="text-right">
-                      <div class="text-xs text-gray-500">~{{ entry.etaMins }} mins</div>
-                      <span v-if="entry.isCurrent" class="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-orange-500 text-white">Next</span>
-                      <span v-else-if="entry.isMe" class="inline-block mt-1 px-2 py-0.5 text-xs rounded bg-gray-600 text-white">You</span>
-                    </div>
-                  </li>
-                  <li v-if="queueEntries.length === 0" class="py-6 text-center text-gray-500">No queue data available.</li>
-                </ul>
-              </div>
-            </section>
-
-            <!-- Queue Alerts & Info -->
-            <section class="col-span-7 md:col-span-3">
-              <div class="bg-white rounded-xl shadow-md p-4">
-                <div class="flex items-center mb-4">
-                  <i data-lucide="info" class="w-5 h-5 text-gray-500 mr-2"></i>
-                  <h2 class="text-lg font-semibold text-gray-800">Queue Alerts &amp; Info</h2>
-                </div>
-
-                <p class="text-sm text-gray-600 mb-4">
-                  Request a text message alert when you are the <b>next patient</b> in line.
-                </p>
-
-                <div class="rounded-lg bg-orange-50 border border-orange-200 p-3 mb-4">
-                  <p class="text-orange-700 text-sm font-medium">Current estimated total wait time: ~{{ estimatedWaitMins }} minutes.</p>
-                </div>
-
-                <button 
-                  class="w-full inline-flex items-center justify-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition"
-                  @click="activateSMSAlert"
-                  :disabled="smsAlertActive"
-                >
-                  <i data-lucide="sms" class="w-4 h-4 mr-2"></i>
-                  Activate SMS Alert
-                </button>
-
-                <div v-if="smsAlertActive" class="text-center mt-3">
-                  <span class="inline-flex items-center px-3 py-1 rounded-full bg-green-600 text-white text-sm">
-                    <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i>
-                    SMS Alert Active
-                  </span>
-                </div>
-              </div>
-            </section>
           </div>
-        </main>
+
+          <!-- Current Queue -->
+          <q-card class="q-mb-md">
+            <q-card-section>
+              <div class="row items-center q-mb-md">
+                <q-icon name="format_list_numbered" color="teal" size="20px" class="q-mr-sm" />
+                <div class="text-h6 text-weight-bold">Current Queue</div>
+                <q-space />
+                <q-badge color="teal" :label="`Position: ${myPosition || '—'}`" />
+              </div>
+
+              <q-list separator>
+                <q-item
+                  v-for="entry in queueEntries"
+                  :key="entry.id"
+                  class="q-pa-md"
+                >
+                  <q-item-section avatar>
+                    <q-icon
+                      name="person"
+                      :color="entry.isCurrent ? 'teal' : 'grey-5'"
+                      size="24px"
+                    />
+                  </q-item-section>
+                  
+                  <q-item-section>
+                    <q-item-label class="text-weight-medium">{{ entry.name }} ({{ entry.number }})</q-item-label>
+                    <q-item-label caption>{{ entry.isMe ? 'You' : entry.department }}</q-item-label>
+                  </q-item-section>
+                  
+                  <q-item-section side>
+                    <div class="text-right">
+                      <div class="text-caption text-grey-6">~{{ entry.etaMins }} mins</div>
+                      <q-badge
+                        v-if="entry.isCurrent"
+                        color="orange"
+                        label="Next"
+                        class="q-mt-xs"
+                      />
+                      <q-badge
+                        v-else-if="entry.isMe"
+                        color="grey-6"
+                        label="You"
+                        class="q-mt-xs"
+                      />
+                    </div>
+                  </q-item-section>
+                </q-item>
+                
+                <q-item v-if="queueEntries.length === 0">
+                  <q-item-section class="text-center text-grey-6">
+                    No queue data available.
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-card-section>
+          </q-card>
+
+          <!-- Queue Alerts & Info -->
+          <q-card>
+            <q-card-section>
+              <div class="row items-center q-mb-md">
+                <q-icon name="info" color="grey-6" size="20px" class="q-mr-sm" />
+                <div class="text-h6 text-weight-bold">Queue Alerts & Info</div>
+              </div>
+
+              <div class="text-body2 text-grey-7 q-mb-md">
+                Request a text message alert when you are the <strong>next patient</strong> in line.
+              </div>
+
+              <q-banner class="bg-orange-1 text-orange-8 q-mb-md" rounded>
+                <template v-slot:avatar>
+                  <q-icon name="schedule" color="orange" />
+                </template>
+                Current estimated total wait time: ~{{ estimatedWaitMins }} minutes.
+              </q-banner>
+
+              <q-btn
+                color="indigo"
+                icon="sms"
+                label="Activate SMS Alert"
+                class="full-width"
+                @click="activateSMSAlert"
+                :disable="smsAlertActive"
+                unelevated
+              />
+
+              <div v-if="smsAlertActive" class="text-center q-mt-md">
+                <q-badge color="green" icon="check_circle" label="SMS Alert Active" />
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
       </q-page>
     </q-page-container>
 
-    <!-- Bottom Navigation with closer spacing -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
-      <div class="flex justify-center px-2 py-2">
-        <div class="flex items-center space-x-8">
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
-            <i data-lucide="list-ordered" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Queue</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
-            <i data-lucide="calendar-check" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Appointments</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Home</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Alerts</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
-            <i data-lucide="message-square" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Requests</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <!-- Bottom Navigation -->
+    <q-footer class="bg-teal-8 text-white">
+      <q-tabs
+        v-model="currentTab"
+        dense
+        class="text-white"
+        active-color="white"
+        indicator-color="white"
+        align="justify"
+      >
+        <q-tab name="queue" icon="format_list_numbered" label="Queue" @click="navigateTo('/patient-queue')" />
+        <q-tab name="appointments" icon="event" label="Appointments" @click="navigateTo('/patient-appointments')" />
+        <q-tab name="home" icon="home" label="Home" @click="navigateTo('/patient-dashboard')" />
+        <q-tab name="notifications" icon="notifications" @click="navigateTo('/patient-notifications')">
+          <template v-slot:default>
+            <div class="row items-center no-wrap">
+              <div>Alerts</div>
+              <q-badge color="red" floating>!</q-badge>
+            </div>
+          </template>
+        </q-tab>
+        <q-tab name="requests" icon="chat" label="Requests" @click="navigateTo('/patient-medical-request')" />
+      </q-tabs>
+    </q-footer>
   </q-layout>
 </template>
 
@@ -180,13 +204,18 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.png'
+import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
 const $q = useQuasar()
-// removed: const activeTab = ref('queue')
-const smsAlertActive = ref(false)
 
+// Navigation and UI state
+const currentTab = ref('queue')
+const smsAlertActive = ref(false)
+const showUserMenu = ref(false)
+const unreadCount = ref(3)
+
+// Queue data
 const nowServing = ref<string | number>('')
 const currentPatient = ref<string>('')
 const myPosition = ref<string | number>('')
@@ -205,6 +234,7 @@ interface QueueEntry {
 
 const queueEntries = ref<QueueEntry[]>([])
 
+// User information
 const userName = computed(() => {
   try {
     const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -214,8 +244,6 @@ const userName = computed(() => {
   }
 })
 
-const showUserMenu = ref(false)
-const toggleUserMenu = () => { showUserMenu.value = !showUserMenu.value }
 const userInitials = computed(() => {
   const name = userName.value || ''
   const parts = name.trim().split(/\s+/)
@@ -223,6 +251,8 @@ const userInitials = computed(() => {
   const initials = parts.slice(0, 2).map((p: string) => p[0]?.toUpperCase() ?? '').join('')
   return initials || (name[0]?.toUpperCase() ?? 'U')
 })
+
+
 
 onMounted(async () => {
   try {

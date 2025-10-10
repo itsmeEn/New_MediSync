@@ -375,10 +375,32 @@ const onRegister = async () => {
 
       // If the server provided a response body with the error details, it is processed.
       if (error.response?.data) {
-        // More robust error handling for validation errors from Django is applied here.
+        // Handle specific validation errors from Django
         if (typeof error.response.data === 'object' && error.response.data !== null) {
-          // The error data object is converted to a readable JSON string.
-          errorMessage = JSON.stringify(error.response.data, null, 2);
+          const errorData = error.response.data as Record<string, string | string[]>;
+          
+          // Handle specific field errors
+          if (errorData.email && Array.isArray(errorData.email) && errorData.email.length > 0) {
+            errorMessage = errorData.email[0] as string;
+          } else if (errorData.password && Array.isArray(errorData.password) && errorData.password.length > 0) {
+            errorMessage = errorData.password[0] as string;
+          } else if (errorData.role_fields && Array.isArray(errorData.role_fields) && errorData.role_fields.length > 0) {
+            errorMessage = errorData.role_fields[0] as string;
+          } else if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors) && errorData.non_field_errors.length > 0) {
+            errorMessage = errorData.non_field_errors[0] as string;
+          } else if (errorData.error && typeof errorData.error === 'string') {
+            errorMessage = errorData.error;
+          } else if (errorData.details && typeof errorData.details === 'string') {
+            errorMessage = errorData.details;
+          } else {
+            // Extract first error message from any field
+            const firstError = Object.values(errorData).find(value => 
+              Array.isArray(value) && value.length > 0
+            );
+            if (firstError && Array.isArray(firstError) && firstError.length > 0) {
+              errorMessage = firstError[0] as string;
+            }
+          }
         } else if (typeof error.response.data === 'string') {
           // If the error data is a string, it is used directly as the error message.
           errorMessage = error.response.data;
@@ -389,7 +411,7 @@ const onRegister = async () => {
     // The final error message is displayed to the user.
     $q.notify({
       type: 'negative',
-      message: `Registration failed: ${errorMessage}`,
+      message: errorMessage,
       position: 'top',
       timeout: 4000,
     });
@@ -403,7 +425,7 @@ const onRegister = async () => {
 <style scoped>
 .register-page {
   min-height: 100vh;
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   display: flex;
   align-items: center;

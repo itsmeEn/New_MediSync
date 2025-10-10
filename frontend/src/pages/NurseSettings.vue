@@ -1375,7 +1375,7 @@ onUnmounted(() => {
 
 /* Page Container */
 .page-container-with-fixed-header {
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   min-height: 100vh;
   padding-top: 64px;
@@ -1411,7 +1411,7 @@ onUnmounted(() => {
 }
 
 .nurse-settings {
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   min-height: 100vh;
 }

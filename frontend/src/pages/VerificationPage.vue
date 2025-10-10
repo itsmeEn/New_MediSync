@@ -234,7 +234,7 @@ const verifyLater = async () => {
 <style scoped>
 .verification-page {
   min-height: 100vh;
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   display: flex;
   align-items: center;

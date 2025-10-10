@@ -102,7 +102,7 @@
                               :src="
                                 user.profile_picture.startsWith('http')
                                   ? user.profile_picture
-                                  : `http://localhost:8000${user.profile_picture}`
+                                  : `${api.defaults.baseURL || 'http://localhost:8000'}${user.profile_picture}`
                               "
                               :alt="user.full_name"
                             />
@@ -195,7 +195,7 @@
                         :src="
                           conversation.other_participant.profile_picture.startsWith('http')
                             ? conversation.other_participant.profile_picture
-                            : `http://localhost:8000${conversation.other_participant.profile_picture}`
+                            : `${api.defaults.baseURL || 'http://localhost:8000'}${conversation.other_participant.profile_picture}`
                         "
                         :alt="conversation.other_participant.full_name"
                       />
@@ -250,7 +250,7 @@
                   :src="
                     selectedUser.profile_picture.startsWith('http')
                       ? selectedUser.profile_picture
-                      : `http://localhost:8000${selectedUser.profile_picture}`
+                      : `${api.defaults.baseURL || 'http://localhost:8000'}${selectedUser.profile_picture}`
                   "
                   :alt="selectedUser.full_name"
                 />
@@ -294,7 +294,7 @@
                       :src="
                         message.sender.profile_picture.startsWith('http')
                           ? message.sender.profile_picture
-                          : `http://localhost:8000${message.sender.profile_picture}`
+                          : `${api.defaults.baseURL || 'http://localhost:8000'}${message.sender.profile_picture}`
                       "
                       :alt="message.sender.full_name"
                     />

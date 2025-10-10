@@ -1,100 +1,539 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- Header -->
-    <header class="bg-teal-800 p-4 md:p-6 shadow-lg">
-      <div class="flex justify-between items-center max-w-7xl mx-auto">
-        <!-- Logo + Title -->
-        <div class="flex items-center space-x-3 text-white">
-          <img :src="logoUrl" alt="Project Logo" class="h-10 w-10 rounded-full bg-white object-cover flex-shrink-0" />
-          <div>
-            <p class="text-lg font-semibold leading-none">Settings</p>
-            <p class="text-sm font-light text-teal-300 leading-none">Manage your account</p>
-          </div>
+    <!-- Patient Portal Header -->
+    <q-header class="bg-blue-8 text-white" style="height: 70px;">
+      <q-toolbar class="q-px-md" style="height: 70px;">
+        <q-avatar size="40px" class="q-mr-md">
+          <img :src="logoUrl" alt="Logo" />
+        </q-avatar>
+        
+        <div class="column q-mr-auto">
+          <div class="text-h6 text-weight-medium">Patient Portal</div>
+          <div class="text-caption opacity-80">Healthcare Dashboard</div>
         </div>
-        <!-- Right: Notification + User -->
-        <div class="flex items-center space-x-2">
-          <button class="relative p-2 rounded-lg hover:bg-teal-700 text-white" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span v-if="unreadCount > 0" class="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full px-1">{{ unreadCount }}</span>
-          </button>
-          <div class="relative">
-            <button class="flex items-center space-x-2 bg-teal-700 hover:bg-teal-600 p-2 rounded-lg shadow-md transition-all duration-300 hover:scale-105" @click="toggleUserMenu">
-              <div class="h-8 w-8 bg-white text-teal-800 rounded-full flex items-center justify-center font-bold text-sm">
-                {{ userInitials }}
-              </div>
-              <div class="text-left">
-                <p class="text-sm font-semibold text-white leading-none">{{ userName }}</p>
-                <p class="text-xs text-teal-300 leading-none">Patient</p>
-              </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-white transition-transform duration-200" :class="{ 'rotate-180': showUserMenu }"></i>
-            </button>
-            <!-- Dropdown -->
-            <div v-show="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100">
-              <a href="#" @click.prevent="toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-gray-700 hover:bg-teal-50 transition-colors duration-200">
-                <i data-lucide="user" class="w-4 h-4 text-teal-600"></i>
-                <span>Profile</span>
-              </a>
-              <div class="border-t border-gray-100 my-2"></div>
-              <a href="#" @click.prevent="logout(); toggleUserMenu()" class="flex items-center space-x-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200">
-                <i data-lucide="log-out" class="w-4 h-4"></i>
-                <span>Logout</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
+
+        <!-- Notification Icon -->
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+          <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
+        </q-btn>
+
+        <!-- User Menu -->
+        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
+          <q-avatar size="32px" class="bg-white text-blue-8">
+            <div class="text-weight-bold">{{ userInitials }}</div>
+          </q-avatar>
+        </q-btn>
+
+        <!-- User Dropdown Menu -->
+        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
+          <q-list style="min-width: 200px">
+            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
+            <q-separator />
+            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+              <q-item-section avatar>
+                <q-icon name="settings" />
+              </q-item-section>
+              <q-item-section>Settings</q-item-section>
+            </q-item>
+            <q-item clickable v-close-popup @click="logout">
+              <q-item-section avatar>
+                <q-icon name="logout" />
+              </q-item-section>
+              <q-item-section>Logout</q-item-section>
+            </q-item>
+          </q-list>
+        </q-menu>
+      </q-toolbar>
+    </q-header>
 
     <q-page-container>
-       <q-page class="bg-teal-50 q-pa-md pb-safe">
-        <!-- Existing settings content -->
-        <slot />
+      <q-page 
+              :class="{ 
+                'bg-grey-1 q-pa-md settings-page': true,
+                'q-pa-sm': $q.screen.xs,
+                'ios-safe-area': $q.platform.is.ios,
+                'android-safe-area': $q.platform.is.android
+              }"
+              style="padding-bottom: 80px;">
+        <!-- Profile Section -->
+        <q-card class="q-mb-md" flat bordered>
+          <q-card-section>
+            <div class="text-h6 text-teal-800 q-mb-md">
+              <q-icon name="person" class="q-mr-sm" />
+              Profile Information
+            </div>
+            
+            <div class="row q-col-gutter-md">
+              <div class="col-12 text-center q-mb-md">
+                <q-avatar size="80px" class="q-mb-sm">
+                  <img v-if="userProfile.avatar" :src="userProfile.avatar" />
+                  <div v-else class="bg-teal-800 text-white text-h5">
+                    {{ userInitials }}
+                  </div>
+                </q-avatar>
+                <q-btn 
+                  flat 
+                  round 
+                  icon="camera_alt" 
+                  size="sm" 
+                  color="teal"
+                  @click="uploadAvatar"
+                  class="q-ml-sm"
+                />
+              </div>
+              
+              <div class="col-12">
+                <q-input
+                  v-model="userProfile.fullName"
+                  label="Full Name"
+                  outlined
+                  dense
+                  :readonly="!editMode"
+                />
+              </div>
+              
+              <div class="col-12">
+                <q-input
+                  v-model="userProfile.email"
+                  label="Email"
+                  outlined
+                  dense
+                  type="email"
+                  :readonly="!editMode"
+                />
+              </div>
+              
+              <div class="col-12">
+                <q-input
+                  v-model="userProfile.phone"
+                  label="Phone Number"
+                  outlined
+                  dense
+                  :readonly="!editMode"
+                />
+              </div>
+              
+              <div class="col-12">
+                <q-input
+                  v-model="userProfile.dateOfBirth"
+                  label="Date of Birth"
+                  outlined
+                  dense
+                  type="date"
+                  :readonly="!editMode"
+                />
+              </div>
+            </div>
+            
+            <div class="q-mt-md text-right">
+              <q-btn 
+                v-if="!editMode"
+                flat 
+                color="teal" 
+                icon="edit"
+                label="Edit Profile"
+                @click="editMode = true"
+              />
+              <div v-else class="q-gutter-sm">
+                <q-btn 
+                  flat 
+                  color="grey" 
+                  label="Cancel"
+                  @click="cancelEdit"
+                />
+                <q-btn 
+                  color="teal" 
+                  label="Save Changes"
+                  @click="saveProfile"
+                />
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Notification Settings -->
+        <q-card class="q-mb-md" flat bordered>
+          <q-card-section>
+            <div class="text-h6 text-teal-800 q-mb-md">
+              <q-icon name="notifications" class="q-mr-sm" />
+              Notification Preferences
+            </div>
+            
+            <q-list>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Appointment Reminders</q-item-label>
+                  <q-item-label caption>Get notified about upcoming appointments</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="notificationSettings.appointments" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Queue Updates</q-item-label>
+                  <q-item-label caption>Receive updates about your queue position</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="notificationSettings.queueUpdates" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Medical Alerts</q-item-label>
+                  <q-item-label caption>Important health and medical notifications</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="notificationSettings.medicalAlerts" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>SMS Notifications</q-item-label>
+                  <q-item-label caption>Receive notifications via SMS</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="notificationSettings.sms" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Privacy & Security -->
+        <q-card class="q-mb-md" flat bordered>
+          <q-card-section>
+            <div class="text-h6 text-teal-800 q-mb-md">
+              <q-icon name="security" class="q-mr-sm" />
+              Privacy & Security
+            </div>
+            
+            <q-list>
+              <q-item clickable @click="changePassword">
+                <q-item-section avatar>
+                  <q-icon name="lock" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>Change Password</q-item-label>
+                  <q-item-label caption>Update your account password</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-icon name="chevron_right" />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section avatar>
+                  <q-icon name="fingerprint" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>Biometric Login</q-item-label>
+                  <q-item-label caption>Use fingerprint or face ID to login</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="securitySettings.biometric" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section avatar>
+                  <q-icon name="visibility" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>Profile Visibility</q-item-label>
+                  <q-item-label caption>Control who can see your profile</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-select
+                    v-model="securitySettings.profileVisibility"
+                    :options="visibilityOptions"
+                    dense
+                    outlined
+                    style="min-width: 120px"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- App Preferences -->
+        <q-card class="q-mb-md" flat bordered>
+          <q-card-section>
+            <div class="text-h6 text-teal-800 q-mb-md">
+              <q-icon name="settings" class="q-mr-sm" />
+              App Preferences
+            </div>
+            
+            <q-list>
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Dark Mode</q-item-label>
+                  <q-item-label caption>Switch to dark theme</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="appSettings.darkMode" 
+                    color="teal"
+                    @update:model-value="toggleDarkMode"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Language</q-item-label>
+                  <q-item-label caption>Choose your preferred language</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-select
+                    v-model="appSettings.language"
+                    :options="languageOptions"
+                    dense
+                    outlined
+                    style="min-width: 120px"
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Font Size</q-item-label>
+                  <q-item-label caption>Adjust text size for better readability</q-item-label>
+                </q-item-section>
+                <q-item-section side class="q-px-md" style="min-width: 150px">
+                  <q-slider
+                    v-model="appSettings.fontSize"
+                    :min="12"
+                    :max="20"
+                    :step="1"
+                    color="teal"
+                    label
+                    label-always
+                  />
+                </q-item-section>
+              </q-item>
+              
+              <q-item>
+                <q-item-section>
+                  <q-item-label>Auto-refresh</q-item-label>
+                  <q-item-label caption>Automatically refresh data</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle 
+                    v-model="appSettings.autoRefresh" 
+                    color="teal"
+                  />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+
+        <!-- Support & Help -->
+        <q-card class="q-mb-md" flat bordered>
+          <q-card-section>
+            <div class="text-h6 text-teal-800 q-mb-md">
+              <q-icon name="help" class="q-mr-sm" />
+              Support & Help
+            </div>
+            
+            <q-list>
+              <q-item clickable @click="openHelp">
+                <q-item-section avatar>
+                  <q-icon name="help_outline" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>Help Center</q-item-label>
+                  <q-item-label caption>Find answers to common questions</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-icon name="chevron_right" />
+                </q-item-section>
+              </q-item>
+              
+              <q-item clickable @click="contactSupport">
+                <q-item-section avatar>
+                  <q-icon name="support_agent" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>Contact Support</q-item-label>
+                  <q-item-label caption>Get help from our support team</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-icon name="chevron_right" />
+                </q-item-section>
+              </q-item>
+              
+              <q-item clickable @click="showAbout">
+                <q-item-section avatar>
+                  <q-icon name="info" color="teal" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>About MediSync</q-item-label>
+                  <q-item-label caption>App version and information</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-icon name="chevron_right" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
       </q-page>
     </q-page-container>
 
-    <!-- Bottom Navigation with closer spacing -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-teal-800 text-white z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom);">
-      <div class="flex justify-center px-2 py-2">
-        <div class="flex items-center space-x-8">
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-queue')">
-            <i data-lucide="list-ordered" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Queue</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-appointments')">
-            <i data-lucide="calendar-check" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Appointments</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-dashboard')">
-            <i data-lucide="home" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Home</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-notifications')">
-            <i data-lucide="bell" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Alerts</span>
-          </button>
-          <button class="flex flex-col items-center text-white hover:bg-teal-700 p-2 rounded-lg transition-colors" @click="navigateTo('/patient-medical-request')">
-            <i data-lucide="message-square" class="w-5 h-5"></i>
-            <span class="text-xs mt-1">Requests</span>
-          </button>
-        </div>
-      </div>
-    </nav>
+    <!-- Mobile-Optimized Bottom Navigation -->
+    <q-footer elevated class="bg-teal-800 text-white"
+              :class="{ 
+                'ios-safe-area': $q.platform.is.ios,
+                'android-safe-area': $q.platform.is.android
+              }">
+      <q-tabs
+        v-model="currentTab"
+        dense
+        active-color="white"
+        indicator-color="white"
+        class="text-white"
+      >
+        <q-tab 
+          name="queue" 
+          icon="format_list_numbered" 
+          label="Queue"
+          @click="navigateTo('/patient-queue')"
+          class="q-tab--mobile"
+        />
+        <q-tab 
+          name="appointments" 
+          icon="event" 
+          label="Appointments"
+          @click="navigateTo('/patient-appointments')"
+          class="q-tab--mobile"
+        />
+        <q-tab 
+          name="home" 
+          icon="home" 
+          label="Home"
+          @click="navigateTo('/patient-dashboard')"
+          class="q-tab--mobile"
+        />
+        <q-tab 
+          name="notifications" 
+          icon="notifications" 
+          label="Alerts"
+          @click="navigateTo('/patient-notifications')"
+          class="q-tab--mobile"
+        >
+          <q-badge 
+            v-if="unreadCount > 0" 
+            color="red" 
+            floating 
+            rounded
+          >
+            {{ unreadCount }}
+          </q-badge>
+        </q-tab>
+        <q-tab 
+          name="requests" 
+          icon="chat" 
+          label="Requests"
+          @click="navigateTo('/patient-medical-request')"
+          class="q-tab--mobile"
+        />
+      </q-tabs>
+    </q-footer>
   </q-layout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-// removed: import { useQuasar } from 'quasar'
-import logoUrl from 'src/assets/logo.png'
+import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
-// removed: const $q = useQuasar()
-// removed: const bottomTab = ref('home')
+const $q = useQuasar()
+
+// Navigation and UI state
 const showUserMenu = ref(false)
 const unreadCount = ref<number>(0)
+const currentTab = ref('settings')
 
+// Profile editing state
+const editMode = ref(false)
+const originalProfile = ref({
+  fullName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  avatar: ''
+})
+
+// User profile data
+const userProfile = ref({
+  fullName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  avatar: ''
+})
+
+// Notification settings
+const notificationSettings = ref({
+  appointments: true,
+  queueUpdates: true,
+  medicalAlerts: true,
+  sms: false
+})
+
+// Security settings
+const securitySettings = ref({
+  biometric: false,
+  profileVisibility: 'Healthcare Providers Only'
+})
+
+// App preferences
+const appSettings = ref({
+  darkMode: false,
+  language: 'English',
+  fontSize: 16,
+  autoRefresh: true
+})
+
+// Options for dropdowns
+const visibilityOptions = [
+  'Healthcare Providers Only',
+  'Public',
+  'Private'
+]
+
+const languageOptions = [
+  'English',
+  'Spanish',
+  'French',
+  'German'
+]
+
+// Computed properties
 const userName = computed(() => {
   try {
     const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -112,9 +551,10 @@ const userInitials = computed(() => {
   return initials || (name[0]?.toUpperCase() ?? 'U')
 })
 
-const toggleUserMenu = () => { showUserMenu.value = !showUserMenu.value }
-
-const navigateTo = (path: string) => { void router.push(path) }
+// Navigation functions
+const navigateTo = (path: string) => { 
+  void router.push(path) 
+}
 
 const logout = () => {
   localStorage.removeItem('access_token')
@@ -123,21 +563,198 @@ const logout = () => {
   void router.push('/login')
 }
 
-// Declare window interface for lucide
-interface WindowWithLucide extends Window {
-  lucide?: {
-    createIcons(): void
+// Profile management functions
+const uploadAvatar = () => {
+  $q.notify({
+    message: 'Avatar upload feature coming soon!',
+    color: 'info',
+    position: 'top'
+  })
+}
+
+const cancelEdit = () => {
+  editMode.value = false
+  userProfile.value = { ...originalProfile.value }
+}
+
+const saveProfile = async () => {
+  try {
+    // API call to save profile would go here
+    await api.put('/patient/profile/', userProfile.value)
+    
+    editMode.value = false
+    originalProfile.value = { ...userProfile.value }
+    
+    $q.notify({
+      message: 'Profile updated successfully!',
+      color: 'positive',
+      position: 'top'
+    })
+  } catch (error) {
+    console.error('Profile save error:', error)
+    $q.notify({
+      message: 'Failed to update profile. Please try again.',
+      color: 'negative',
+      position: 'top'
+    })
+  }
+}
+
+// Security functions
+const changePassword = () => {
+  $q.dialog({
+    title: 'Change Password',
+    message: 'This feature will redirect you to the password change page.',
+    ok: 'Continue',
+    cancel: 'Cancel'
+  }).onOk(() => {
+    navigateTo('/change-password')
+  })
+}
+
+// App preference functions
+const toggleDarkMode = (value: boolean) => {
+  $q.dark.set(value)
+  localStorage.setItem('darkMode', value.toString())
+}
+
+// Support functions
+const openHelp = () => {
+  $q.notify({
+    message: 'Opening help center...',
+    color: 'info',
+    position: 'top'
+  })
+}
+
+const contactSupport = () => {
+  $q.dialog({
+    title: 'Contact Support',
+    message: 'Would you like to send an email to our support team?',
+    ok: 'Send Email',
+    cancel: 'Cancel'
+  }).onOk(() => {
+    window.open('mailto:support@medisync.com?subject=Support Request')
+  })
+}
+
+const showAbout = () => {
+  $q.dialog({
+    title: 'About MediSync',
+    message: 'MediSync Patient App v1.0.0\n\nA comprehensive healthcare management platform designed to streamline patient care and improve healthcare accessibility.',
+    ok: 'Close'
+  })
+}
+
+// Load user data
+const loadUserProfile = async () => {
+  try {
+    const response = await api.get('/patient/profile/')
+    userProfile.value = response.data
+    originalProfile.value = { ...response.data }
+  } catch (error) {
+    console.error('Failed to load user profile:', error)
+  }
+}
+
+const loadNotificationSettings = async () => {
+  try {
+    const response = await api.get('/patient/notification-settings/')
+    notificationSettings.value = response.data
+  } catch (error) {
+    console.error('Failed to load notification settings:', error)
+  }
+}
+
+const loadAppSettings = () => {
+  try {
+    // Load from localStorage for now
+    const darkMode = localStorage.getItem('darkMode') === 'true'
+    appSettings.value.darkMode = darkMode
+    $q.dark.set(darkMode)
+  } catch (error) {
+    console.error('Failed to load app settings:', error)
   }
 }
 
 onMounted(async () => {
-  try { (window as WindowWithLucide).lucide?.createIcons() } catch (e) { console.warn('lucide icons init failed', e) }
   try {
+    // Load unread notifications count
     const res = await api.get('/patient/notifications/unread-count/')
     unreadCount.value = res.data?.count ?? 0
-  } catch (e) { console.warn('unread count fetch failed', e); unreadCount.value = 0 }
+  } catch (e) { 
+    console.warn('unread count fetch failed', e)
+    unreadCount.value = 0 
+  }
+
+  // Load user data
+  await loadUserProfile()
+  await loadNotificationSettings()
+  loadAppSettings()
 })
 </script>
 
 <style scoped>
+/* Platform-specific safe area handling */
+.settings-page.ios-safe-area {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+.settings-page.android-safe-area {
+  /* Android specific adjustments */
+  padding-bottom: calc(80px + 16px);
+}
+
+/* Mobile-optimized card spacing */
+@media (max-width: 599px) {
+  .q-card {
+    margin-bottom: 12px !important;
+  }
+  
+  .q-card-section {
+    padding: 12px !important;
+  }
+}
+
+/* Touch-friendly button sizing */
+.q-btn {
+  min-height: 44px;
+}
+
+/* Improved readability on small screens */
+@media (max-width: 599px) {
+  .q-item__label {
+    font-size: 14px;
+  }
+  
+  .q-item__label--caption {
+    font-size: 12px;
+  }
+}
+
+/* Platform-specific header adjustments */
+.q-header.ios-safe-area {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Bottom navigation safe area */
+.q-footer.ios-safe-area {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.q-footer.android-safe-area {
+  padding-bottom: 8px;
+}
+
+/* Smooth transitions for better UX */
+.q-card, .q-btn, .q-item {
+  transition: all 0.2s ease;
+}
+
+/* Focus states for accessibility */
+.q-btn:focus, .q-item:focus {
+  outline: 2px solid var(--q-primary);
+  outline-offset: 2px;
+}
 </style>
