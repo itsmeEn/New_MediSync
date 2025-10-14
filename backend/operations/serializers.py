@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import AppointmentManagement, QueueManagement, PriorityQueue, Notification, Messaging, Conversation, Message, MessageReaction, MessageNotification, MedicineInventory, PatientAssignment, ConsultationNotes
+from django.utils import timezone
+from .models import AppointmentManagement, QueueManagement, PriorityQueue, Notification, Messaging, Conversation, Message, MessageReaction, MessageNotification, MedicineInventory, PatientAssignment, ConsultationNotes, QueueSchedule, QueueStatus, QueueStatusLog
 from backend.users.models import User
 
 class DashboardStatsSerializer(serializers.Serializer):
@@ -10,14 +11,25 @@ class DashboardStatsSerializer(serializers.Serializer):
     priority_queue = serializers.IntegerField()
     notifications = serializers.IntegerField()
     pending_assessment = serializers.IntegerField()
+    monthly_cancelled = serializers.IntegerField(required=False, default=0)
 
 class AppointmentSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.user.full_name', read_only=True)
     doctor_name = serializers.CharField(source='doctor.user.full_name', read_only=True)
+    doctor_id = serializers.IntegerField(source='doctor.user.id', read_only=True)
+    department = serializers.CharField(source='doctor.specialization', read_only=True)
+    type = serializers.CharField(source='appointment_type', read_only=True)
+    reason = serializers.SerializerMethodField()
     
     class Meta:
         model = AppointmentManagement
-        fields = ['appointment_id', 'patient_name', 'doctor_name', 'appointment_date', 'status', 'appointment_type']
+        fields = ['appointment_id', 'patient_name', 'doctor_name', 'doctor_id', 'department', 
+                  'appointment_date', 'appointment_time', 'status', 'appointment_type', 'type', 'reason',
+                  'cancellation_reason', 'reschedule_reason']
+    
+    def get_reason(self, obj):
+        """Return a default reason for display purposes"""
+        return "Medical consultation"
 
 class QueueSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.user.full_name', read_only=True)
@@ -211,7 +223,89 @@ class ConsultationNotesSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         """Update consultation notes"""
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+        if validated_data.get('status') == 'completed' and not instance.completed_at:
+            validated_data['completed_at'] = timezone.now()
+        return super().update(instance, validated_data)
+
+
+class QueueScheduleSerializer(serializers.ModelSerializer):
+    """Serializer for queue schedules"""
+    nurse_name = serializers.CharField(source='nurse.user.full_name', read_only=True)
+    is_currently_open = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QueueSchedule
+        fields = ['id', 'department', 'nurse', 'nurse_name', 'start_time', 'end_time', 
+                 'days_of_week', 'is_active', 'manual_override', 'override_status',
+                 'is_currently_open', 'created_at', 'updated_at']
+    
+    def get_is_currently_open(self, obj):
+        """Check if queue is currently open based on schedule"""
+        return obj.is_queue_open()
+
+
+class QueueStatusSerializer(serializers.ModelSerializer):
+    """Serializer for queue status"""
+    last_updated_by_name = serializers.CharField(source='last_updated_by.full_name', read_only=True)
+    
+    class Meta:
+        model = QueueStatus
+        fields = ['id', 'department', 'is_open', 'current_serving', 'total_waiting',
+                 'estimated_wait_time', 'status_message', 'last_updated_by', 
+                 'last_updated_by_name', 'last_updated_at', 'created_at']
+
+
+class QueueStatusLogSerializer(serializers.ModelSerializer):
+    """Serializer for queue status logs"""
+    changed_by_name = serializers.CharField(source='changed_by.full_name', read_only=True)
+    status_change_text = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = QueueStatusLog
+        fields = ['id', 'department', 'previous_status', 'new_status', 'change_reason',
+                 'changed_by', 'changed_by_name', 'changed_at', 'additional_notes',
+                 'status_change_text']
+    
+    def get_status_change_text(self, obj):
+        """Get human-readable status change text"""
+        action = "Opened" if obj.new_status else "Closed"
+        return f"Queue {action}"
+
+
+class CreateQueueScheduleSerializer(serializers.ModelSerializer):
+    """Serializer for creating queue schedules"""
+    
+    class Meta:
+        model = QueueSchedule
+        fields = ['department', 'start_time', 'end_time', 'days_of_week', 'is_active']
+    
+    def validate_days_of_week(self, value):
+        """Validate days of week format"""
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Days of week must be a list")
+        
+        for day in value:
+            if not isinstance(day, int) or day < 0 or day > 6:
+                raise serializers.ValidationError("Days must be integers between 0 (Monday) and 6 (Sunday)")
+        
+        return value
+    
+    def validate(self, data):
+        """Validate schedule times"""
+        if data['start_time'] >= data['end_time']:
+            raise serializers.ValidationError("Start time must be before end time")
+        
+        return data
+
+
+class UpdateQueueStatusSerializer(serializers.ModelSerializer):
+    """Serializer for updating queue status"""
+    
+    class Meta:
+        model = QueueStatus
+        # For updates from the UI we only need department and is_open
+        fields = ['department', 'is_open']
+    
+    def validate_department(self, value):
+        """Validate department exists"""
+        return value

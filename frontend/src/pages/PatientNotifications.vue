@@ -7,10 +7,7 @@
           <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
         
-        <div class="header-content">
-          <div class="text-h6 text-weight-bold">Patient Portal</div>
-          <div class="text-caption">Healthcare Dashboard</div>
-        </div>
+        <div class="header-content"></div>
 
         <q-space />
 
@@ -299,28 +296,28 @@
           name="home"
           icon="home"
           label="Home"
-          @click="$router.push('/patient/dashboard')"
+        @click="$router.push('/patient-dashboard')"
         />
         
         <q-tab
           name="appointments"
           icon="event"
           label="Appointments"
-          @click="$router.push('/patient/appointments')"
+            @click="$router.push('/patient-appointment-schedule')"
         />
         
         <q-tab
           name="records"
           icon="description"
           label="Records"
-          @click="$router.push('/patient/medical-request')"
+        @click="$router.push('/patient-medical-request')"
         />
         
         <q-tab
           name="notifications"
           icon="notifications"
           label="Notifications"
-          @click="$router.push('/patient/notifications')"
+        @click="$router.push('/patient-notifications')"
         >
           <q-badge
             v-if="unreadCount > 0"
@@ -334,7 +331,7 @@
           name="queue"
           icon="people"
           label="Queue"
-          @click="$router.push('/patient/queue')"
+        @click="$router.push('/patient-queue')"
         />
       </q-tabs>
     </q-footer>
@@ -422,8 +419,18 @@ onMounted(async () => {
 
 const fetchNotifications = async () => {
   try {
-    const res = await api.get('/patient/notifications/')
-    notifications.value = (res.data || []) as Notification[]
+    const res = await api.get('/operations/notifications/')
+    type NotificationDTO = { id: number; message?: string; is_read?: boolean; created_at?: string }
+    const raw = (res.data?.results ?? res.data ?? []) as NotificationDTO[]
+    notifications.value = raw.map((n) => ({
+      id: n.id,
+      title: 'Notification',
+      message: n.message ?? '',
+      type: 'info',
+      read: !!n.is_read,
+      archived: false,
+      createdAt: n.created_at ?? new Date().toISOString()
+    }))
   } catch (e) {
     console.warn('Failed to fetch notifications', e)
     notifications.value = [
@@ -466,6 +473,18 @@ const fetchNotifications = async () => {
     ]
   }
 }
+
+const markRead = async (n: Notification) => {
+  try {
+    await api.patch(`/operations/notifications/${n.id}/mark-read/`)
+    n.read = true
+  } catch (e) {
+    console.warn('Failed to mark notification as read', e)
+    n.read = true
+  }
+}
+
+// Bulk mark-all-read can be implemented via a future menu action
 
 const filteredNotifications = computed(() => {
   let filtered = notifications.value
@@ -579,73 +598,53 @@ const openNotification = (notification: Notification) => {
   showNotificationDetail.value = true
   // Auto-mark as read when opened
   if (!notification.read) {
-    void markAsRead(notification)
+    void markRead(notification)
   }
 }
 
 const toggleReadStatus = (notification: Notification) => {
   if (notification.read) {
-    void markAsUnread(notification)
+    // No backend endpoint; update locally
+    notification.read = false
   } else {
-    void markAsRead(notification)
+    void markRead(notification)
   }
 }
 
-const markAsRead = async (n: Notification | null) => {
-  if (!n) return
-  try {
-    await api.post(`/patient/notifications/${n.id}/read/`)
-    n.read = true
-  } catch (e) {
-    console.warn('Failed to mark as read', e)
-    n.read = true // Update locally anyway
-  }
-}
+// Actions below complement single markRead behavior
 
-const markAsUnread = async (n: Notification | null) => {
+const markAsRead = (n: Notification | null) => {
   if (!n) return
-  try {
-    await api.post(`/patient/notifications/${n.id}/unread/`)
-    n.read = false
-  } catch (e) {
-    console.warn('Failed to mark as unread', e)
-    n.read = false // Update locally anyway
-  }
-}
-
-const archiveNotification = async (n: Notification | null) => {
-  if (!n) return
-  try {
-    await api.post(`/patient/notifications/${n.id}/archive/`)
-    n.archived = true
-  } catch (e) {
-    console.warn('Failed to archive notification', e)
-    n.archived = true // Update locally anyway
-  }
+  // Delegate to markRead which handles backend and local state
+  void markRead(n)
   showActionMenu.value = false
 }
 
-const unarchiveNotification = async (n: Notification | null) => {
+const markAsUnread = (n: Notification | null) => {
   if (!n) return
-  try {
-    await api.post(`/patient/notifications/${n.id}/unarchive/`)
-    n.archived = false
-  } catch (e) {
-    console.warn('Failed to unarchive notification', e)
-    n.archived = false // Update locally anyway
-  }
+  // No backend endpoint; update locally
+  n.read = false
   showActionMenu.value = false
 }
 
-const deleteNotification = async (n: Notification | null) => {
+const archiveNotification = (n: Notification | null) => {
   if (!n) return
-  try {
-    await api.delete(`/patient/notifications/${n.id}/`)
-    notifications.value = notifications.value.filter(x => x.id !== n.id)
-  } catch (e) {
-    console.warn('Failed to delete notification', e)
-    notifications.value = notifications.value.filter(x => x.id !== n.id) // Remove locally anyway
-  }
+  // No backend archive endpoint; update locally
+  n.archived = true
+  showActionMenu.value = false
+}
+
+const unarchiveNotification = (n: Notification | null) => {
+  if (!n) return
+  // No backend unarchive endpoint; update locally
+  n.archived = false
+  showActionMenu.value = false
+}
+
+const deleteNotification = (n: Notification | null) => {
+  if (!n) return
+  // No backend delete endpoint; remove locally
+  notifications.value = notifications.value.filter(x => x.id !== n.id)
   showActionMenu.value = false
 }
 

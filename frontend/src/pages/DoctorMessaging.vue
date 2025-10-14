@@ -32,11 +32,19 @@
               <h4 class="verification-title">Account Verification Required</h4>
               <p class="verification-message">
                 Your account needs to be verified before you can access messaging functionality.
-                Please contact your administrator to complete the verification process.
+                Please upload your verification document to complete the process.
               </p>
               <q-chip color="negative" text-color="white" size="lg" icon="cancel">
                 Not Verified
               </q-chip>
+              <q-btn
+                color="primary"
+                label="Upload Verification Document"
+                icon="upload_file"
+                @click="$router.push('/verification')"
+                class="q-mt-md"
+                unelevated
+              />
             </q-card-section>
           </q-card>
         </div>
@@ -92,57 +100,60 @@
                       <div
                         v-for="user in userGroup"
                         :key="user.id"
-                        class="user-item"
-                        @click="startConversation(user)"
+                        class="user-item-wrapper"
                       >
-                        <div class="avatar-container">
-                          <q-avatar size="80px" class="user-avatar">
-                            <img
-                              v-if="user.profile_picture"
-                              :src="
-                                user.profile_picture.startsWith('http')
-                                  ? user.profile_picture
-                                  : `${api.defaults.baseURL || 'http://localhost:8000'}${user.profile_picture}`
-                              "
-                              :alt="user.full_name"
-                            />
-                            <q-icon
-                              v-else
-                              :name="user.role === 'doctor' ? 'medical_services' : 'local_hospital'"
-                              size="40px"
-                              color="white"
-                            />
-                          </q-avatar>
-                          
-                          <!-- Verification Badge -->
+                        <!-- User Card -->
+                        <div class="user-item" @click="startConversation(user)">
+                          <div class="avatar-container">
+                            <q-avatar size="80px" class="user-avatar">
+                              <img
+                                v-if="user.profile_picture"
+                                :src="getMediaUrl(user.profile_picture)"
+                                :alt="user.full_name"
+                              />
+                              <q-icon
+                                v-else
+                                :name="user.role === 'doctor' ? 'medical_services' : 'local_hospital'"
+                                size="40px"
+                                color="white"
+                              />
+                            </q-avatar>
+                          </div>
+
+                          <div class="avatar-info">
+                            <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
+                            <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
+                          </div>
+                        </div>
+
+                        <!-- Icons outside of the card -->
+                        <div class="user-icons">
+                          <q-btn
+                            round
+                            size="sm"
+                            color="primary"
+                            icon="chat"
+                            class="outside-icon chat-outside"
+                            @click="startConversation(user)"
+                          />
                           <q-badge
                             v-if="user.verification_status === 'approved'"
-                            floating
                             color="positive"
-                            class="verification-badge"
+                            class="outside-verification-badge"
                           >
                             <q-icon name="verified" size="16px" />
                           </q-badge>
-                        </div>
-
-                        <div class="avatar-info">
-                          <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
-                          <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
-                          
-                          <!-- Verification Status Chip -->
                           <q-chip
                             v-if="user.verification_status === 'approved'"
                             color="positive"
                             text-color="white"
                             size="xs"
                             icon="verified_user"
-                            class="verification-chip"
+                            class="outside-verification-chip"
                           >
                             Verified
                           </q-chip>
                         </div>
-
-                        <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
                       </div>
                     </div>
                   </q-carousel-slide>
@@ -155,6 +166,9 @@
               <div class="new-conversation-container">
                 <q-btn
                   class="glassmorphism-btn new-conversation-btn"
+                  color="positive"
+                  text-color="white"
+                  unelevated
                   @click="openNewConversationDialog"
                 >
                   <q-icon name="add" class="btn-icon" />
@@ -185,18 +199,14 @@
                 <div
                   v-for="conversation in conversations"
                   :key="conversation.id"
-                  class="conversation-card glassmorphism-conversation-card"
+                  :class="['conversation-card', 'glassmorphism-conversation-card', { 'unread-convo': conversation.unread_count > 0 }]"
                   @click="selectConversation(conversation)"
                 >
                   <div class="conversation-avatar">
                     <q-avatar size="45px">
                       <img
                         v-if="conversation.other_participant?.profile_picture"
-                        :src="
-                          conversation.other_participant.profile_picture.startsWith('http')
-                            ? conversation.other_participant.profile_picture
-                            : `${api.defaults.baseURL || 'http://localhost:8000'}${conversation.other_participant.profile_picture}`
-                        "
+                        :src="getMediaUrl(conversation.other_participant.profile_picture)"
                         :alt="conversation.other_participant.full_name"
                       />
                       <q-icon
@@ -247,11 +257,7 @@
               <q-avatar size="40px">
                 <img
                   v-if="selectedUser?.profile_picture"
-                  :src="
-                    selectedUser.profile_picture.startsWith('http')
-                      ? selectedUser.profile_picture
-                      : `${api.defaults.baseURL || 'http://localhost:8000'}${selectedUser.profile_picture}`
-                  "
+                  :src="getMediaUrl(selectedUser.profile_picture)"
                   :alt="selectedUser.full_name"
                 />
                 <q-icon
@@ -291,11 +297,7 @@
                   <q-avatar size="32px">
                     <img
                       v-if="message.sender.profile_picture"
-                      :src="
-                        message.sender.profile_picture.startsWith('http')
-                          ? message.sender.profile_picture
-                          : `${api.defaults.baseURL || 'http://localhost:8000'}${message.sender.profile_picture}`
-                      "
+                      :src="getMediaUrl(message.sender.profile_picture)"
                       :alt="message.sender.full_name"
                     />
                     <q-icon
@@ -506,6 +508,18 @@ const getCurrentUser = (): void => {
   } catch (error) {
     console.error('❌ Error parsing user data:', error);
   }
+};
+
+// Helper function to get proper media URL
+const getMediaUrl = (path: string | undefined): string => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  
+  // Get base URL without /api suffix for media files
+  let baseURL = api.defaults.baseURL || 'http://localhost:8001';
+  baseURL = baseURL.replace(/\/api\/?$/, '');
+  
+  return path.startsWith('/') ? `${baseURL}${path}` : `${baseURL}/${path}`;
 };
 
 // Fetch user profile from API
@@ -1066,35 +1080,39 @@ onMounted(() => {
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbf9 100%);
   backdrop-filter: blur(20px);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(40, 102, 96, 0.08);
+  box-shadow: 0 10px 30px rgba(40, 102, 96, 0.08);
 }
 
 .greeting-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
+  padding: 28px 32px;
 }
 
 .greeting-title {
-  font-size: 2rem;
+  font-size: 2.1rem;
   font-weight: 700;
-  color: #286660;
+  letter-spacing: 0.2px;
+  color: #1f4f4a;
   margin: 0 0 8px 0;
 }
 
 .greeting-subtitle {
-  font-size: 1.1rem;
-  color: #666;
+  font-size: 1.05rem;
+  color: #587672;
   margin: 0;
 }
 
 .greeting-icon {
   color: #286660;
+  background: rgba(40, 102, 96, 0.08);
+  border-radius: 14px;
+  padding: 12px;
 }
 
 /* Glassmorphism Cards */
@@ -1277,6 +1295,17 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.unread-convo {
+  background: rgba(40, 102, 96, 0.08);
+  border-left: 4px solid #286660;
+}
+
+.new-conversation-btn {
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 12px;
 }
 
 .glassmorphism-conversation-card:hover {
@@ -1784,16 +1813,20 @@ onMounted(() => {
 }
 
 .users-slider {
-  height: 200px;
-  border-radius: 12px;
-  overflow: hidden;
+  height: 240px;
+  border-radius: 16px;
+  overflow: visible;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 24px rgba(40, 102, 96, 0.12);
 }
 
 .slide-content {
   padding: 20px;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 }
 
@@ -1806,19 +1839,31 @@ onMounted(() => {
   width: 100%;
 }
 
+.user-item-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .user-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px;
+  padding: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 120px;
+  transition: all 0.25s ease;
+  min-width: 130px;
   position: relative;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .user-item:hover {
-  transform: scale(1.05);
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 .avatar-container {
@@ -1833,13 +1878,13 @@ onMounted(() => {
 
 .avatar-info {
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
 .avatar-name {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: #1f2d2b;
   margin: 0 0 4px 0;
   white-space: nowrap;
   overflow: hidden;
@@ -1849,8 +1894,8 @@ onMounted(() => {
 
 .avatar-role {
   font-size: 12px;
-  color: #666;
-  margin: 0 0 6px 0;
+  color: #587672;
+  margin: 0 0 2px 0;
   font-weight: 500;
 }
 
@@ -1858,18 +1903,48 @@ onMounted(() => {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: rgba(25, 118, 210, 0.1);
-  backdrop-filter: blur(10px);
+  background: rgba(25, 118, 210, 0.12);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.18);
 }
 
 .chat-btn:hover {
   background: rgba(25, 118, 210, 0.2);
 }
 
+/* Outside Icons Alignment */
+.user-icons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 0;
+}
+
+.outside-icon {
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.18);
+}
+
+.outside-verification-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 20px;
+  border-radius: 10px;
+}
+
+.outside-verification-chip {
+  height: 22px;
+  font-size: 11px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .users-row {
     gap: 15px;
+  }
+
+  .user-item-wrapper {
+    gap: 4px;
   }
 
   .user-item {
@@ -1885,6 +1960,10 @@ onMounted(() => {
   .avatar-name {
     font-size: 12px;
     max-width: 80px;
+  }
+
+  .user-icons {
+    gap: 2px;
   }
 
   .avatar-role {
@@ -1968,6 +2047,67 @@ onMounted(() => {
   }
 }
 
+/* Alignment Overrides: Match DoctorAppointment & DoctorDashboard aesthetics */
+.page-container-with-fixed-header {
+  background: #f8f9fa;
+  min-height: 100vh;
+  position: relative;
+}
+
+.greeting-section {
+  padding: 24px;
+  background: transparent;
+}
+
+.greeting-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+  margin: 0 auto;
+  min-height: 120px;
+}
+
+.greeting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
+}
+
+.greeting-content {
+  padding: 24px;
+}
+
+.greeting-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.greeting-subtitle {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+.glassmorphism-card {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
 @media (max-width: 480px) {
   .prototype-header {
     padding-top: max(env(safe-area-inset-top), 12px);
@@ -2033,5 +2173,34 @@ onMounted(() => {
 
 .avatar-container {
   position: relative;
+}
+
+/* Messaging Aesthetic Enhancements Overrides */
+.glassmorphism-conversation-card {
+  border: 1px solid rgba(40, 102, 96, 0.12);
+  box-shadow: 0 8px 20px rgba(40, 102, 96, 0.08);
+}
+
+.glassmorphism-conversation-card:hover {
+  box-shadow: 0 12px 28px rgba(40, 102, 96, 0.12);
+}
+
+.conversation-name {
+  font-size: 1rem;
+  color: #1f2d2b;
+}
+
+.conversation-preview {
+  font-size: 0.85rem;
+  color: #587672;
+}
+
+.conversation-time {
+  color: #6b7d79;
+}
+
+.conversation-avatar :deep(.q-avatar) {
+  border: 2px solid rgba(40, 102, 96, 0.15);
+  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.12);
 }
 </style>

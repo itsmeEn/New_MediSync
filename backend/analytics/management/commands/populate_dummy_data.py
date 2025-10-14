@@ -118,7 +118,8 @@ class Command(BaseCommand):
         
         specializations = [
             'Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Oncology',
-            'Radiology', 'Surgery', 'Internal Medicine', 'Psychiatry', 'Dermatology'
+            'Radiology', 'Surgery', 'Internal Medicine', 'Psychiatry', 'Dermatology',
+            'Optometry', 'Ophthalmology'
         ]
         
         # Create users and patient profiles
@@ -163,7 +164,8 @@ class Command(BaseCommand):
                     date_of_birth=timezone.now().date() - timedelta(days=age*365),
                     gender=gender,
                     is_active=True,
-                    is_verified=True
+                    is_verified=True,
+                    verification_status='approved'
                 )
                 
                 # Create patient profile with only existing fields
@@ -192,7 +194,8 @@ class Command(BaseCommand):
                         full_name=f"Dr. {first_name} {last_name}",
                         role='doctor',
                         is_active=True,
-                        is_verified=True
+                        is_verified=True,
+                        verification_status='approved'
                     )
                     
                     GeneralDoctorProfile.objects.create(
@@ -210,7 +213,8 @@ class Command(BaseCommand):
                         full_name=f"Nurse {first_name} {last_name}",
                         role='nurse',
                         is_active=True,
-                        is_verified=True
+                        is_verified=True,
+                        verification_status='approved'
                     )
                     
                     NurseProfile.objects.create(

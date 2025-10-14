@@ -7,13 +7,10 @@
           <img :src="logoUrl" alt="Logo" />
         </q-avatar>
         
-        <div class="column q-mr-auto">
-          <div class="text-h6 text-weight-medium">Patient Portal</div>
-          <div class="text-caption opacity-80">Healthcare Dashboard</div>
-        </div>
+        <div class="column q-mr-auto"></div>
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
@@ -29,7 +26,7 @@
           <q-list style="min-width: 200px">
             <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
             <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
               <q-item-section avatar>
                 <q-icon name="settings" />
               </q-item-section>
@@ -86,7 +83,7 @@
             <div class="col-6 col-sm-3">
               <q-card 
                 class="action-card cursor-pointer" 
-                @click="navigateTo('/patient-appointments')"
+                @click="navigateTo('/patient-appointment-schedule')"
                 flat
                 bordered
               >
@@ -310,7 +307,7 @@
           name="appointments" 
           icon="event" 
           label="Appointments"
-          @click="navigateTo('/patient-appointments')"
+          @click="navigateTo('/patient-appointment-schedule')"
           no-caps
         />
         <q-tab 
@@ -466,9 +463,9 @@ import logoUrl from 'src/assets/logo.svg'
 
 const router = useRouter()
 const currentTab = ref('home')
-const notificationCount = ref(3)
+const notificationCount = ref(0)
 const showUserMenu = ref(false)
-const unreadCount = ref(3)
+const unreadCount = ref(0)
 
 const userName = computed(() => {
   try {
@@ -579,9 +576,9 @@ onMounted(async () => {
   } catch (err) {
     console.warn('Failed to fetch dashboard summary', err)
     dashboardSummary.value = {
-      nowServing: '001',
-      currentPatient: userName.value,
-      myPosition: '005'
+      nowServing: '',
+      currentPatient: '',
+      myPosition: ''
     }
   }
 

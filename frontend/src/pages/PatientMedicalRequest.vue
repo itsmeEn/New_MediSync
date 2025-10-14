@@ -7,10 +7,7 @@
           <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
         
-        <div class="header-content">
-          <div class="text-h6 text-weight-bold">Patient Portal</div>
-          <div class="text-caption">Healthcare Dashboard</div>
-        </div>
+        <div class="header-content"></div>
 
         <q-space />
 
@@ -90,7 +87,7 @@
                      outlined
                      label="Recipient (Doctor/Nurse)"
                      color="teal"
-                     placeholder="Dr. Amelia Chen"
+                     placeholder="Enter doctor or nurse name"
                      :rules="[val => !!val || 'Please enter recipient']"
                    >
                      <template #prepend>
@@ -105,7 +102,7 @@
                      outlined
                      label="Additional Details (Optional)"
                      color="teal"
-                     placeholder="I need these records for my upcoming specialist consultation."
+                     placeholder="Enter additional details about your request"
                      rows="3"
                      autogrow
                    >
@@ -217,7 +214,7 @@
           name="appointments" 
           icon="event" 
           label="Appointments"
-          @click="navigateTo('/patient-appointments')"
+            @click="navigateTo('/patient-appointment-schedule')"
         />
         <q-tab 
           name="records" 
@@ -410,45 +407,7 @@ onMounted(async () => {
   
   // Load recent requests
   try {
-    let requests: MedicalRequest[] = JSON.parse(localStorage.getItem('medicalRequests') || '[]')
-    
-    // Add sample data if no requests exist
-    if (requests.length === 0) {
-      const sampleRequests = [
-        {
-          id: 1,
-          type: 'Records Request (Full)',
-          recipient: 'Dr. Amelia Chen',
-          details: 'Request for complete medical records',
-          status: 'pending',
-          createdAt: new Date('2024-09-01').toISOString(),
-          patientName: 'John Smith',
-          patientEmail: 'john.smith@email.com'
-        },
-        {
-          id: 2,
-          type: 'Lab Results (Specific)',
-          recipient: 'Dr. Amelia Chen',
-          details: 'Request for specific lab results',
-          status: 'pending',
-          createdAt: new Date('2024-08-15').toISOString(),
-          patientName: 'Sarah Johnson',
-          patientEmail: 'sarah.johnson@email.com'
-        },
-        {
-          id: 3,
-          type: 'Immunization History',
-          recipient: 'Dr. Amelia Chen',
-          details: 'Need immunization records for school enrollment',
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-          patientName: 'Michael Brown',
-          patientEmail: 'michael.brown@email.com'
-        }
-      ]
-      localStorage.setItem('medicalRequests', JSON.stringify(sampleRequests))
-      requests = sampleRequests
-    }
+    const requests: MedicalRequest[] = JSON.parse(localStorage.getItem('medicalRequests') || '[]')
     
     recentRequests.value = requests.slice(0, 5) // Show only recent 5
   } catch (e) {

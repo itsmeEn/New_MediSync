@@ -75,6 +75,10 @@ const routes: RouteRecordRaw[] = [
     component: () => import('pages/NurseAnalytics.vue'),
   },
   {
+    path: '/nurse-queue-management',
+    component: () => import('pages/NurseQueueManagement.vue'),
+  },
+  {
     path: '/nurse-settings',
     component: () => import('pages/NurseSettings.vue'),
   },
@@ -85,6 +89,26 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/patient-dashboard',
     component: () => import('pages/PatientDashboard.vue'),
+  },
+  {
+    path: '/patient-appointment-schedule',
+    component: () => import('pages/PatientAppointmentSchedule.vue')
+  },
+  {
+    path: '/patient-medical-request',
+    component: () => import('pages/PatientMedicalRequest.vue')
+  },
+  {
+    path: '/patient-queue',
+    component: () => import('pages/PatientQueue.vue')
+  },
+  {
+    path: '/patient-notifications',
+    component: () => import('pages/PatientNotifications.vue')
+  },
+  {
+    path: '/patient-settings',
+    component: () => import('pages/PatientSettings.vue')
   },
   {
     path: '/home',

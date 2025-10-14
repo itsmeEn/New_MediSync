@@ -38,9 +38,9 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'email', 'full_name', 'role', 'date_of_birth', 'gender',
             'hospital_name', 'hospital_address', 'is_verified', 'verification_status', 
             'profile_picture', 'verification_document', 'doctor_profile', 'nurse_profile', 
-            'patient_profile', 'date_joined', 'updated_at'
+            'patient_profile', 'two_factor_enabled', 'date_joined', 'updated_at'
         ]
-        read_only_fields = ['id', 'date_joined', 'updated_at']
+        read_only_fields = ['id', 'date_joined', 'updated_at', 'two_factor_enabled']
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -208,3 +208,58 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'hospital_name', 'hospital_address'
         ]
         read_only_fields = ['email']  # Email should not be updated through this endpoint
+
+
+class TwoFactorEnableSerializer(serializers.Serializer):
+    """
+    Serializer for initiating 2FA setup
+    """
+    pass  # No input required for initial setup
+
+
+class TwoFactorVerifySerializer(serializers.Serializer):
+    """
+    Serializer for verifying and activating 2FA
+    """
+    otp_code = serializers.CharField(
+        max_length=6,
+        min_length=6,
+        required=True,
+        help_text="6-digit OTP code from authenticator app"
+    )
+
+    def validate_otp_code(self, value):
+        """Validate that OTP code is 6 digits"""
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP code must contain only digits.")
+        return value
+
+
+class TwoFactorDisableSerializer(serializers.Serializer):
+    """
+    Serializer for disabling 2FA
+    """
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        help_text="User password for verification"
+    )
+
+
+class TwoFactorLoginSerializer(serializers.Serializer):
+    """
+    Serializer for 2FA login verification
+    """
+    email = serializers.EmailField(required=True)
+    otp_code = serializers.CharField(
+        max_length=6,
+        min_length=6,
+        required=True,
+        help_text="6-digit OTP code from authenticator app"
+    )
+
+    def validate_otp_code(self, value):
+        """Validate that OTP code is 6 digits"""
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP code must contain only digits.")
+        return value

@@ -167,11 +167,19 @@
                 <h4 class="verification-title">Account Verification Required</h4>
                 <p class="verification-message">
                   Your account needs to be verified before you can access messaging functionality.
-                  Please contact your administrator to complete the verification process.
+                  Please upload your verification document to complete the process.
                 </p>
                 <q-chip color="negative" text-color="white" size="lg" icon="cancel">
                   Not Verified
                 </q-chip>
+                <q-btn
+                  color="primary"
+                  label="Upload Verification Document"
+                  icon="upload_file"
+                  @click="$router.push('/verification')"
+                  class="q-mt-md"
+                  unelevated
+                />
               </q-card-section>
             </q-card>
           </div>

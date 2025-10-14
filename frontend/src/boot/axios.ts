@@ -1,5 +1,5 @@
 import { defineBoot } from '#q-app/wrappers';
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getPlatformInfo, getTimeoutConfig } from 'src/utils/asyncErrorHandler';
 
 declare module 'vue' {
@@ -31,59 +31,105 @@ const resolveBaseURL = (): string => {
     return mobileEndpoints[0] || 'http://localhost:8000/api';
   }
 
-  // For web browsers, use the current hostname
+  // For web browsers, use the current hostname and adjust port during dev
   const host = window.location?.hostname || 'localhost';
-  const webEndpoint = `http://${host}:8000/api`;
+  const frontPort = window.location?.port || '';
+  // If running on a dev port (non-empty), prefer backend 8001; otherwise 8000
+  const backendPort = frontPort ? '8001' : '8000';
+  const webEndpoint = `http://${host}:${backendPort}/api`;
   return webEndpoint;
 };
 
-// Async endpoint testing for mobile optimization (called after boot)
-export const optimizeEndpointForMobile = async (): Promise<void> => {
-  const platform = getPlatformInfo();
-
-  if (!platform.isCapacitor) {
-    return; // Only optimize for mobile
-  }
-
-  const mobileEndpoints = [
-    'http://172.20.29.202:8000/api',
-    'http://10.0.2.2:8000/api',
-    'http://192.168.55.101:8000/api',
-    'http://192.168.1.100:8000/api',
-    'http://localhost:8000/api',
-  ];
-
+// Connectivity test helper: probes a known endpoint and treats 404 as NOT reachable
+const testConnectivity = async (endpoint: string): Promise<boolean> => {
   try {
-    const workingEndpoint = await testMobileEndpoints(mobileEndpoints);
-    if (workingEndpoint !== api.defaults.baseURL) {
-      api.defaults.baseURL = workingEndpoint;
-      localStorage.setItem('API_BASE_URL', workingEndpoint);
-    }
+    // Probe a stable operations endpoint; allow 200/401/403/405 as "reachable"
+    const probeUrl = `${endpoint}/operations/notifications/`;
+    const testResponse = await axios.get(probeUrl, {
+      // Use a short timeout to avoid hanging when port is closed
+      timeout: 2500,
+      validateStatus: () => true,
+    });
+    // Consider 2xx, 401, 403, 405 as reachable; 404 means wrong baseURL
+    return (
+      (testResponse.status >= 200 && testResponse.status < 300) ||
+      testResponse.status === 401 ||
+      testResponse.status === 403 ||
+      testResponse.status === 405
+    );
   } catch {
-    // Endpoint optimization failed silently
+    // Network errors (like ECONNREFUSED) will land here
+    return false;
   }
 };
 
-// Test mobile endpoints for connectivity
-const testMobileEndpoints = async (endpoints: string[]): Promise<string> => {
-  for (const endpoint of endpoints) {
-    try {
-      // Quick connectivity test with short timeout
-      const testResponse = await axios.get(`${endpoint}/users/profile/`, {
-        timeout: 3000,
-        validateStatus: () => true, // Accept any status for connectivity test
-      });
+// Mobile endpoints to probe when running under Capacitor
+const MOBILE_ENDPOINTS = [
+  'http://172.20.29.202:8000/api', // Current network IP
+  'http://10.0.2.2:8000/api', // Android emulator
+  'http://192.168.55.101:8000/api', // Alternative development IP
+  'http://192.168.1.100:8000/api', // Alternative common IP
+  'http://localhost:8000/api', // Fallback
+];
 
-      if (testResponse.status < 500) {
-        return endpoint;
-      }
-    } catch {
-      // Endpoint test failed silently
-    }
+// Web fallback testing: prefer :8001, fall back to :8000 if unreachable
+const resolveWebEndpointWithFallback = async (): Promise<string> => {
+  const host = window.location?.hostname || 'localhost';
+  const frontPort = window.location?.port || '';
+  const primary = `http://${host}:${frontPort ? '8001' : '8000'}/api`;
+  const fallback = `http://${host}:8000/api`;
+
+  // If primary is already :8000 (non-dev), return it directly
+  if (!frontPort) {
+    return primary;
   }
 
-  // Fallback to first endpoint if none are reachable
-  return endpoints[0] || 'http://localhost:8000/api';
+  // Test :8001, then fallback to :8000
+  const okPrimary = await testConnectivity(primary);
+  if (okPrimary) {
+    return primary;
+  }
+  const okFallback = await testConnectivity(fallback);
+  if (okFallback) {
+    return fallback;
+  }
+  // As last resort, return primary to avoid undefined baseURL
+  return primary;
+};
+
+// Test a list of mobile endpoints and pick the first reachable
+const resolveMobileEndpointWithFallback = async (): Promise<string> => {
+  for (const endpoint of MOBILE_ENDPOINTS) {
+    const ok = await testConnectivity(endpoint);
+    if (ok) {
+      return endpoint;
+    }
+  }
+  return MOBILE_ENDPOINTS[0] || 'http://localhost:8000/api';
+};
+
+// Unified async optimizer: works for both web and mobile
+export const optimizeEndpoint = async (): Promise<void> => {
+  const platform = getPlatformInfo();
+
+  try {
+    let workingEndpoint: string | null = null;
+
+    if (platform.isCapacitor) {
+      workingEndpoint = await resolveMobileEndpointWithFallback();
+    } else {
+      workingEndpoint = await resolveWebEndpointWithFallback();
+    }
+
+    if (workingEndpoint && workingEndpoint !== api.defaults.baseURL) {
+      api.defaults.baseURL = workingEndpoint;
+      localStorage.setItem('API_BASE_URL', workingEndpoint);
+      console.log('API base URL optimized to:', workingEndpoint);
+    }
+  } catch (e) {
+    // Fail silently to avoid blocking app startup
+    console.warn('Endpoint optimization failed:', e);
+  }
 };
 
 // Create axios instance with platform-specific configuration
@@ -95,7 +141,7 @@ const api = axios.create({
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
 
     // Avoid attaching tokens to auth-related endpoints
@@ -118,8 +164,9 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(new Error(error.message || 'Request failed'));
+  (error: Error) => {
+    // Preserve original Axios error to keep response/details for downstream handlers
+    return Promise.reject(error);
   },
 );
 
@@ -128,8 +175,8 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 
     // Do not attempt refresh on auth endpoints
     const url = originalRequest?.url || '';
@@ -140,7 +187,7 @@ api.interceptors.response.use(
       url.includes('/users/reset-password') ||
       url.includes('/users/token/refresh/');
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       console.log('401 Unauthorized detected, attempting token refresh...');
       originalRequest._retry = true;
 
@@ -156,7 +203,7 @@ api.interceptors.response.use(
           localStorage.setItem('access_token', access);
           console.log('Token refreshed successfully');
 
-          originalRequest.headers.Authorization = `Bearer ${access}`;
+          // Retry the original request; request interceptor will attach the new token
           return api(originalRequest);
         } else {
           console.warn('No refresh token found');
@@ -169,9 +216,10 @@ api.interceptors.response.use(
         localStorage.removeItem('user');
         window.location.href = '/login';
       }
-    }
+      }
 
-    return Promise.reject(new Error(error.message || 'Response failed'));
+    // Preserve original Axios error so callers can inspect status and response body
+    return Promise.reject(error);
   },
 );
 
@@ -185,6 +233,10 @@ export default defineBoot(({ app }) => {
   app.config.globalProperties.$api = api;
   // ^ ^ ^ this will allow to use this.$api (for Vue Options API form)
   //       so you can easily perform requests against your app's API
+
+  // Kick off async endpoint optimization and fallback logic
+  // This runs after boot without requiring user interaction
+  void optimizeEndpoint();
 });
 
 export { api };

@@ -17,9 +17,17 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from datetime import datetime, date
 from decimal import Decimal
+import pyotp
+import qrcode
+import io
+import base64
 
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
-from .serializers import UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, ProfilePictureSerializer, ProfileUpdateSerializer
+from .serializers import (
+    UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, 
+    ProfilePictureSerializer, ProfileUpdateSerializer, TwoFactorEnableSerializer,
+    TwoFactorVerifySerializer, TwoFactorDisableSerializer, TwoFactorLoginSerializer
+)
 
 # These classes are correctly defined and can be used as they are.
 # They are included here for the sake of a complete, organized file.
@@ -111,6 +119,7 @@ def register(request):
 def login(request):
     """
     Logs in a user with email and password and returns JWT tokens.
+    If 2FA is enabled, requires OTP verification before returning tokens.
     """
     print("Login attempt - Email:", request.data.get('email'))  # Add debug logging
     email = request.data.get('email')
@@ -128,18 +137,23 @@ def login(request):
         if not user.is_active:
             return Response({'error': 'User is not active.'}, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Generate JWT tokens without embedding user data
+        # Check if 2FA is enabled for this user
+        if user.two_factor_enabled:
+            # User has 2FA enabled, require OTP verification
+            # Don't return tokens yet, return a flag indicating 2FA is required
+            print("2FA enabled for user, requiring OTP verification")
+            return Response({
+                'requires_2fa': True,
+                'email': user.email,
+                'message': 'Please enter your 6-digit authentication code.'
+            }, status=status.HTTP_200_OK)
+        
+        # No 2FA, proceed with normal login
+        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
-        # Create user data structure
-        user_data = {
-            'id': user.id,
-            'email': user.email,
-            'full_name': user.full_name,
-            'role': user.role,
-            'is_verified': user.is_verified,
-            'verification_status': user.verification_status
-        }
+        # Use full serializer data to keep response consistent with /users/profile/
+        user_data = UserSerializer(user).data
         print("User data from serializer:", user_data)  # Add debug logging
         
         response_data = {
@@ -522,3 +536,196 @@ def calculate_age(birth_date):
         return None
     today = date.today()
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+
+
+# ============================================
+# Two-Factor Authentication (2FA) Endpoints
+# ============================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def enable_2fa(request):
+    """
+    Initiate 2FA setup for doctors and nurses only.
+    Generates a secret key and returns a QR code for scanning with an authenticator app.
+    """
+    user = request.user
+    
+    # Only allow doctors and nurses to enable 2FA
+    if user.role not in ['doctor', 'nurse']:
+        return Response({
+            'error': 'Two-factor authentication is only available for doctors and nurses.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Check if 2FA is already enabled
+    if user.two_factor_enabled:
+        return Response({
+            'error': 'Two-factor authentication is already enabled for this account.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Generate a new secret key
+    secret = pyotp.random_base32()
+    
+    # Save the secret temporarily (it will be finalized upon verification)
+    user.two_factor_secret = secret
+    user.save()
+    
+    # Generate provisioning URI for QR code
+    totp = pyotp.TOTP(secret)
+    provisioning_uri = totp.provisioning_uri(
+        name=user.email,
+        issuer_name='MediSync'
+    )
+    
+    # Generate QR code
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(provisioning_uri)
+    qr.make(fit=True)
+    
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Convert QR code to base64 for easy transmission
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
+    return Response({
+        'message': 'Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.)',
+        'qr_code': f'data:image/png;base64,{qr_code_base64}',
+        'secret': secret,  # Also provide secret for manual entry
+        'next_step': 'Enter the 6-digit code from your authenticator app to verify and activate 2FA'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_2fa(request):
+    """
+    Verify and activate 2FA by checking the OTP code from authenticator app.
+    """
+    user = request.user
+    serializer = TwoFactorVerifySerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if 2FA is already enabled
+    if user.two_factor_enabled:
+        return Response({
+            'error': 'Two-factor authentication is already enabled for this account.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if secret exists
+    if not user.two_factor_secret:
+        return Response({
+            'error': 'No 2FA setup found. Please initiate 2FA setup first.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    otp_code = serializer.validated_data['otp_code']
+    
+    # Verify the OTP code
+    totp = pyotp.TOTP(user.two_factor_secret)
+    if totp.verify(otp_code, valid_window=1):
+        # OTP is valid, enable 2FA
+        user.two_factor_enabled = True
+        user.save()
+        
+        return Response({
+            'message': 'Two-factor authentication has been successfully enabled for your account.',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({
+            'error': 'Invalid authentication code. Please try again.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def disable_2fa(request):
+    """
+    Disable 2FA for the user after password verification.
+    """
+    user = request.user
+    serializer = TwoFactorDisableSerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if 2FA is enabled
+    if not user.two_factor_enabled:
+        return Response({
+            'error': 'Two-factor authentication is not enabled for this account.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify password
+    password = serializer.validated_data['password']
+    if not user.check_password(password):
+        return Response({
+            'error': 'Invalid password. Please try again.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Disable 2FA
+    user.two_factor_enabled = False
+    user.two_factor_secret = None
+    user.save()
+    
+    return Response({
+        'message': 'Two-factor authentication has been successfully disabled for your account.',
+        'user': UserSerializer(user).data
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_2fa_login(request):
+    """
+    Verify OTP code during login for users with 2FA enabled.
+    Returns JWT tokens if OTP is valid.
+    """
+    serializer = TwoFactorLoginSerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    email = serializer.validated_data['email']
+    otp_code = serializer.validated_data['otp_code']
+    
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({
+            'error': 'Invalid credentials.'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if user is active
+    if not user.is_active:
+        return Response({
+            'error': 'User account is not active.'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if 2FA is enabled
+    if not user.two_factor_enabled or not user.two_factor_secret:
+        return Response({
+            'error': 'Two-factor authentication is not enabled for this account.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify the OTP code
+    totp = pyotp.TOTP(user.two_factor_secret)
+    if totp.verify(otp_code, valid_window=1):
+        # OTP is valid, generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        # Use full serializer data to keep response consistent with /users/profile/
+        user_data = UserSerializer(user).data
+        
+        return Response({
+            'message': 'Login successful',
+            'user': user_data,
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({
+            'error': 'Invalid authentication code. Please try again.'
+        }, status=status.HTTP_400_BAD_REQUEST)

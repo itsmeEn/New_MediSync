@@ -15,6 +15,10 @@ urlpatterns = [
     path('blocked-dates/', views.doctor_blocked_dates, name='doctor_blocked_dates'),
     path('block-date/', views.doctor_block_date, name='doctor_block_date'),
     path('create-appointment/', views.doctor_create_appointment, name='doctor_create_appointment'),
+    path('appointments/schedule/', views.schedule_appointment, name='schedule_appointment'),
+    path('appointments/<int:appointment_id>/reschedule/', views.reschedule_appointment, name='reschedule_appointment'),
+    path('appointments/<int:appointment_id>/cancel/', views.cancel_appointment, name='cancel_appointment'),
+    path('patient/appointments/', views.patient_appointments, name='patient_appointments'),
     
     # Messaging endpoints
     path('messaging/conversations/', views.get_conversations, name='get_conversations'),
@@ -46,4 +50,12 @@ urlpatterns = [
     path('doctor/assignments/', views.get_doctor_assignments, name='get_doctor_assignments'),
     path('doctor/assignments/<int:assignment_id>/accept/', views.accept_assignment, name='accept_assignment'),
     path('doctor/assignments/<int:assignment_id>/consultation-notes/', views.consultation_notes, name='consultation_notes'),
+    
+    # Queue Management endpoints
+    path('queue/schedules/', views.queue_schedules, name='queue_schedules'),
+    path('queue/schedules/<int:schedule_id>/', views.queue_schedule_detail, name='queue_schedule_detail'),
+    path('queue/status/', views.queue_status, name='queue_status'),
+    path('queue/status/logs/', views.queue_status_logs, name='queue_status_logs'),
+    path('queue/join/', views.join_queue, name='join_queue'),
+    path('queue/availability/', views.check_queue_availability, name='check_queue_availability'),
 ]

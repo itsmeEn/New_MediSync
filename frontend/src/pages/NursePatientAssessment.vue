@@ -170,15 +170,6 @@
           <div class="header-left">
             <h4 class="page-title">Patient Management</h4>
           </div>
-          <div class="header-right">
-            <q-btn
-              color="primary"
-              label="Save Assessment"
-              icon="save"
-              @click="saveAssessment"
-              :loading="saving"
-            />
-          </div>
         </div>
       </div>
 
@@ -189,7 +180,18 @@
             <div class="row items-center q-mb-md">
               <h6 class="text-h6 q-mb-none">Select Patient</h6>
               <q-space />
-              <q-btn color="secondary" label="Add New Patient" icon="person_add" size="sm" />
+              <div class="button-group">
+                <q-btn 
+                  color="primary" 
+                  label="Save Assessment" 
+                  icon="save" 
+                  @click="saveAssessment"
+                  :loading="saving"
+                  size="sm" 
+                  class="q-mr-sm"
+                />
+                <q-btn color="secondary" label="Add New Patient" icon="person_add" size="sm" />
+              </div>
             </div>
 
             <q-select
@@ -1511,9 +1513,10 @@ onUnmounted(() => {
 }
 
 .page-header {
-  background: linear-gradient(135deg, #286660 0%, #1e7668 100%);
-  color: white;
+  background: white;
+  color: #333;
   padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .header-content {
@@ -1524,6 +1527,12 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+.button-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .header-left {
   display: flex;
   align-items: center;
@@ -1531,7 +1540,7 @@ onUnmounted(() => {
 }
 
 .back-btn {
-  color: white;
+  color: #333;
 }
 
 .page-title {

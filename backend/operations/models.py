@@ -55,10 +55,9 @@ class QueueManagement(models.Model):
     expected_patients = models.PositiveIntegerField(default=0, help_text="Expected number of patients in the queue.")   
     actual_wait_time = models.DurationField(null=True, blank=True, help_text="Actual wait time for the patient.")
     finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the queue finished.")
-    #department queues like OPD, Billing, Buying Medicines, Appointment 
+    #department queues like OPD, Pharmacy, Appointment 
     department = models.CharField (max_length=100,choices=[
         ("OPD", "Out Patient Department"),
-        ("Billing", "Billing"),
         ("Pharmacy", "Pharmacy"),
         ("Appointment", "Appointment"),
     ], help_text="Department for which the queue is managed.")
@@ -261,10 +260,13 @@ class AppointmentManagement(models.Model):
     #status of the appointment like scheduled, completed, cancelled, no show
     status = models.CharField(max_length=50, choices=[
         ("scheduled", "Scheduled"),
+        ("rescheduled", "Rescheduled"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
         ("no_show", "No Show"),
     ], default="scheduled")
+    cancellation_reason = models.TextField(blank=True, null=True, help_text="Reason for cancellation.")
+    reschedule_reason = models.TextField(blank=True, null=True, help_text="Reason for rescheduling.")
 
     class Meta:
         ordering = ["appointment_date"]
@@ -276,8 +278,14 @@ class AppointmentManagement(models.Model):
         return f"Appointment {self.id} - Patient: {self.patient.user.full_name} with Dr. {self.doctor.user.full_name}"
     
     def save(self, *args, **kwargs):
-        if self.appointment_date < timezone.now():
-            raise ValueError("Appointment date cannot be in the past.")
+        # Only enforce future dates when scheduling or rescheduling
+        try:
+            status_requires_future = self.status in ["scheduled", "rescheduled"]
+        except Exception:
+            status_requires_future = True
+
+        if status_requires_future and self.appointment_date < timezone.now():
+            raise ValueError("Appointment date cannot be in the past for scheduled/rescheduled appointments.")
         super().save(*args, **kwargs)
         # This ensures that the appointment date is not in the past.
         # This can be used to check if the appointment is valid or not.
@@ -709,3 +717,226 @@ class ConsultationNotes(models.Model):
 
     def __str__(self):
         return f"Consultation notes for {self.patient.user.full_name} by Dr. {self.doctor.user.full_name}"
+
+
+class QueueSchedule(models.Model):
+    """
+    Model for managing queue activation schedules set by nurses
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Billing", "Billing"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        help_text="Department for which the schedule is set"
+    )
+    nurse = models.ForeignKey(
+        NurseProfile, 
+        on_delete=models.CASCADE, 
+        related_name="queue_schedules",
+        help_text="Nurse who set the schedule"
+    )
+    
+    # Schedule settings
+    start_time = models.TimeField(help_text="Time when queue should open")
+    end_time = models.TimeField(help_text="Time when queue should close")
+    days_of_week = models.JSONField(
+        default=list,
+        help_text="List of days when queue is active (0=Monday, 6=Sunday)"
+    )
+    
+    # Status and control
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this schedule is currently active"
+    )
+    manual_override = models.BooleanField(
+        default=False,
+        help_text="Manual override by nurse (overrides time-based activation)"
+    )
+    override_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('enabled', 'Manually Enabled'),
+            ('disabled', 'Manually Disabled'),
+            ('auto', 'Automatic'),
+        ],
+        default='auto',
+        help_text="Current override status"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-updated_at"]
+        db_table = "queue_schedules"
+        verbose_name = "Queue Schedule"
+        verbose_name_plural = "Queue Schedules"
+        unique_together = ['department', 'nurse']
+    
+    def is_queue_open(self):
+        """
+        Check if queue should be open based on schedule and manual override
+        """
+        if self.manual_override:
+            return self.override_status == 'enabled'
+        
+        if not self.is_active:
+            return False
+        
+        now = timezone.now()
+        current_time = now.time()
+        current_day = now.weekday()  # 0=Monday, 6=Sunday
+        
+        # Check if today is in the scheduled days
+        if current_day not in self.days_of_week:
+            return False
+        
+        # Check if current time is within schedule
+        return self.start_time <= current_time <= self.end_time
+    
+    def __str__(self):
+        return f"{self.department} Queue Schedule by {self.nurse.user.full_name}"
+
+
+class QueueStatus(models.Model):
+    """
+    Model for tracking real-time queue status and broadcasting changes
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Billing", "Billing"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        unique=True,
+        help_text="Department for which status is tracked"
+    )
+    
+    # Current status
+    current_schedule = models.ForeignKey(
+        'QueueSchedule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Currently active schedule for this department"
+    )
+    is_open = models.BooleanField(
+        default=False,
+        help_text="Whether the queue is currently open for new patients"
+    )
+    current_serving = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Queue number currently being served"
+    )
+    total_waiting = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of patients currently waiting"
+    )
+    estimated_wait_time = models.DurationField(
+        null=True,
+        blank=True,
+        help_text="Estimated wait time for new patients"
+    )
+    
+    # Status message for patients
+    status_message = models.CharField(
+        max_length=200,
+        default="Queue Closed",
+        help_text="Current status message displayed to patients"
+    )
+    
+    # Last update info
+    last_updated_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who last updated the status"
+    )
+    last_updated_at = models.DateTimeField(auto_now=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "queue_status"
+        verbose_name = "Queue Status"
+        verbose_name_plural = "Queue Statuses"
+    
+    def update_status_message(self):
+        """
+        Update status message based on current queue state
+        """
+        if self.is_open:
+            if self.total_waiting == 0:
+                self.status_message = "Queue Open - No Wait"
+            else:
+                wait_msg = f"Estimated wait: {self.estimated_wait_time}" if self.estimated_wait_time else ""
+                self.status_message = f"Queue Open - {self.total_waiting} waiting {wait_msg}".strip()
+        else:
+            self.status_message = "Queue Closed"
+    
+    def __str__(self):
+        return f"{self.department} Queue Status: {'Open' if self.is_open else 'Closed'}"
+
+
+class QueueStatusLog(models.Model):
+    """
+    Model for logging queue status changes for audit and analytics
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Billing", "Billing"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        help_text="Department for which status changed"
+    )
+    
+    # Status change details
+    previous_status = models.BooleanField(help_text="Previous queue open/closed status")
+    new_status = models.BooleanField(help_text="New queue open/closed status")
+    change_reason = models.CharField(
+        max_length=50,
+        choices=[
+            ('schedule', 'Scheduled Time'),
+            ('manual', 'Manual Override'),
+            ('system', 'System Update'),
+        ],
+        help_text="Reason for status change"
+    )
+    
+    # Change metadata
+    changed_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who triggered the change"
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+    additional_notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the status change"
+    )
+    
+    class Meta:
+        ordering = ["-changed_at"]
+        db_table = "queue_status_logs"
+        verbose_name = "Queue Status Log"
+        verbose_name_plural = "Queue Status Logs"
+    
+    def __str__(self):
+        status_change = "Opened" if self.new_status else "Closed"
+        return f"{self.department} Queue {status_change} at {self.changed_at}"

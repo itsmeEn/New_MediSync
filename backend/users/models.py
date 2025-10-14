@@ -55,6 +55,11 @@ class User(AbstractUser):
         ],
         default='not_submitted'
     )
+    
+    # Two-Factor Authentication fields
+    two_factor_enabled = models.BooleanField(default=False, help_text="Enable/disable two-factor authentication")
+    two_factor_secret = models.CharField(max_length=32, blank=True, null=True, help_text="Secret key for 2FA")
+    
     updated_at = models.DateTimeField(auto_now=True)  # `date_joined` from AbstractUser serves as `created_at`
 
     USERNAME_FIELD = "email"

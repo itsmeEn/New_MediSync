@@ -208,6 +208,8 @@ interface Patient {
   test_results: string;
   assigned_doctor: string | null;
   profile_picture?: string | null;
+  // Provided by backend to identify analytics dummy records
+  is_dummy?: boolean;
 }
 
 // Reactive data
@@ -227,11 +229,11 @@ const userProfile = ref<{
   profile_picture: string | null;
   verification_status: string;
 }>({
-  full_name: 'Loading...',
-  specialization: 'Loading specialization...',
-  role: 'doctor',
+  full_name: '',
+  specialization: '',
+  role: '',
   profile_picture: null,
-  verification_status: 'not_submitted',
+  verification_status: '',
 });
 
 // Weather data is now handled by DoctorHeader component
@@ -281,7 +283,10 @@ const loadPatients = async () => {
   try {
     const response = await api.get('/users/doctor/patients/');
     if (response.data.success) {
-      patients.value = response.data.patients;
+      // Exclude any dummy patients used for analytics/demo data
+      patients.value = (response.data.patients || []).filter(
+        (p: Patient | Record<string, unknown>) => !(p as Patient).is_dummy,
+      ) as Patient[];
       console.log('Patients loaded:', patients.value.length);
     }
   } catch (error) {

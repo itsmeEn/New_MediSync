@@ -40,8 +40,45 @@ export const useAppointmentsStore = defineStore('appointments', () => {
     loading.value = true
     error.value = null
     try {
-      const response = await api.get('/patient/appointments/')
-      appointments.value = response.data.results || response.data || []
+      const response = await api.get('/operations/appointments/')
+      type AppointmentDTO = {
+        appointment_id?: number
+        id?: number
+        department?: string
+        appointment_type?: string
+        type?: string
+        appointment_date?: string
+        date?: string
+        doctor_name?: string
+        doctor?: string
+        reason?: string
+        status?: string
+        time?: string
+      }
+      const raw = (response.data?.results ?? response.data ?? []) as AppointmentDTO[]
+      appointments.value = raw.map((a) => {
+        const dt = a.appointment_date ?? a.date
+        const d = dt ? new Date(dt) : null
+        const dateStr = d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] : (a.date ?? '')
+        const timeStr = d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : (a.time ?? '')
+        const statusMap: Record<string, Appointment['status']> = {
+          scheduled: 'upcoming',
+          completed: 'completed',
+          cancelled: 'cancelled',
+          no_show: 'cancelled'
+        }
+        const statusVal: Appointment['status'] = statusMap[(a.status ?? '').toLowerCase()] ?? (a.status as Appointment['status']) ?? 'upcoming'
+        return {
+          id: a.appointment_id ?? a.id ?? 0,
+          department: a.department ?? 'general',
+          type: a.appointment_type ?? a.type ?? 'general',
+          date: dateStr,
+          time: timeStr,
+          status: statusVal,
+          doctor: a.doctor_name ?? a.doctor ?? undefined,
+          reason: a.reason ?? undefined
+        } as Appointment
+      })
     } catch (err) {
       error.value = 'Failed to load appointments'
       console.error('Failed to load appointments:', err)
@@ -75,14 +112,19 @@ export const useAppointmentsStore = defineStore('appointments', () => {
 
   const updateStatus = async (id: number, status: Appointment['status']) => {
     try {
-      await api.patch(`/patient/appointments/${id}/`, { status })
+      await api.patch(`/operations/appointments/${id}/`, { status })
       const appointment = appointments.value.find(a => a.id === id)
       if (appointment) {
         appointment.status = status
       }
+      return true
     } catch (err) {
-      console.error('Failed to update appointment status:', err)
-      throw err
+      console.warn('Failed to update appointment status via API, updating locally:', err)
+      const appointment = appointments.value.find(a => a.id === id)
+      if (appointment) {
+        appointment.status = status
+      }
+      return false
     }
   }
 
@@ -95,27 +137,37 @@ export const useAppointmentsStore = defineStore('appointments', () => {
 
   const rescheduleSameTime = async (id: number, newDate: string) => {
     try {
-      await api.patch(`/patient/appointments/${id}/`, { date: newDate })
+      await api.patch(`/operations/appointments/${id}/`, { date: newDate })
       const appointment = appointments.value.find(a => a.id === id)
       if (appointment) {
         appointment.date = newDate
       }
+      return true
     } catch (err) {
-      console.error('Failed to reschedule appointment:', err)
-      throw err
+      console.warn('Failed to reschedule appointment via API, updating locally:', err)
+      const appointment = appointments.value.find(a => a.id === id)
+      if (appointment) {
+        appointment.date = newDate
+      }
+      return false
     }
   }
 
   const updateFields = async (id: number, fields: Partial<Appointment>) => {
     try {
-      await api.patch(`/patient/appointments/${id}/`, fields)
+      await api.patch(`/operations/appointments/${id}/`, fields)
       const appointment = appointments.value.find(a => a.id === id)
       if (appointment) {
         Object.assign(appointment, fields)
       }
+      return true
     } catch (err) {
-      console.error('Failed to update appointment:', err)
-      throw err
+      console.warn('Failed to update appointment via API, updating locally:', err)
+      const appointment = appointments.value.find(a => a.id === id)
+      if (appointment) {
+        Object.assign(appointment, fields)
+      }
+      return false
     }
   }
 

@@ -7,13 +7,10 @@
           <img :src="logoUrl" alt="Logo" />
         </q-avatar>
         
-        <div class="column q-mr-auto">
-          <div class="text-h6 text-weight-medium">Patient Portal</div>
-          <div class="text-caption opacity-80">Healthcare Dashboard</div>
-        </div>
+        <div class="column q-mr-auto"></div>
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient/notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
@@ -29,7 +26,7 @@
           <q-list style="min-width: 200px">
             <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
             <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient/settings')">
+            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
               <q-item-section avatar>
                 <q-icon name="settings" />
               </q-item-section>
@@ -425,7 +422,7 @@
           name="appointments" 
           icon="event" 
           label="Appointments"
-          @click="navigateTo('/patient-appointments')"
+            @click="navigateTo('/patient-appointment-schedule')"
           class="q-tab--mobile"
         />
         <q-tab 
@@ -499,24 +496,24 @@ const userProfile = ref({
 
 // Notification settings
 const notificationSettings = ref({
-  appointments: true,
-  queueUpdates: true,
-  medicalAlerts: true,
+  appointments: false,
+  queueUpdates: false,
+  medicalAlerts: false,
   sms: false
 })
 
 // Security settings
 const securitySettings = ref({
   biometric: false,
-  profileVisibility: 'Healthcare Providers Only'
+  profileVisibility: ''
 })
 
 // App preferences
 const appSettings = ref({
   darkMode: false,
-  language: 'English',
+  language: '',
   fontSize: 16,
-  autoRefresh: true
+  autoRefresh: false
 })
 
 // Options for dropdowns
@@ -628,20 +625,17 @@ const openHelp = () => {
 }
 
 const contactSupport = () => {
-  $q.dialog({
-    title: 'Contact Support',
-    message: 'Would you like to send an email to our support team?',
-    ok: 'Send Email',
-    cancel: 'Cancel'
-  }).onOk(() => {
-    window.open('mailto:support@medisync.com?subject=Support Request')
+  $q.notify({
+    message: 'Contact support feature coming soon!',
+    color: 'info',
+    position: 'top'
   })
 }
 
 const showAbout = () => {
   $q.dialog({
     title: 'About MediSync',
-    message: 'MediSync Patient App v1.0.0\n\nA comprehensive healthcare management platform designed to streamline patient care and improve healthcare accessibility.',
+    message: 'A comprehensive healthcare management platform designed to streamline patient care and improve healthcare accessibility.',
     ok: 'Close'
   })
 }
@@ -680,8 +674,10 @@ const loadAppSettings = () => {
 onMounted(async () => {
   try {
     // Load unread notifications count
-    const res = await api.get('/patient/notifications/unread-count/')
-    unreadCount.value = res.data?.count ?? 0
+    const res = await api.get('/operations/notifications/')
+    type NotificationDTO = { is_read?: boolean }
+    const list = (res.data?.results ?? res.data ?? []) as NotificationDTO[]
+    unreadCount.value = Array.isArray(list) ? list.filter((n) => n && n.is_read === false).length : 0
   } catch (e) { 
     console.warn('unread count fetch failed', e)
     unreadCount.value = 0 

@@ -435,6 +435,107 @@
       </q-card>
     </q-dialog>
 
+
+    <!-- Queue Schedule Modal -->
+    <q-dialog v-model="showQueueScheduleDialog" class="centered-dialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <div class="text-h6">Create Queue Schedule</div>
+        <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+        </q-card-section>
+        <q-card-section class="dialog-body">
+          <div class="form-container">
+            <!-- Current Schedule Display -->
+            <div v-if="currentSchedule" class="current-schedule-container">
+              <div class="schedule-info">
+                <div class="schedule-header">
+                  <q-icon name="schedule" color="primary" size="sm" />
+                  <span class="schedule-title">Current Schedule</span>
+      </div>
+                <div class="schedule-details">
+                  <div class="schedule-row">
+                    <span class="schedule-label">Department:</span>
+                    <span class="schedule-value">{{ getDepartmentLabel(currentSchedule.department) }}</span>
+                  </div>
+                  <div class="schedule-row">
+                    <span class="schedule-label">Time:</span>
+                    <span class="schedule-value">{{ formatTimeDisplay(currentSchedule.start_time) }} - {{ formatTimeDisplay(currentSchedule.end_time) }}</span>
+                  </div>
+                  <div class="schedule-row">
+                    <span class="schedule-label">Days:</span>
+                    <span class="schedule-value">{{ formatDays(currentSchedule.days_of_week) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="schedule-actions">
+                <q-btn 
+                  :color="currentSchedule.is_open ? 'negative' : 'positive'"
+                  :label="currentSchedule.is_open ? 'Close Queue' : 'Open Queue'"
+                  :icon="currentSchedule.is_open ? 'close' : 'play_arrow'"
+                  @click="toggleQueueStatus"
+                  :loading="togglingQueue"
+                  class="queue-toggle-btn"
+                />
+              </div>
+            </div>
+
+            <q-select 
+              v-model="queueForm.department" 
+              :options="departmentOptions" 
+              label="Department" 
+              emit-value 
+              map-options 
+              outlined
+              class="form-field"
+            />
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6">
+                <q-input 
+                  v-model="queueForm.start_time" 
+                  label="Queue Start Time" 
+                  outlined
+                  mask="##:## AM"
+                  hint="Format: HH:MM AM/PM"
+                  class="form-field"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-input 
+                  v-model="queueForm.end_time" 
+                  label="Queue End Time" 
+                  outlined
+                  mask="##:## AM"
+                  hint="Format: HH:MM AM/PM"
+                  class="form-field"
+                />
+              </div>
+            </div>
+            <q-select
+              v-model="queueForm.days_of_week"
+              :options="dayOptions"
+              label="Days of Week"
+              emit-value 
+              map-options 
+              multiple 
+              use-chips
+              outlined
+              class="form-field"
+            />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn 
+            color="positive" 
+            label="Create Schedule" 
+            @click="saveQueueSchedule" 
+            :loading="savingSchedule"
+            class="save-btn"
+            unelevated
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Notifications Modal -->
     <q-dialog v-model="showNotifications" persistent>
       <q-card style="width: 400px; max-width: 90vw">
@@ -589,6 +690,18 @@ const showPatientsDialog = ref(false);
 const showVitalsDialog = ref(false);
 const showMedicationsDialog = ref(false);
 const showNotifications = ref(false);
+const showQueueScheduleDialog = ref(false);
+const savingSchedule = ref(false);
+const currentSchedule = ref<{
+  id: number;
+  department: DepartmentValue;
+  start_time: string;
+  end_time: string;
+  days_of_week: number[];
+  is_active: boolean;
+  is_open: boolean;
+} | null>(null);
+const togglingQueue = ref(false);
 
 // Notification system
 const notifications = ref<Notification[]>([]);
@@ -631,6 +744,39 @@ interface MedicineData {
 // Queue data
 const normalQueue = ref<PatientData[]>([]);
 const priorityQueue = ref<PatientData[]>([]);
+
+// Queue schedule form
+type DepartmentValue = 'OPD' | 'Pharmacy' | 'Appointment'
+
+const departmentOptions = [
+  { label: 'Out Patient Department', value: 'OPD' },
+  { label: 'Pharmacy', value: 'Pharmacy' },
+  { label: 'Appointment', value: 'Appointment' }
+]
+
+const dayOptions = [
+  { label: 'Monday', value: 0 },
+  { label: 'Tuesday', value: 1 },
+  { label: 'Wednesday', value: 2 },
+  { label: 'Thursday', value: 3 },
+  { label: 'Friday', value: 4 },
+  { label: 'Saturday', value: 5 },
+  { label: 'Sunday', value: 6 }
+]
+
+const queueForm = ref<{
+  department: DepartmentValue | null
+  start_time: string
+  end_time: string
+  days_of_week: number[]
+  is_active: boolean
+}>({ 
+  department: 'OPD', 
+  start_time: '08:00 AM', 
+  end_time: '05:00 PM', 
+  days_of_week: [0,1,2,3,4], 
+  is_active: true 
+})
 
 // Medicine data
 const medicines = ref<MedicineData[]>([]);
@@ -1206,13 +1352,272 @@ const callNextPatient = () => {
   });
 };
 
-const manageQueue = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Opening queue management...',
-    position: 'top',
-  });
+const manageQueue = async () => {
+  await fetchCurrentSchedule();
+  showQueueScheduleDialog.value = true;
 };
+
+const saveQueueSchedule = async () => {
+  if (!queueForm.value.department) {
+    $q.notify({ type: 'negative', message: 'Please select a department' })
+    return
+  }
+  
+  // Validate time format
+  if (!queueForm.value.start_time || !queueForm.value.end_time) {
+    $q.notify({ type: 'negative', message: 'Please enter both start and end times' })
+    return
+  }
+  
+  // Validate days selection
+  if (!queueForm.value.days_of_week || queueForm.value.days_of_week.length === 0) {
+    $q.notify({ type: 'negative', message: 'Please select at least one day of the week' })
+    return
+  }
+  
+  savingSchedule.value = true
+  
+  // Convert 12-hour format to 24-hour format for backend
+  const convertTo24Hour = (time12: string): string => {
+    const parts = time12.split(' ')
+    if (parts.length !== 2) {
+      throw new Error('Invalid time format. Expected "HH:MM AM/PM"')
+    }
+    
+    const [time, period] = parts
+    if (!time || !period) {
+      throw new Error('Invalid time format. Expected "HH:MM AM/PM"')
+    }
+    
+    const timeParts = time.split(':')
+    if (timeParts.length !== 2) {
+      throw new Error('Invalid time format. Expected "HH:MM"')
+    }
+    
+    const [hours, minutes] = timeParts
+    if (!hours || !minutes) {
+      throw new Error('Invalid time format. Expected "HH:MM"')
+    }
+    
+    let hour24 = parseInt(hours)
+    
+    if (period === 'PM' && hour24 !== 12) {
+      hour24 += 12
+    } else if (period === 'AM' && hour24 === 12) {
+      hour24 = 0
+    }
+    
+    return `${hour24.toString().padStart(2, '0')}:${minutes}`
+  }
+
+  // Prepare the request data - ensure proper format
+  const requestData = {
+    department: queueForm.value.department,
+    start_time: convertTo24Hour(queueForm.value.start_time), // Convert to 24-hour format
+    end_time: convertTo24Hour(queueForm.value.end_time),     // Convert to 24-hour format
+    days_of_week: queueForm.value.days_of_week.map(day => Number(day)), // Ensure integers
+    is_active: true // Always set to true since we removed the toggle
+  }
+  
+  console.log('User profile:', userProfile.value)
+  console.log('Sending queue schedule request:', requestData)
+  
+  try {
+    const response = await api.post('/operations/queue/schedules/', requestData)
+    console.log('Queue schedule created successfully:', response.data)
+    $q.notify({ type: 'positive', message: 'Queue schedule created successfully' })
+    await fetchCurrentSchedule(); // Refresh the current schedule display
+    showQueueScheduleDialog.value = false
+    // Reset form
+    queueForm.value = { 
+      department: 'OPD', 
+      start_time: '08:00 AM', 
+      end_time: '05:00 PM', 
+      days_of_week: [0,1,2,3,4], 
+      is_active: true 
+    }
+  } catch (error: unknown) {
+    console.error('Failed to create queue schedule:', error)
+    let errorMessage = 'Failed to create queue schedule'
+    
+    // Type guard for axios error
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
+      console.error('Error response data:', axiosError.response?.data)
+      console.error('Error status:', axiosError.response?.status)
+
+      const data = axiosError.response?.data
+      if (data && typeof data === 'object' && data !== null) {
+        const obj = data as Record<string, unknown>
+        console.error('Error object keys:', Object.keys(obj))
+        console.error('Full error object:', obj)
+        
+        // Handle specific error cases
+        if (obj.error && typeof obj.error === 'string') {
+          errorMessage = obj.error
+        } else if (obj.non_field_errors && Array.isArray(obj.non_field_errors)) {
+          errorMessage = obj.non_field_errors.join(', ')
+        } else {
+          // Handle field-specific validation errors
+          const errorFields = Object.entries(obj).filter(([, value]) => Array.isArray(value) && value.length > 0)
+          if (errorFields.length > 0) {
+            const firstErrorField = errorFields[0]
+            if (firstErrorField) {
+              const [field, errors] = firstErrorField
+              errorMessage = `${field}: ${Array.isArray(errors) ? errors[0] : errors}`
+            }
+          } else {
+            const [firstKey, value] = Object.entries(obj)[0] ?? ['error', 'Failed to create queue schedule']
+            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+              errorMessage = `${firstKey}: ${value[0]}`
+            } else if (typeof value === 'string') {
+              errorMessage = `${firstKey}: ${value}`
+            }
+          }
+        }
+      } else if (axiosError.message) {
+        errorMessage = axiosError.message
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
+    $q.notify({ type: 'negative', message: errorMessage })
+  } finally {
+    savingSchedule.value = false
+  }
+};
+
+// Fetch current schedule for the nurse
+const fetchCurrentSchedule = async () => {
+  try {
+    const response = await api.get('/operations/queue/schedules/')
+    if (response.data && response.data.length > 0) {
+      // Get the first (most recent) schedule
+      const schedule = response.data[0]
+      currentSchedule.value = {
+        id: schedule.id,
+        department: schedule.department,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        days_of_week: schedule.days_of_week,
+        is_active: schedule.is_active,
+        is_open: schedule.is_open || false
+      }
+    } else {
+      currentSchedule.value = null
+    }
+  } catch (error) {
+    console.error('Failed to fetch current schedule:', error)
+    currentSchedule.value = null
+  }
+};
+
+// Toggle queue status (open/close)
+const toggleQueueStatus = async () => {
+  if (!currentSchedule.value) return
+  
+  togglingQueue.value = true
+  const newStatus = !currentSchedule.value.is_open
+  
+  const requestData = {
+    department: currentSchedule.value.department,
+    is_open: newStatus
+  }
+  
+  console.log('Toggling queue status:', requestData)
+  
+  try {
+    const response = await api.post('/operations/queue/status/', requestData)
+    console.log('Queue status updated successfully:', response.data)
+    
+    // Update the local state
+    if (currentSchedule.value) {
+      currentSchedule.value.is_open = newStatus
+    }
+    
+    // Use the message from the backend if available, otherwise use default
+    const message = response.data?.message || (newStatus 
+      ? 'Queue is now OPEN! Patients have been notified.' 
+      : 'Queue is now CLOSED.')
+    
+    $q.notify({ 
+      type: 'positive', 
+      message,
+      position: 'top',
+      timeout: 4000
+    })
+    
+  } catch (error: unknown) {
+    console.error('Failed to toggle queue status:', error)
+    let errorMessage = 'Failed to update queue status'
+    
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
+      console.error('Error response data:', axiosError.response?.data)
+      console.error('Error status:', axiosError.response?.status)
+      
+      const data = axiosError.response?.data
+      if (data && typeof data === 'object' && data !== null) {
+        const obj = data as Record<string, unknown>
+        console.error('Error object keys:', Object.keys(obj))
+        console.error('Full error object:', obj)
+        
+        if (obj.error && typeof obj.error === 'string') {
+          errorMessage = obj.error
+        } else if (obj.non_field_errors && Array.isArray(obj.non_field_errors)) {
+          errorMessage = obj.non_field_errors.join(', ')
+        } else {
+          // Handle field-specific validation errors
+          const errorFields = Object.entries(obj).filter(([, value]) => Array.isArray(value) && value.length > 0)
+          if (errorFields.length > 0) {
+            const firstErrorField = errorFields[0]
+            if (firstErrorField) {
+              const [field, errors] = firstErrorField
+              errorMessage = `${field}: ${Array.isArray(errors) ? errors[0] : errors}`
+            }
+          } else {
+            const [firstKey, value] = Object.entries(obj)[0] ?? ['error', 'Failed to update queue status']
+            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+              errorMessage = `${firstKey}: ${value[0]}`
+            } else if (typeof value === 'string') {
+              errorMessage = `${firstKey}: ${value}`
+            }
+          }
+        }
+      } else if (axiosError.message) {
+        errorMessage = axiosError.message
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
+    $q.notify({ type: 'negative', message: errorMessage })
+  } finally {
+    togglingQueue.value = false
+  }
+};
+
+// Helper functions for formatting
+const getDepartmentLabel = (value: DepartmentValue): string => {
+  const option = departmentOptions.find(opt => opt.value === value)
+  return option ? option.label : value
+};
+
+const formatTimeDisplay = (time24: string): string => {
+  const [hours, minutes] = time24.split(':')
+  if (!hours || !minutes) return time24
+  const hour = parseInt(hours)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${minutes} ${ampm}`
+};
+
+const formatDays = (days: number[]): string => {
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  return days.map(day => dayNames[day]).join(', ')
+};
+
 
 // Notification functions
 const unreadNotificationsCount = computed(() => {
@@ -3012,6 +3417,142 @@ onUnmounted(() => {
 
   .modal-close-btn:hover {
     background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+/* Queue Schedule Modal Styles */
+.centered-dialog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-card {
+  min-width: 480px;
+  max-width: 600px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+
+.dialog-header {
+  border-bottom: 1px solid var(--q-separator-color);
+  padding-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-body {
+  padding: 24px 24px 16px 24px;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-field {
+  width: 100%;
+}
+
+.toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--q-separator-color);
+  margin-bottom: 16px;
+}
+
+.dialog-actions {
+  padding: 16px 24px;
+  border-top: 1px solid var(--q-separator-color);
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+/* Current Schedule Styles */
+.current-schedule-container {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.schedule-info {
+  flex: 1;
+}
+
+.schedule-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.schedule-title {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.schedule-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.schedule-label {
+  font-weight: 500;
+  color: #6c757d;
+  min-width: 80px;
+}
+
+.schedule-value {
+  color: #495057;
+}
+
+.schedule-actions {
+  display: flex;
+  align-items: center;
+}
+
+.queue-toggle-btn {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .current-schedule-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .schedule-actions {
+    justify-content: center;
+    margin-top: 12px;
+  }
+  
+  .queue-toggle-btn {
+    width: 100%;
   }
 }
 </style>

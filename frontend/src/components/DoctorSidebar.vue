@@ -220,15 +220,16 @@ const profilePictureUrl = computed(() => {
     return userProfile.value.profile_picture;
   }
 
+  // Get base URL without /api suffix for media files
+  let baseURL = api.defaults.baseURL || 'http://localhost:8001';
+  baseURL = baseURL.replace(/\/api\/?$/, '');
+
   // Check if it's a relative path starting with /
   if (userProfile.value.profile_picture.startsWith('/')) {
-    // Use the API base URL from axios configuration
-    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
     return `${baseURL}${userProfile.value.profile_picture}`;
   }
 
   // If it's a relative path without leading slash, add it
-  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
   return `${baseURL}/${userProfile.value.profile_picture}`;
 });
 
@@ -269,9 +270,23 @@ const logout = () => {
     cancel: true,
     persistent: true,
   }).onOk(() => {
+    // Clear all authentication data
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+    
+    // Close the drawer
+    drawerOpen.value = false;
+    
+    // Show logout notification
+    $q.notify({
+      type: 'positive',
+      message: 'Logged out successfully',
+      position: 'top',
+      timeout: 2000,
+    });
+    
+    // Redirect to login page (void to ignore Promise)
     void router.push('/login');
   });
 };

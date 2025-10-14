@@ -22,6 +22,12 @@ urlpatterns = [
     path('forgot-password/', views.forgot_password, name='forgot_password'),
     path('reset-password/<str:uidb64>/<str:token>/', views.reset_password, name='reset_password'),
     
+    # Two-Factor Authentication endpoints
+    path('2fa/enable/', views.enable_2fa, name='enable_2fa'),
+    path('2fa/verify/', views.verify_2fa, name='verify_2fa'),
+    path('2fa/disable/', views.disable_2fa, name='disable_2fa'),
+    path('2fa/login/verify/', views.verify_2fa_login, name='verify_2fa_login'),
+    
     # Patient management endpoints
     path('doctor/patients/', views.get_doctor_patients, name='get_doctor_patients'),
     path('nurse/patients/', views.get_nurse_patients, name='get_nurse_patients'),

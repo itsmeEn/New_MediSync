@@ -310,7 +310,7 @@
                 <div class="card-description">All cancelled appointments</div>
                 <div class="card-value">
                   <q-spinner v-if="statsLoading" size="md" />
-                  <span v-else>0</span>
+                  <span v-else>{{ monthlyCancelled }}</span>
                 </div>
               </div>
               <div class="card-icon">
@@ -441,6 +441,21 @@
               <div class="day-number">{{ day?.dayNumber }}</div>
               <div v-if="day?.appointments?.length > 0" class="appointment-indicator">
                 <q-badge color="primary" :label="day.appointments.length" />
+              </div>
+              <div v-if="day?.appointments?.length > 0" class="cell-appointments-list">
+                <div
+                  v-for="(appt, idx) in day.appointments.slice(0, 3)"
+                  :key="`appt-${weekIndex}-${dayIndex}-${idx}`"
+                  class="cell-appointment-row"
+                >
+                  <span class="cell-appt-time">
+                    {{ formatTime(appt.appointment_time || appt.appointment_date) }}
+                  </span>
+                  <span class="cell-appt-name">{{ appt.patient_name }}</span>
+                </div>
+                <div v-if="day.appointments.length > 3" class="cell-more-count">
+                  +{{ day.appointments.length - 3 }} more
+                </div>
               </div>
               <div v-if="day?.isBlocked" class="blocked-indicator">
                 <q-icon name="block" color="negative" size="sm" />
@@ -709,6 +724,8 @@ const dashboardStats = ref({
   performanceScore: '94%',
   notifications: 12
 });
+// Monthly cancelled appointments count
+const monthlyCancelled = ref(0);
 
 // Medical requests functionality
 const medicalRequests = ref<MedicalRequest[]>([]);
@@ -959,6 +976,27 @@ const getWeatherIcon = (condition: string) => {
   return iconMap[condition.toLowerCase()] || 'wb_sunny';
 };
 
+// Generic time formatter for HH:MM strings or ISO date-times
+function formatTime(value?: string): string {
+  if (!value) return 'N/A';
+  try {
+    if (/\d{4}-\d{2}-\d{2}T/.test(value) || /Z$/.test(value)) {
+      return new Date(value).toLocaleTimeString('en-US', {
+        hour12: true,
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    }
+    const [hours = '0', minutes = '00'] = value.split(':');
+    let hourNum = parseInt(hours, 10);
+    const ampm = hourNum >= 12 ? 'PM' : 'AM';
+    hourNum = hourNum % 12 || 12;
+    return `${hourNum}:${minutes.padStart(2, '0')} ${ampm}`;
+  } catch {
+    return value;
+  }
+}
+
 const fetchWeather = async () => {
   weatherLoading.value = true;
   weatherError.value = false;
@@ -1050,9 +1088,20 @@ const navigateTo = (route: string) => {
 };
 
 const logout = () => {
+  // Clear all authentication data
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
   localStorage.removeItem('user');
+  
+  // Show logout notification
+  $q.notify({
+    type: 'positive',
+    message: 'Logged out successfully',
+    position: 'top',
+    timeout: 2000,
+  });
+  
+  // Redirect to login page
   void router.push('/login');
 };
 
@@ -1165,17 +1214,22 @@ async function fetchBlockedDates() {
   }
 }
 
+function toLocalDateString(dateObj: Date): string {
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 async function blockDate() {
   if (!selectedDate.value) return;
 
   try {
-    const dateString = selectedDate.value.date.toISOString().split('T')[0];
+    const dateString = toLocalDateString(selectedDate.value.date);
     if (dateString) {
-      await api.post('/operations/block-date/', {
-        date: dateString,
-      });
-
-      blockedDates.value.push(dateString);
+      await api.post('/operations/block-date/', { date: dateString });
+      // On success, re-fetch from server to ensure UI sync
+      await fetchBlockedDates();
     }
     selectedDate.value.isBlocked = true;
 
@@ -1184,11 +1238,18 @@ async function blockDate() {
       message: 'Date blocked successfully',
       position: 'top',
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to block date:', error);
+    let message = 'Failed to block date';
+    const respData = (error as { response?: { data?: { error?: string } } }).response?.data;
+    if (typeof respData?.error === 'string') {
+      message = respData.error;
+    } else if (typeof (error as { message?: string }).message === 'string') {
+      message = (error as { message?: string }).message as string;
+    }
     $q.notify({
       type: 'negative',
-      message: 'Failed to block date',
+      message,
       position: 'top',
     });
   }
@@ -1428,14 +1489,8 @@ const markAllNotificationsRead = async (): Promise<void> => {
   }
 };
 
-const formatTime = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-};
+// Removed duplicate time formatter. The unified `formatTime` helper above
+// handles both ISO date-time strings and plain HH:MM strings.
 
 // Medical requests functions
 const loadMedicalRequests = (): void => {
@@ -1498,6 +1553,36 @@ const sendMedicalHistory = (request: MedicalRequest) => {
   }
 };
 
+// WebSocket handle for doctor messaging; kept at module scope for proper cleanup
+let doctorMessagingWS: WebSocket | null = null;
+
+// Fetch monthly cancelled appointments from backend stats
+const fetchMonthlyCancelled = async (): Promise<void> => {
+  try {
+    statsLoading.value = true;
+    const res = await api.get('/operations/dashboard/stats/');
+    monthlyCancelled.value = res.data?.monthly_cancelled ?? 0;
+  } catch (err) {
+    console.error('Failed to fetch monthly cancelled count', err);
+    monthlyCancelled.value = 0;
+  } finally {
+    statsLoading.value = false;
+  }
+};
+
+// Set up refresh at the start of each month
+const setupMonthlyRefresh = (): void => {
+  const now = new Date();
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  nextMonthStart.setHours(0, 0, 0, 0);
+  const delay = nextMonthStart.getTime() - now.getTime();
+  setTimeout(() => {
+    void fetchMonthlyCancelled();
+    // Recurse to schedule the next month refresh
+    setupMonthlyRefresh();
+  }, delay);
+};
+
 onMounted(async () => {
   console.log('DoctorAppointment component mounted successfully!');
 
@@ -1533,12 +1618,81 @@ onMounted(async () => {
   } catch (error) {
     console.error('Error during component initialization:', error);
   }
+
+  // Fetch monthly cancelled count and set monthly refresh
+  void fetchMonthlyCancelled();
+  setupMonthlyRefresh();
+
+  // Setup messaging WebSocket for real-time appointment updates
+  try {
+    // Local setup without using window any-casts
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`);
+    const backendHost = base.hostname;
+    const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80');
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = storedUser.id || storedUser.user?.id || storedUser.user_id;
+    const handleDoctorWSMessage = async (event: MessageEvent): Promise<void> => {
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'notification') {
+          const notif = data.notification || {};
+          if (notif.event === 'appointment_scheduled') {
+            $q.notify({
+              type: 'info',
+              message: 'New appointment scheduled',
+              position: 'top'
+            });
+          }
+          // Refresh appointments and notifications on any server notification
+          await fetchAppointments();
+          void loadNotifications();
+        }
+      } catch (err) {
+        console.warn('Failed to parse WS message', err);
+      }
+    };
+
+    const setupDoctorMessagingWS = (wsUrl: string): void => {
+      const ws = new WebSocket(wsUrl);
+      doctorMessagingWS = ws;
+      ws.onopen = () => {
+        console.log('Doctor messaging WebSocket connected');
+      };
+      ws.onmessage = handleDoctorWSMessage;
+      ws.onclose = () => {
+        console.log('Doctor messaging WebSocket disconnected');
+        // Attempt to reconnect after 5 seconds
+        setTimeout(() => setupDoctorMessagingWS(wsUrl), 5000);
+      };
+    };
+
+    if (userId) {
+      const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/messaging/${userId}/`;
+      setupDoctorMessagingWS(wsUrl);
+    } else {
+      console.warn('No user id found for messaging WebSocket');
+    }
+  } catch (e) {
+    console.warn('Failed to setup doctor messaging WebSocket', e);
+  }
 });
 
 // Cleanup on component unmount
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
+  }
+  // Close the WebSocket if open; avoid empty catch and any-casts
+  try {
+    if (doctorMessagingWS) {
+      doctorMessagingWS.close();
+    }
+  } catch (err) {
+    console.warn('Error closing doctor messaging WebSocket', err);
+  } finally {
+    doctorMessagingWS = null;
   }
 });
 </script>
@@ -2090,6 +2244,37 @@ onUnmounted(() => {
   position: absolute;
   bottom: 4px;
   right: 4px;
+}
+
+/* Calendar cell appointment preview */
+.cell-appointments-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cell-appointment-row {
+  font-size: 12px;
+  line-height: 1.2;
+  color: #333;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.cell-appt-time {
+  color: #286660;
+  font-weight: 600;
+}
+
+.cell-appt-name {
+  color: #555;
+}
+
+.cell-more-count {
+  font-size: 11px;
+  color: #888;
 }
 
 .selected-date-info {
