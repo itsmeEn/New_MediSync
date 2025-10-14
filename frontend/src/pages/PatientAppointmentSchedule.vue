@@ -1,50 +1,48 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <!-- Patient Portal Header (match PatientAppointments design) -->
-    <q-header class="bg-blue-8 text-white" style="height: 70px;">
-      <q-toolbar class="q-px-md" style="height: 70px;">
+    <!-- Patient Portal Header -->
+    <q-header class="bg-white text-teal-9">
+      <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
-          <img :src="logoUrl" alt="Logo" />
+          <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
 
-        <div class="column q-mr-auto"></div>
+        <div class="header-content"></div>
+
+        <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
         <!-- User Menu -->
-        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
-          <q-avatar size="32px" class="bg-white text-blue-8">
-            <div class="text-weight-bold">{{ userInitials }}</div>
+        <q-btn flat round>
+          <q-avatar size="32px" color="white" text-color="primary">
+            {{ userInitials }}
           </q-avatar>
+          <q-menu v-model="showUserMenu">
+            <q-list style="min-width: 200px">
+              <q-item clickable @click="navigateTo('/patient-settings')">
+                <q-item-section avatar>
+                  <q-icon name="settings" />
+                </q-item-section>
+                <q-item-section>Settings</q-item-section>
+              </q-item>
+              <q-item clickable @click="logout">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Logout</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
-
-        <!-- User Dropdown Menu -->
-        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
-          <q-list style="min-width: 200px">
-            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
-            <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
-              <q-item-section avatar>
-                <q-icon name="settings" />
-              </q-item-section>
-              <q-item-section>Settings</q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="logout">
-              <q-item-section avatar>
-                <q-icon name="logout" />
-              </q-item-section>
-              <q-item-section>Logout</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
       </q-toolbar>
     </q-header>
 
     <q-page-container>
-      <q-page class="bg-grey-1 q-pa-md pb-safe">
+      <q-page class="patient-bg q-pa-md pb-safe">
         <div class="max-w-4xl mx-auto">
           <!-- Schedule New Appointment Section -->
           <q-card class="q-mb-md" flat bordered>
@@ -53,7 +51,7 @@
               
               <div class="col q-ml-md">
                 <div class="text-h6 text-teal-8">Schedule New Appointment</div>
-                <div class="text-grey-6">Book your next medical appointment</div>
+                <div>Book your next medical appointment</div>
               </div>
               
               <q-btn 
@@ -71,7 +69,6 @@
             <q-tabs
               v-model="activeTab"
               dense
-              class="text-grey-6"
               active-color="primary"
               indicator-color="primary"
               align="left"
@@ -106,8 +103,8 @@
                   <div class="text-h6 q-mb-md">Upcoming Appointments</div>
                   <div v-if="filteredScheduledAppointments.length === 0" class="text-center q-pa-xl">
                     <q-icon name="event_busy" size="64px" color="grey-5" />
-                    <div class="text-h6 text-grey-6 q-mt-md">No upcoming appointments</div>
-                    <div class="text-caption text-grey-5">Schedule your first appointment to get started</div>
+                    <div class="text-h6 q-mt-md">No upcoming appointments</div>
+                    <div class="text-caption">Schedule your first appointment to get started</div>
                   </div>
                   <div v-else class="row q-gutter-md">
                     <div
@@ -121,7 +118,7 @@
                             <q-avatar color="primary" text-color="white" icon="medical_services" class="q-mr-sm" />
                             <div class="col">
                               <div class="text-weight-bold">{{ appointment.doctor_name || 'Assigned Doctor' }}</div>
-                              <div class="text-caption text-grey-6">{{ appointment.department }}</div>
+                              <div class="text-caption">{{ appointment.department }}</div>
                             </div>
                             <q-badge color="green" label="Scheduled" />
                           </div>
@@ -159,8 +156,8 @@
                   <div class="text-h6 q-mb-md">Rescheduled Appointments</div>
                   <div v-if="filteredRescheduledAppointments.length === 0" class="text-center q-pa-xl">
                     <q-icon name="update" size="64px" color="grey-5" />
-                    <div class="text-h6 text-grey-6 q-mt-md">No rescheduled appointments</div>
-                    <div class="text-caption text-grey-5">Appointments that have been modified will appear here</div>
+                    <div class="text-h6 q-mt-md">No rescheduled appointments</div>
+                    <div class="text-caption">Appointments that have been modified will appear here</div>
                   </div>
                   <div v-else class="row q-gutter-md">
                     <div
@@ -174,7 +171,7 @@
                             <q-avatar color="orange" text-color="white" icon="update" class="q-mr-sm" />
                             <div class="col">
                               <div class="text-weight-bold">{{ appointment.doctor_name || 'Assigned Doctor' }}</div>
-                              <div class="text-caption text-grey-6">{{ appointment.department }}</div>
+                              <div class="text-caption">{{ appointment.department }}</div>
                             </div>
                             <q-badge color="orange" label="Rescheduled" />
                           </div>
@@ -212,8 +209,8 @@
                   <div class="text-h6 q-mb-md">Cancelled Appointments</div>
                   <div v-if="filteredCancelledAppointments.length === 0" class="text-center q-pa-xl">
                     <q-icon name="cancel" size="64px" color="grey-5" />
-                    <div class="text-h6 text-grey-6 q-mt-md">No cancelled appointments</div>
-                    <div class="text-caption text-grey-5">Cancelled appointments will be archived here</div>
+                    <div class="text-h6 q-mt-md">No cancelled appointments</div>
+                    <div class="text-caption">Cancelled appointments will be archived here</div>
                   </div>
                   <div v-else class="row q-gutter-md">
                     <div
@@ -227,7 +224,7 @@
                             <q-avatar color="grey" text-color="white" icon="cancel" class="q-mr-sm" />
                             <div class="col">
                               <div class="text-weight-bold">{{ appointment.doctor_name || 'Assigned Doctor' }}</div>
-                              <div class="text-caption text-grey-6">{{ appointment.department }}</div>
+                              <div class="text-caption">{{ appointment.department }}</div>
                             </div>
                             <q-badge color="grey" label="Cancelled" />
                           </div>
@@ -272,7 +269,7 @@
           <q-avatar color="primary" text-color="white" icon="event_available" size="48px" class="q-mr-md" />
           <div>
             <div class="text-h6 text-weight-bold">Schedule New Appointment</div>
-            <div class="text-caption text-grey-6">Please fill out all the required information</div>
+                    <div class="text-caption">Please fill out all the required information</div>
           </div>
         </q-card-section>
 
@@ -437,7 +434,7 @@
         <q-card-section class="text-center">
           <q-icon name="warning" size="64px" color="orange" class="q-mb-md" />
           <div class="text-h6 text-weight-bold">Cancel Appointment</div>
-          <div class="text-caption text-grey-6">Are you sure you want to cancel this appointment?</div>
+          <div class="text-caption">Are you sure you want to cancel this appointment?</div>
         </q-card-section>
 
         <q-card-section v-if="selectedAppointment">
@@ -495,7 +492,7 @@
         <q-card-section class="text-center">
           <q-icon name="warning" size="48px" color="orange" class="q-mb-md" />
           <div class="text-h6 text-weight-bold">Time Slot Not Available</div>
-          <div class="text-body2 text-grey-7">This time slot is not available. Please choose another time.</div>
+          <div class="text-body2">This time slot is not available. Please choose another time.</div>
         </q-card-section>
         <q-card-actions align="center" class="q-pa-md">
           <q-btn color="primary" label="Choose Different Time" @click="showDuplicateWarning = false" />
@@ -516,51 +513,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Bottom Navigation -->
-    <q-footer class="bg-white text-dark border-t">
-      <q-tabs
-        v-model="currentTab"
-        dense
-        class="text-grey-6"
-        active-color="primary"
-        indicator-color="primary"
-        align="justify"
-      >
-        <q-tab
-          name="home"
-          icon="home"
-          label="Home"
-          @click="navigateTo('/patient-dashboard')"
-        />
-        <q-tab
-          name="appointments"
-          icon="event"
-          label="Appointments"
-          @click="navigateTo('/patient-appointment-schedule')"
-        />
-        <q-tab
-          name="queue"
-          icon="schedule"
-          label="Queue"
-          @click="navigateTo('/patient-queue')"
-        />
-        <q-tab
-          name="notifications"
-          icon="notifications"
-          label="Notifications"
-          @click="navigateTo('/patient-notifications')"
-        >
-          <q-badge
-            v-if="unreadCount > 0"
-            color="red"
-            floating
-            rounded
-          >
-            {{ unreadCount }}
-          </q-badge>
-        </q-tab>
-      </q-tabs>
-    </q-footer>
+    <PatientBottomNav />
   </q-layout>
 </template>
 
@@ -569,7 +522,8 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 // TypeScript interfaces
 interface Appointment {
@@ -604,7 +558,6 @@ const $q = useQuasar()
 const formRef = ref()
 const showUserMenu = ref(false)
 const unreadCount = ref<number>(0)
-const currentTab = ref('appointments')
 
 // Appointment management state
 const activeTab = ref('scheduled')

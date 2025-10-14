@@ -41,6 +41,15 @@ export default defineConfigWithVueTs(
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
     },
   },
+  {
+    // In Vue SFCs, variables used in <template> are not seen by
+    // @typescript-eslint/no-unused-vars. Rely on vue/no-unused-vars instead.
+    files: ['**/*.vue'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'vue/no-unused-vars': 'error',
+    },
+  },
   // https://github.com/vuejs/eslint-config-typescript
   vueTsConfigs.recommendedTypeChecked,
 

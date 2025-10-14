@@ -1,52 +1,50 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-blue-8 text-white" style="height: 70px;">
-      <q-toolbar class="q-px-md" style="height: 70px;">
+    <q-header class="bg-white text-teal-9">
+      <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
-          <img :src="logoUrl" alt="Logo" />
+          <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
-        
-        <div class="column q-mr-auto"></div>
+
+        <div class="header-content"></div>
+
+        <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
         <!-- User Menu -->
-        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
-          <q-avatar size="32px" class="bg-white text-blue-8">
-            <div class="text-weight-bold">{{ userInitials }}</div>
+        <q-btn flat round>
+          <q-avatar size="32px" color="white" text-color="primary">
+            {{ userInitials }}
           </q-avatar>
+          <q-menu v-model="showUserMenu">
+            <q-list style="min-width: 200px">
+              <q-item clickable @click="navigateTo('/patient-settings')">
+                <q-item-section avatar>
+                  <q-icon name="settings" />
+                </q-item-section>
+                <q-item-section>Settings</q-item-section>
+              </q-item>
+              <q-item clickable @click="logout">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Logout</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
-
-        <!-- User Dropdown Menu -->
-        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
-          <q-list style="min-width: 200px">
-            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
-            <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
-              <q-item-section avatar>
-                <q-icon name="settings" />
-              </q-item-section>
-              <q-item-section>Settings</q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="logout">
-              <q-item-section avatar>
-                <q-icon name="logout" />
-              </q-item-section>
-              <q-item-section>Logout</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
       </q-toolbar>
     </q-header>
 
     <q-page-container>
       <q-page 
               :class="{ 
-                'bg-grey-1 q-pa-md settings-page': true,
+                'patient-bg q-pa-md settings-page': true,
                 'q-pa-sm': $q.screen.xs,
                 'ios-safe-area': $q.platform.is.ios,
                 'android-safe-area': $q.platform.is.android
@@ -398,65 +396,7 @@
       </q-page>
     </q-page-container>
 
-    <!-- Mobile-Optimized Bottom Navigation -->
-    <q-footer elevated class="bg-teal-800 text-white"
-              :class="{ 
-                'ios-safe-area': $q.platform.is.ios,
-                'android-safe-area': $q.platform.is.android
-              }">
-      <q-tabs
-        v-model="currentTab"
-        dense
-        active-color="white"
-        indicator-color="white"
-        class="text-white"
-      >
-        <q-tab 
-          name="queue" 
-          icon="format_list_numbered" 
-          label="Queue"
-          @click="navigateTo('/patient-queue')"
-          class="q-tab--mobile"
-        />
-        <q-tab 
-          name="appointments" 
-          icon="event" 
-          label="Appointments"
-            @click="navigateTo('/patient-appointment-schedule')"
-          class="q-tab--mobile"
-        />
-        <q-tab 
-          name="home" 
-          icon="home" 
-          label="Home"
-          @click="navigateTo('/patient-dashboard')"
-          class="q-tab--mobile"
-        />
-        <q-tab 
-          name="notifications" 
-          icon="notifications" 
-          label="Alerts"
-          @click="navigateTo('/patient-notifications')"
-          class="q-tab--mobile"
-        >
-          <q-badge 
-            v-if="unreadCount > 0" 
-            color="red" 
-            floating 
-            rounded
-          >
-            {{ unreadCount }}
-          </q-badge>
-        </q-tab>
-        <q-tab 
-          name="requests" 
-          icon="chat" 
-          label="Requests"
-          @click="navigateTo('/patient-medical-request')"
-          class="q-tab--mobile"
-        />
-      </q-tabs>
-    </q-footer>
+    <PatientBottomNav />
   </q-layout>
 </template>
 
@@ -465,7 +405,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -473,7 +414,6 @@ const $q = useQuasar()
 // Navigation and UI state
 const showUserMenu = ref(false)
 const unreadCount = ref<number>(0)
-const currentTab = ref('settings')
 
 // Profile editing state
 const editMode = ref(false)

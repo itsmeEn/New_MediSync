@@ -1,190 +1,101 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-blue-8 text-white" style="height: 70px;">
-      <q-toolbar class="q-px-md" style="height: 70px;">
+    <q-header class="bg-white text-teal-9">
+      <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
-          <img :src="logoUrl" alt="Logo" />
+          <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
-        
-        <div class="column q-mr-auto"></div>
+
+        <div class="header-content"></div>
+
+        <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
         <!-- User Menu -->
-        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
-          <q-avatar size="32px" class="bg-white text-blue-8">
-            <div class="text-weight-bold">{{ userInitials }}</div>
+        <q-btn flat round>
+          <q-avatar size="32px" color="white" text-color="primary">
+            {{ userInitials }}
           </q-avatar>
+          <q-menu v-model="showUserMenu">
+            <q-list style="min-width: 200px">
+              <q-item clickable @click="navigateTo('/patient-settings')">
+                <q-item-section avatar>
+                  <q-icon name="settings" />
+                </q-item-section>
+                <q-item-section>Settings</q-item-section>
+              </q-item>
+              <q-item clickable @click="logout">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Logout</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
-
-        <!-- User Dropdown Menu -->
-        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
-          <q-list style="min-width: 200px">
-            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
-            <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
-              <q-item-section avatar>
-                <q-icon name="settings" />
-              </q-item-section>
-              <q-item-section>Settings</q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="logout">
-              <q-item-section avatar>
-                <q-icon name="logout" />
-              </q-item-section>
-              <q-item-section>Logout</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
       </q-toolbar>
     </q-header>
 
     <!-- Main Content -->
     <q-page-container>
-      <q-page class="bg-grey-1 q-pa-md">
-        <!-- Quick Access Tiles -->
+      <q-page class="patient-bg q-pa-md">
+        <!-- Quick Actions (Grouped, single-row grid) -->
         <div class="q-mb-lg">
-          <div class="row q-gutter-md">
-            <!-- Queue Status -->
-            <div class="col-6 col-sm-3">
-              <q-card 
-                class="action-card cursor-pointer" 
-                @click="navigateTo('/patient-queue')"
-                flat
-                bordered
-              >
-                <q-card-section class="text-center q-pa-lg">
-                  <q-icon 
-                    name="format_list_numbered" 
-                    size="48px" 
-                    color="teal-6" 
-                    class="q-mb-sm"
-                  />
-                  <div class="text-subtitle2 text-weight-bold text-grey-8">
-                    Queue Status
+          <q-card flat bordered class="quick-actions-card uniform-card" :style="{ '--qa-label-font-size': qaLabelFontSize + 'px' }">
+            <q-card-section class="text-center q-pb-none">
+              <div class="text-h6 text-weight-bold">Quick Actions</div>
+            </q-card-section>
+            <q-card-section>
+              <div class="row no-wrap q-col-gutter-md items-center justify-evenly quick-action-row">
+                <!-- Queue Status -->
+                <div class="col-3">
+                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-queue')">
+                    <q-icon name="format_list_numbered" size="24px" color="teal-6" class="quick-action-icon" />
+                    <div class="quick-action-label">Queue Status</div>
                   </div>
-                </q-card-section>
-                <q-card-section class="q-pt-none">
-                  <q-linear-progress 
-                    color="teal-6" 
-                    size="4px" 
-                    :value="0.3" 
-                    class="q-mt-sm"
-                  />
-                </q-card-section>
-              </q-card>
-            </div>
+                </div>
 
-            <!-- Appointments -->
-            <div class="col-6 col-sm-3">
-              <q-card 
-                class="action-card cursor-pointer" 
-                @click="navigateTo('/patient-appointment-schedule')"
-                flat
-                bordered
-              >
-                <q-card-section class="text-center q-pa-lg">
-                  <q-icon 
-                    name="event" 
-                    size="48px" 
-                    color="teal-6" 
-                    class="q-mb-sm"
-                  />
-                  <div class="text-subtitle2 text-weight-bold text-grey-8">
-                    Appointments
+                <!-- Appointments -->
+                <div class="col-3">
+                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-appointment-schedule')">
+                    <q-icon name="event" size="24px" color="teal-6" class="quick-action-icon" />
+                    <div class="quick-action-label">Appointments</div>
                   </div>
-                </q-card-section>
-                <q-card-section class="q-pt-none">
-                  <q-linear-progress 
-                    color="teal-6" 
-                    size="4px" 
-                    :value="0.7" 
-                    class="q-mt-sm"
-                  />
-                </q-card-section>
-              </q-card>
-            </div>
+                </div>
 
-            <!-- Notifications -->
-            <div class="col-6 col-sm-3">
-              <q-card 
-                class="action-card cursor-pointer" 
-                @click="navigateTo('/patient-notifications')"
-                flat
-                bordered
-              >
-                <q-card-section class="text-center q-pa-lg">
-                  <q-icon 
-                    name="notifications" 
-                    size="48px" 
-                    color="teal-6" 
-                    class="q-mb-sm"
-                  />
-                  <div class="text-subtitle2 text-weight-bold text-grey-8">
-                    Notifications
+                <!-- Notifications -->
+                <div class="col-3">
+                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-notifications')">
+                    <q-icon name="notifications" size="24px" color="teal-6" class="quick-action-icon" />
+                    <div class="quick-action-label">Notifications</div>
                   </div>
-                  <q-badge 
-                    v-if="notificationCount > 0" 
-                    color="red" 
-                    floating
-                  >
-                    {{ notificationCount }}
-                  </q-badge>
-                </q-card-section>
-                <q-card-section class="q-pt-none">
-                  <q-linear-progress 
-                    color="teal-6" 
-                    size="4px" 
-                    :value="0.5" 
-                    class="q-mt-sm"
-                  />
-                </q-card-section>
-              </q-card>
-            </div>
-            
-            <!-- Medical Requests -->
-            <div class="col-6 col-sm-3">
-              <q-card 
-                class="action-card cursor-pointer" 
-                @click="navigateTo('/patient-medical-request')"
-                flat
-                bordered
-              >
-                <q-card-section class="text-center q-pa-lg">
-                  <q-icon 
-                    name="medical_services" 
-                    size="48px" 
-                    color="teal-6" 
-                    class="q-mb-sm"
-                  />
-                  <div class="text-subtitle2 text-weight-bold text-grey-8">
-                    Medical Request
+                </div>
+
+                <!-- Medical Request -->
+                <div class="col-3">
+                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-medical-request')">
+                    <q-icon name="medical_services" size="24px" color="teal-6" class="quick-action-icon" />
+                    <div class="quick-action-label">Medical Request</div>
                   </div>
-                </q-card-section>
-                <q-card-section class="q-pt-none">
-                  <q-linear-progress 
-                    color="teal-6" 
-                    size="4px" 
-                    :value="0.2" 
-                    class="q-mt-sm"
-                  />
-                </q-card-section>
-              </q-card>
-            </div>
-          </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
         </div>
+      
           
         <!-- Live Queue Status -->
         <div class="q-mb-lg">
-          <div class="text-h6 text-weight-bold text-grey-8 q-mb-md">Live Queue Status</div>
-          <div class="row q-gutter-md">
+          <div class="text-h6 text-weight-bold q-mb-md">Live Queue Status</div>
+          <div class="row q-col-gutter-sm card-row items-stretch no-wrap">
             <!-- Now Serving Card -->
-            <div class="col-6">
-              <q-card class="bg-teal-6 text-white">
+            <div class="col-6 col-xs-6 col-sm-6">
+              <q-card class="bg-teal-6 text-white status-card touch-card uniform-card">
                 <q-card-section>
                   <div class="text-caption text-weight-medium opacity-90">NOW SERVING</div>
                   <div class="text-h3 text-weight-bold q-my-sm">
@@ -198,8 +109,8 @@
             </div>
             
             <!-- My Queue Status Card -->
-            <div class="col-6">
-              <q-card class="bg-teal-7 text-white">
+            <div class="col-6 col-xs-6 col-sm-6">
+              <q-card class="bg-teal-7 text-white status-card touch-card uniform-card">
                 <q-card-section>
                   <div class="text-caption text-weight-medium opacity-90">MY QUEUE STATUS</div>
                   <div class="text-h3 text-weight-bold q-my-sm">
@@ -216,12 +127,12 @@
         
         <!-- Appointment History -->
         <div class="q-mb-xl">
-          <div class="text-h6 text-weight-bold text-grey-8 q-mb-md">Appointment History</div>
-          <div class="row q-gutter-md">
+          <div class="text-h6 text-weight-bold q-mb-md">Appointment History</div>
+          <div class="row q-gutter-md card-row justify-center">
             <!-- Next Appointment Card -->
-            <div class="col-6">
+            <div class="col-12 col-sm-6">
               <q-card 
-                class="cursor-pointer"
+                class="cursor-pointer appt-card touch-card uniform-card"
                 @click="openNextApptModal"
                 :class="{ 'opacity-60': !nextAppointment }"
                 flat
@@ -231,15 +142,15 @@
                   <div class="text-caption text-weight-medium text-teal-7">NEXT APPOINTMENT</div>
                 </q-card-section>
                 <q-card-section>
-                  <div class="text-subtitle1 text-weight-bold text-grey-9">
+                  <div class="text-subtitle1 text-weight-bold">
                     {{ nextAppointment ? getAppointmentTypeLabel(nextAppointment.type) : 'No upcoming appointments' }}
                   </div>
-                  <div v-if="nextAppointment" class="text-body2 text-grey-6 q-mt-xs">
+                  <div v-if="nextAppointment" class="text-body2 q-mt-xs">
                     Dr. {{ nextAppointment.doctor || 'Amelia Chen' }}
                     <br>
                     {{ formatShortDate(nextAppointment.date) }}, {{ formatTime(nextAppointment.time) }}
                   </div>
-                  <div v-else class="text-body2 text-grey-5 q-mt-xs">
+                  <div v-else class="text-body2 q-mt-xs">
                     Your upcoming appointment will appear here
                   </div>
                 </q-card-section>
@@ -254,21 +165,21 @@
             </div>
 
             <!-- Last Appointment Card -->
-            <div class="col-6">
-              <q-card flat bordered>
+            <div class="col-12 col-sm-6">
+              <q-card flat bordered class="appt-card touch-card uniform-card">
                 <q-card-section class="q-pb-none">
                   <div class="text-caption text-weight-medium text-teal-7">LAST APPOINTMENT</div>
                 </q-card-section>
                 <q-card-section>
-                  <div class="text-subtitle1 text-weight-bold text-grey-9">
+                  <div class="text-subtitle1 text-weight-bold">
                     {{ lastAppointment ? getAppointmentTypeLabel(lastAppointment.type) : 'No previous appointments' }}
                   </div>
-                  <div v-if="lastAppointment" class="text-body2 text-grey-6 q-mt-xs">
+                  <div v-if="lastAppointment" class="text-body2 q-mt-xs">
                     Dr. {{ lastAppointment.doctor || 'Amelia Chen' }}
                     <br>
                     {{ formatShortDate(lastAppointment.date) }}, {{ formatTime(lastAppointment.time) }}
                   </div>
-                  <div v-else class="text-body2 text-grey-5 q-mt-xs">
+                  <div v-else class="text-body2 q-mt-xs">
                     Your appointment history will appear here
                   </div>
                 </q-card-section>
@@ -286,61 +197,8 @@
       </q-page>
     </q-page-container>
 
-    <!-- Mobile-First Bottom Navigation -->
-    <q-footer class="bg-teal-8">
-      <q-tabs 
-        v-model="currentTab" 
-        dense 
-        class="text-white"
-        active-color="white"
-        indicator-color="transparent"
-        align="justify"
-      >
-        <q-tab 
-          name="queue" 
-          icon="format_list_numbered" 
-          label="Queue"
-          @click="navigateTo('/patient-queue')"
-          no-caps
-        />
-        <q-tab 
-          name="appointments" 
-          icon="event" 
-          label="Appointments"
-          @click="navigateTo('/patient-appointment-schedule')"
-          no-caps
-        />
-        <q-tab 
-          name="home" 
-          icon="home" 
-          label="Home"
-          @click="navigateTo('/patient-dashboard')"
-          no-caps
-        />
-        <q-tab 
-          name="notifications" 
-          icon="notifications" 
-          label="Alerts"
-          @click="navigateTo('/patient-notifications')"
-          no-caps
-        >
-          <q-badge 
-            v-if="notificationCount > 0" 
-            color="red" 
-            floating
-          >
-            {{ notificationCount }}
-          </q-badge>
-        </q-tab>
-        <q-tab 
-          name="requests" 
-          icon="medical_services" 
-          label="Requests"
-          @click="navigateTo('/patient-medical-request')"
-          no-caps
-        />
-      </q-tabs>
-    </q-footer>
+    <!-- Fixed Bottom Navigation removed per request -->
+     <PatientBottomNav />
 
     <!-- Mobile-Optimized Appointment Modal -->
     <q-dialog 
@@ -456,14 +314,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 const router = useRouter()
-const currentTab = ref('home')
-const notificationCount = ref(0)
+// Footer state handled by shared PatientBottomNav component
 const showUserMenu = ref(false)
 const unreadCount = ref(0)
 
@@ -471,7 +329,8 @@ const userName = computed(() => {
   try {
     const u = JSON.parse(localStorage.getItem('user') || '{}')
     return u.full_name || u.email || 'User'
-  } catch {
+  } catch (error) {
+    console.warn('Failed to parse user from localStorage:', error)
     return 'User'
   }
 })
@@ -567,14 +426,34 @@ const openNextApptModal = () => {
   }
 }
 
+// Dynamic Quick Actions label sizing based on bottom navigation height
+const qaLabelFontSize = ref<number>(16)
+const updateQaLabelFontSize = () => {
+  const selectors = [
+    '.q-bottom-navigation',
+    '#patient-bottom-nav',
+    '.patient-bottom-nav',
+    'footer .q-bottom-navigation'
+  ]
+  let navEl: HTMLElement | null = null
+  for (const sel of selectors) {
+    const el = document.querySelector(sel)
+    if (el instanceof HTMLElement) { navEl = el; break }
+  }
+  const navHeight = navEl?.offsetHeight || navEl?.clientHeight || 56
+  // Clamp font size for readability across devices
+  const size = Math.round(Math.max(14, Math.min(navHeight * 0.28, 18)))
+  qaLabelFontSize.value = size
+}
+
 // Combined onMounted hook for all initialization
 onMounted(async () => {
   // Load dashboard summary
   try {
     const res = await api.get('/patient/dashboard/summary/')
     dashboardSummary.value = res.data as DashboardSummary
-  } catch (err) {
-    console.warn('Failed to fetch dashboard summary', err)
+  } catch (error: unknown) {
+    console.warn('Failed to fetch dashboard summary', error)
     dashboardSummary.value = {
       nowServing: '',
       currentPatient: '',
@@ -585,16 +464,28 @@ onMounted(async () => {
   // Load appointments via store
   try {
     await appointmentsStore.loadAppointments()
-  } catch (error) {
+  } catch (error: unknown) {
     console.warn('Failed to load appointments via store:', error)
   }
 
   // Initialize lucide icons from global CDN
   try {
-    (window as { lucide?: { createIcons(): void } }).lucide?.createIcons()
-  } catch {
-    // ignore if lucide not available
+    type Lucide = { createIcons: () => void }
+    const lucideCandidate: unknown = (globalThis as Record<string, unknown>).lucide
+    if (lucideCandidate && typeof (lucideCandidate as { createIcons?: unknown }).createIcons === 'function') {
+      (lucideCandidate as Lucide).createIcons()
+    }
+  } catch (error: unknown) {
+    console.warn('Lucide icons initialization error:', error)
   }
+
+  // Initialize dynamic label sizing
+  updateQaLabelFontSize()
+  window.addEventListener('resize', updateQaLabelFontSize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateQaLabelFontSize)
 })
 </script>
 
@@ -616,5 +507,79 @@ onMounted(async () => {
 }
 .card, .status-card {
   border-radius: 0.75rem;
+}
+/* Quick Actions styles */
+.quick-actions-card { border-radius: 0.75rem; }
+.quick-action-row { padding: 8px 0; }
+.quick-action-row .col-3 { display: flex; align-items: center; justify-content: center; }
+.quick-action {
+  border-radius: 0.75rem;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color .2s ease, transform .2s ease;
+}
+.quick-action:hover { background-color: #f5f7f9; transform: translateY(-1px); }
+.quick-action-icon { min-width: 32px; min-height: 32px; }
+.quick-action-label {
+  font-size: 12px;
+  color: #000;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Center cards within their container on non-mobile viewports */
+.uniform-card {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Mobile-only enhancements for larger, touch-friendly status and appointment cards */
+@media (max-width: 600px) {
+  /* Preserve grid gutters so two status cards can sit side-by-side */
+  .card-row { margin-left: 0; margin-right: 0; }
+
+  .quick-actions-card {
+    width: calc(100% - 4px);
+    margin: 0 2px;
+  }
+  .status-card, .appt-card {
+    border-radius: 16px;
+    min-height: 96px;
+  }
+  .touch-card {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .touch-card .q-card__section {
+    padding: 14px 16px; /* align with Quick Actions, reduce indentation */
+  }
+  .status-card .text-caption,
+  .appt-card .text-caption {
+    font-size: 14px;
+    letter-spacing: 0.2px;
+  }
+  .status-card .text-h3 {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  .status-card .text-body2,
+  .appt-card .text-body2 {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .appt-card .text-subtitle1 {
+    font-size: 1.1rem;
+  }
+  /* Shared mobile width/margin so all cards match Quick Actions */
+  .uniform-card {
+    --card-hpadding: 4px;
+    width: calc(100% - var(--card-hpadding));
+    margin: 0 calc(var(--card-hpadding) / 2);
+  }
 }
 </style>

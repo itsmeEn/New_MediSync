@@ -729,6 +729,60 @@ def patient_appointments(request):
         return Response({'error': f'Failed to fetch appointments: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def patient_dashboard_summary(request):
+    """
+    Minimal patient dashboard summary for OPD.
+    Returns string fields: nowServing, currentPatient, myPosition.
+    - nowServing: current queue number being served from QueueStatus
+    - currentPatient: name of the patient currently in progress (if any)
+    - myPosition: the authenticated patient's position in the OPD queue
+    """
+    try:
+        department = request.query_params.get('department', 'OPD')
+
+        summary = {
+            'nowServing': '',
+            'currentPatient': '',
+            'myPosition': ''
+        }
+
+        # Current queue status
+        status_obj = QueueStatus.objects.filter(department=department).first()
+        if status_obj and status_obj.current_serving is not None:
+            summary['nowServing'] = str(status_obj.current_serving)
+
+        # Current patient being served/in progress
+        current_entry = QueueManagement.objects.filter(
+            department=department,
+            status__in=['in_progress']
+        ).order_by('enqueue_time').first()
+
+        if current_entry:
+            # Use full name if available via related user
+            try:
+                summary['currentPatient'] = str(getattr(current_entry.patient.user, 'full_name', '') or '')
+            except Exception:
+                # Fallback to patient representation
+                summary['currentPatient'] = str(getattr(current_entry.patient, 'full_name', '') or '')
+
+        # Authenticated patient's position
+        my_entry = QueueManagement.objects.filter(
+            department=department,
+            patient__user=request.user,
+            status__in=['waiting', 'in_progress']
+        ).order_by('enqueue_time').first()
+
+        if my_entry and my_entry.position_in_queue:
+            summary['myPosition'] = str(my_entry.position_in_queue)
+
+        return Response(summary, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': f'Failed to fetch dashboard summary: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 # Messaging Views
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

@@ -40,11 +40,12 @@ const resolveBaseURL = (): string => {
   return webEndpoint;
 };
 
-// Connectivity test helper: probes a known endpoint and treats 404 as NOT reachable
+// Connectivity test helper: probes a stable PUBLIC or auth endpoint and treats 404 as NOT reachable
 const testConnectivity = async (endpoint: string): Promise<boolean> => {
   try {
-    // Probe a stable operations endpoint; allow 200/401/403/405 as "reachable"
-    const probeUrl = `${endpoint}/operations/notifications/`;
+    // Probe the login endpoint with GET; it should respond 405 (Method Not Allowed)
+    // This avoids generating 401 Unauthorized logs from protected resources.
+    const probeUrl = `${endpoint}/users/login/`;
     const testResponse = await axios.get(probeUrl, {
       // Use a short timeout to avoid hanging when port is closed
       timeout: 2500,

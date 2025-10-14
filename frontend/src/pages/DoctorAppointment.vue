@@ -286,14 +286,27 @@
           </q-card>
 
           <!-- Today's Schedule Card -->
-          <q-card class="dashboard-card schedule-card">
+          <q-card class="dashboard-card schedule-card" @click="showTodayScheduleDialog = true">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Schedule</div>
-                <div class="card-description">All transaction history</div>
+                <div class="card-description">All appointments today</div>
                 <div class="card-value">
-                  <q-spinner v-if="statsLoading" size="md" />
-                  <span v-else>0</span>
+                  <q-spinner v-if="scheduleLoading" size="md" />
+                  <span v-else>{{ todaySchedule.length }}</span>
+                </div>
+                <div v-if="!scheduleLoading && todaySchedule.length" class="schedule-preview">
+                  <div
+                    v-for="a in todaySchedule.slice(0, 3)"
+                    :key="a.id"
+                    class="preview-row"
+                  >
+                    <span class="preview-time">{{ formatScheduleTime(a) }}</span>
+                    <span class="preview-name">{{ a.patient_name }}</span>
+                  </div>
+                  <div v-if="todaySchedule.length > 3" class="preview-more">
+                    +{{ todaySchedule.length - 3 }} more
+                  </div>
                 </div>
               </div>
               <div class="card-icon">
@@ -465,6 +478,44 @@
         </div>
       </div>
     </q-page-container>
+
+    <!-- Today's Schedule Dialog -->
+    <q-dialog v-model="showTodayScheduleDialog">
+      <q-card style="min-width: 480px; max-width: 720px;">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Today's Schedule</div>
+          <q-space />
+          <q-btn icon="close" flat round dense @click="showTodayScheduleDialog = false" />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div v-if="scheduleLoading" class="row justify-center q-my-md">
+            <q-spinner size="lg" />
+          </div>
+          <div v-else>
+            <div v-if="!todaySchedule.length" class="text-grey-7">No appointments scheduled today.</div>
+            <q-list v-else bordered separator>
+              <q-item v-for="a in todaySchedule" :key="a.id">
+                <q-item-section avatar>
+                  <q-icon name="schedule" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">
+                    {{ formatScheduleTime(a) }}
+                  </q-item-label>
+                  <q-item-label caption>
+                    {{ a.patient_name }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-badge outline color="primary">{{ a.status }}</q-badge>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
 
     <!-- Notifications Modal -->
     <q-dialog v-model="showNotifications" persistent>
@@ -995,6 +1046,71 @@ function formatTime(value?: string): string {
   } catch {
     return value;
   }
+}
+
+// Today's Schedule state and helpers
+const scheduleLoading = ref(false)
+const todaySchedule = ref<Appointment[]>([])
+const showTodayScheduleDialog = ref(false)
+
+function isSameDay(dateStr: string, target: Date) {
+  const d = new Date(dateStr)
+  return (
+    d.getFullYear() === target.getFullYear() &&
+    d.getMonth() === target.getMonth() &&
+    d.getDate() === target.getDate()
+  )
+}
+
+function formatScheduleTime(appt: Appointment) {
+  const raw = appt.appointment_time || appt.appointment_date
+  return formatTime(raw)
+}
+
+function getScheduleTime(appt: Appointment): number {
+  try {
+    if (appt.appointment_time) {
+      const [hStr = '0', mStr = '0'] = appt.appointment_time.split(':')
+      const h = parseInt(hStr, 10)
+      const m = parseInt(mStr, 10)
+      const d = new Date()
+      d.setHours(h, m, 0, 0)
+      return d.getTime()
+    }
+    return new Date(appt.appointment_date).getTime()
+  } catch {
+    return 0
+  }
+}
+
+async function fetchTodaySchedule() {
+  try {
+    scheduleLoading.value = true
+    const res = await api.get('/operations/appointments/')
+    const list: Appointment[] = Array.isArray(res.data) ? (res.data as Appointment[]) : []
+    const today = new Date()
+    const items = list.filter((a) => a.appointment_date && isSameDay(a.appointment_date, today))
+    items.sort((a, b) => getScheduleTime(a) - getScheduleTime(b))
+    todaySchedule.value = items
+  } catch (err) {
+    console.error('Failed to fetch today schedule', err)
+    todaySchedule.value = []
+  } finally {
+    scheduleLoading.value = false
+  }
+}
+
+// Refresh at midnight to keep schedule current
+const setupDailyScheduleRefresh = (): void => {
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(0, 0, 0, 0)
+  const msUntilMidnight = tomorrow.getTime() - now.getTime()
+  setTimeout(() => {
+    void fetchTodaySchedule()
+    setInterval(() => void fetchTodaySchedule(), 24 * 60 * 60 * 1000)
+  }, msUntilMidnight)
 }
 
 const fetchWeather = async () => {
@@ -1622,6 +1738,10 @@ onMounted(async () => {
   // Fetch monthly cancelled count and set monthly refresh
   void fetchMonthlyCancelled();
   setupMonthlyRefresh();
+
+  // Fetch today's full schedule and set daily refresh
+  void fetchTodaySchedule();
+  setupDailyScheduleRefresh();
 
   // Setup messaging WebSocket for real-time appointment updates
   try {
@@ -2954,6 +3074,29 @@ onUnmounted(() => {
     rgba(72, 187, 120, 0.2) 25%,
     rgba(255, 255, 255, 0.3) 100%);
   border: 1px solid rgba(52, 168, 83, 0.5);
+}
+
+/* Today’s Schedule preview styles */
+.schedule-preview {
+  margin-top: 8px;
+}
+.preview-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.preview-time {
+  color: #2e7d32;
+  font-weight: 600;
+}
+.preview-name {
+  color: #1f2937;
+}
+.preview-more {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #374151;
 }
 
 .performance-card {

@@ -174,158 +174,15 @@
       </div>
 
       <div class="page-content">
-        <!-- Patient Selection -->
-        <q-card class="patient-selection-card">
-          <q-card-section>
-            <div class="row items-center q-mb-md">
-              <h6 class="text-h6 q-mb-none">Select Patient</h6>
-              <q-space />
-              <div class="button-group">
-                <q-btn 
-                  color="primary" 
-                  label="Save Assessment" 
-                  icon="save" 
-                  @click="saveAssessment"
-                  :loading="saving"
-                  size="sm" 
-                  class="q-mr-sm"
-                />
-                <q-btn color="secondary" label="Add New Patient" icon="person_add" size="sm" />
-              </div>
-            </div>
-
-            <q-select
-              v-model="selectedPatient"
-              :options="patientOptions"
-              label="Choose Patient"
-              option-label="name"
-              option-value="id"
-              emit-value
-              map-options
-              clearable
-              class="patient-select"
-            >
-              <template v-slot:option="scope">
-                <q-item v-bind="scope.itemProps">
-                  <q-item-section avatar>
-                    <q-avatar color="primary" text-color="white">
-                      {{ scope.opt.name.charAt(0) }}
-                    </q-avatar>
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label>{{ scope.opt.name }}</q-item-label>
-                    <q-item-label caption
-                      >ID: {{ scope.opt.id }} | Queue: {{ scope.opt.queueNumber }}</q-item-label
-                    >
-                  </q-item-section>
-                </q-item>
-              </template>
-            </q-select>
-          </q-card-section>
-        </q-card>
-
-        <!-- Doctor Selection Form -->
-        <div v-if="selectedPatient" class="doctor-selection-form">
-          <!-- Patient Info Card -->
-          <q-card class="patient-info-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Patient Information</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-6">
-                  <q-input
-                    :model-value="selectedPatient.name"
-                    label="Full Name"
-                    readonly
-                    outlined
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    :model-value="selectedPatient.queueNumber"
-                    label="Queue Number"
-                    readonly
-                    outlined
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    :model-value="selectedPatient.priority"
-                    label="Priority"
-                    readonly
-                    outlined
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Doctor Selection Card -->
-          <q-card class="doctor-selection-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Select Doctor</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-6">
-                  <q-select
-                    v-model="selectedSpecialization"
-                    :options="doctorSpecializations"
-                    label="Specialization Required"
-                    outlined
-                    clearable
-                    @update:model-value="onSpecializationChange"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-select
-                    v-model="selectedDoctor"
-                    :options="availableDoctors"
-                    label="Available Doctors"
-                    option-label="name"
-                    option-value="id"
-                    emit-value
-                    map-options
-                    outlined
-                    clearable
-                    :disable="!selectedSpecialization"
-                  >
-                    <template v-slot:option="scope">
-                      <q-item v-bind="scope.itemProps">
-                        <q-item-section avatar>
-                          <q-avatar color="primary" text-color="white">
-                            {{ scope.opt.name.charAt(0) }}
-                          </q-avatar>
-                        </q-item-section>
-                        <q-item-section>
-                          <q-item-label>{{ scope.opt.name }}</q-item-label>
-                          <q-item-label caption>
-                            {{ scope.opt.specialization }} | Patients:
-                            {{ scope.opt.currentPatients }}/10 |
-                            <span :class="scope.opt.isAvailable ? 'text-green' : 'text-red'">
-                              {{ scope.opt.isAvailable ? 'Available' : 'Busy' }}
-                            </span>
-                          </q-item-label>
-                        </q-item-section>
-                      </q-item>
-                    </template>
-                  </q-select>
-                </div>
-              </div>
-
-              <!-- Assignment Button -->
-              <div class="row q-mt-md">
-                <div class="col-12">
-                  <q-btn
-                    color="primary"
-                    label="Assign Patient to Doctor"
-                    icon="person_add"
-                    @click="assignPatientToDoctor"
-                    :loading="saving"
-                    :disable="!selectedPatient || !selectedDoctor"
-                    class="full-width"
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
+        <!-- Patient Management temporarily disabled -->
+        <div class="content-placeholder">
+          <q-banner class="bg-blue-1 text-blue-8" rounded>
+            <template v-slot:avatar>
+              <q-icon name="assignment" color="blue" />
+            </template>
+            Nurse Patient Management has been temporarily reverted.
+            Existing assessment and assignment features are disabled for now.
+          </q-banner>
         </div>
 
         <!-- Assessment Form (Hidden for now) -->
@@ -781,11 +638,13 @@ const loading = ref(false);
 
 // Patient options (from queue)
 const patients = ref<Patient[]>([]);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const patientOptions = computed(() => patients.value);
 
 // Doctor selection
 const selectedDoctor = ref<Doctor | null>(null);
 const availableDoctors = ref<Doctor[]>([]);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const doctorSpecializations = ref([
   'General Medicine',
   'Cardiology',
@@ -1192,60 +1051,7 @@ const fetchUserProfile = async () => {
   }
 };
 
-const saveAssessment = async () => {
-  if (!selectedPatient.value) {
-    $q.notify({
-      type: 'warning',
-      message: 'Please select a patient first',
-      position: 'top',
-    });
-    return;
-  }
-
-  saving.value = true;
-
-  try {
-    // Validate required fields
-    const requiredVitals = [
-      'bloodPressure',
-      'heartRate',
-      'temperature',
-      'respiratoryRate',
-      'oxygenSaturation',
-    ] as const;
-    const missingVitals = requiredVitals.filter((vital) => !assessment.value.vitals[vital]);
-
-    if (missingVitals.length > 0) {
-      $q.notify({
-        type: 'warning',
-        message: `Please fill in all required vital signs: ${missingVitals.join(', ')}`,
-        position: 'top',
-      });
-      return;
-    }
-
-    // Mock API call - replace with actual API
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    $q.notify({
-      type: 'positive',
-      message: 'Assessment saved successfully!',
-      position: 'top',
-    });
-
-    // Reset form after successful save
-    selectedPatient.value = null;
-  } catch (error) {
-    console.error('Error saving assessment:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to save assessment. Please try again.',
-      position: 'top',
-    });
-  } finally {
-    saving.value = false;
-  }
-};
+// Removed: saveAssessment (functionality reverted, eliminating unused variable errors)
 
 // Load patients from queue
 const loadQueuePatients = async () => {
@@ -1348,6 +1154,7 @@ const loadAvailableDoctors = async (specialization: string) => {
 };
 
 // Handle specialization selection
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const onSpecializationChange = (specialization: string) => {
   selectedSpecialization.value = specialization;
   selectedDoctor.value = null;
@@ -1359,6 +1166,7 @@ const onSpecializationChange = (specialization: string) => {
 };
 
 // Assign patient to doctor
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const assignPatientToDoctor = async () => {
   if (!selectedPatient.value || !selectedDoctor.value) {
     $q.notify({

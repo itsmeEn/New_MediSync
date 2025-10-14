@@ -1,55 +1,53 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-blue-8 text-white" style="height: 70px;">
-      <q-toolbar class="q-px-md" style="height: 70px;">
+    <q-header class="bg-white text-teal-9">
+      <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
-          <img :src="logoUrl" alt="Logo" />
+          <img :src="logoUrl" alt="MediSync Logo" />
         </q-avatar>
-        
-        <div class="column q-mr-auto"></div>
+
+        <div class="header-content"></div>
+
+        <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
+        <q-btn flat round icon="notifications" class="q-mr-sm">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
         <!-- User Menu -->
-        <q-btn flat round class="q-ml-sm" @click="showUserMenu = !showUserMenu">
-          <q-avatar size="32px" class="bg-white text-blue-8">
-            <div class="text-weight-bold">{{ userInitials }}</div>
+        <q-btn flat round>
+          <q-avatar size="32px" color="white" text-color="primary">
+            {{ userInitials }}
           </q-avatar>
+          <q-menu v-model="showUserMenu">
+            <q-list style="min-width: 200px">
+              <q-item clickable @click="navigateTo('/patient-settings')">
+                <q-item-section avatar>
+                  <q-icon name="settings" />
+                </q-item-section>
+                <q-item-section>Settings</q-item-section>
+              </q-item>
+              <q-item clickable @click="logout">
+                <q-item-section avatar>
+                  <q-icon name="logout" />
+                </q-item-section>
+                <q-item-section>Logout</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
-
-        <!-- User Dropdown Menu -->
-        <q-menu v-model="showUserMenu" anchor="bottom right" self="top right" class="q-mt-xs">
-          <q-list style="min-width: 200px">
-            <q-item-label header class="text-grey-7">{{ userName }}</q-item-label>
-            <q-separator />
-            <q-item clickable v-close-popup @click="navigateTo('/patient-settings')">
-              <q-item-section avatar>
-                <q-icon name="settings" />
-              </q-item-section>
-              <q-item-section>Settings</q-item-section>
-            </q-item>
-            <q-item clickable v-close-popup @click="logout">
-              <q-item-section avatar>
-                <q-icon name="logout" />
-              </q-item-section>
-              <q-item-section>Logout</q-item-section>
-            </q-item>
-          </q-list>
-        </q-menu>
       </q-toolbar>
     </q-header>
 
     <!-- Main Content -->
     <q-page-container>
-      <q-page class="bg-grey-1 q-pa-md">
+      <q-page class="patient-bg q-pa-md">
         <div class="q-pa-md">
           <!-- Page Title -->
           <div class="q-mb-md">
-            <div class="text-h5 text-weight-bold text-grey-8">Live Queue & Wait Time</div>
+            <div class="text-h5 text-weight-bold">Live Queue & Wait Time</div>
           </div>
 
           <!-- Queue Status Banner -->
@@ -87,7 +85,7 @@
               </q-card>
             </div>
             <div class="col-12 col-sm-6">
-              <q-card :class="myPosition ? 'bg-teal-7 text-white' : 'bg-grey-4 text-grey-8'">
+              <q-card :class="myPosition ? 'bg-teal-7 text-white' : 'bg-grey-4 text-black'">
                 <q-card-section class="q-pa-md">
                   <div class="text-caption text-weight-medium text-uppercase q-mb-xs">Your Queue Status</div>
                   <div class="text-h4 text-weight-bold">{{ myPosition || 'Not in queue' }}</div>
@@ -107,7 +105,7 @@
                 <div class="text-h6 text-weight-bold">Join Queue</div>
               </div>
 
-              <div class="text-body2 text-grey-7 q-mb-md">
+              <div class="text-body2 q-mb-md">
                 Join the queue to secure your position and receive real-time updates on your wait time.
               </div>
 
@@ -137,7 +135,7 @@
                 </div>
               </div>
 
-              <div v-if="queueStatus.is_open && isQueueAvailable" class="text-caption text-grey-6 q-mt-sm">
+              <div v-if="queueStatus.is_open && isQueueAvailable" class="text-caption q-mt-sm">
                 Current queue length: {{ queueEntries.length }} patients
               </div>
             </q-card-section>
@@ -174,7 +172,7 @@
                   
                   <q-item-section side>
                     <div class="text-right">
-                      <div class="text-caption text-grey-6">~{{ entry.etaMins }} mins</div>
+                      <div class="text-caption">~{{ entry.etaMins }} mins</div>
                       <q-badge
                         v-if="entry.isCurrent"
                         color="orange"
@@ -192,7 +190,7 @@
                 </q-item>
                 
                 <q-item v-if="queueEntries.length === 0">
-                  <q-item-section class="text-center text-grey-6">
+                  <q-item-section class="text-center">
                     No queue data available.
                   </q-item-section>
                 </q-item>
@@ -208,7 +206,7 @@
                 <div class="text-h6 text-weight-bold">Queue Alerts & Info</div>
               </div>
 
-              <div class="text-body2 text-grey-7 q-mb-md">
+              <div class="text-body2 q-mb-md">
                 Request a text message alert when you are the <strong>next patient</strong> in line.
               </div>
 
@@ -238,30 +236,7 @@
       </q-page>
     </q-page-container>
 
-    <!-- Bottom Navigation -->
-    <q-footer class="bg-teal-8 text-white">
-      <q-tabs
-        v-model="currentTab"
-        dense
-        class="text-white"
-        active-color="white"
-        indicator-color="white"
-        align="justify"
-      >
-        <q-tab name="queue" icon="format_list_numbered" label="Queue" @click="navigateTo('/patient-queue')" />
-  <q-tab name="appointments" icon="event" label="Appointments" @click="navigateTo('/patient-appointment-schedule')" />
-        <q-tab name="home" icon="home" label="Home" @click="navigateTo('/patient-dashboard')" />
-        <q-tab name="notifications" icon="notifications" @click="navigateTo('/patient-notifications')">
-          <template v-slot:default>
-            <div class="row items-center no-wrap">
-              <div>Alerts</div>
-              <q-badge color="red" floating>!</q-badge>
-            </div>
-          </template>
-        </q-tab>
-        <q-tab name="requests" icon="chat" label="Requests" @click="navigateTo('/patient-medical-request')" />
-      </q-tabs>
-    </q-footer>
+    <PatientBottomNav />
   </q-layout>
 </template>
 
@@ -270,13 +245,13 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 const router = useRouter()
 const $q = useQuasar()
 
 // Navigation and UI state
-const currentTab = ref('queue')
 const smsAlertActive = ref(false)
 const showUserMenu = ref(false)
 const unreadCount = ref(0)

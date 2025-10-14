@@ -1,7 +1,7 @@
 <template>
   <q-layout view="lHh Lpr lFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-primary text-white">
+    <q-header class="bg-white text-teal-9">
       <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
           <img :src="logoUrl" alt="MediSync Logo" />
@@ -42,9 +42,9 @@
     </q-header>
 
     <q-page-container>
-       <q-page class="bg-grey-1 q-pa-md pb-safe">
+       <q-page class="patient-bg q-pa-md pb-safe">
          <div class="max-w-4xl mx-auto">
-           <div class="text-h5 text-weight-bold q-mb-md text-grey-8">
+           <div class="text-h5 text-weight-bold q-mb-md">
              Medical Records & General Requests
            </div>
 
@@ -58,7 +58,7 @@
                      <div class="text-h6 text-weight-bold">
                        Request Your Medical Records
                      </div>
-                     <div class="text-caption text-grey-6">
+                     <div class="text-caption">
                        Use this form to securely request your medical records
                      </div>
                    </div>
@@ -139,10 +139,10 @@
                  
                  <div v-if="recentRequests.length === 0" class="text-center q-py-xl">
                    <q-icon name="description" size="64px" color="grey-4" class="q-mb-md" />
-                   <div class="text-h6 text-weight-medium text-grey-6 q-mb-sm">
+                   <div class="text-h6 text-weight-medium q-mb-sm">
                      No recent requests
                    </div>
-                   <div class="text-body2 text-grey-5">
+                   <div class="text-body2">
                      Your submitted requests will appear here
                    </div>
                  </div>
@@ -194,55 +194,7 @@
        </q-page>
      </q-page-container>
 
-    <!-- Bottom Navigation -->
-    <q-footer class="bg-white text-grey-8 border-t">
-      <q-tabs
-        v-model="currentTab"
-        dense
-        class="text-grey-6"
-        active-color="teal"
-        indicator-color="teal"
-        align="justify"
-      >
-        <q-tab 
-          name="home" 
-          icon="home" 
-          label="Home"
-          @click="navigateTo('/patient-dashboard')"
-        />
-        <q-tab 
-          name="appointments" 
-          icon="event" 
-          label="Appointments"
-            @click="navigateTo('/patient-appointment-schedule')"
-        />
-        <q-tab 
-          name="records" 
-          icon="description" 
-          label="Records"
-          @click="navigateTo('/patient-medical-request')"
-        />
-        <q-tab 
-          name="notifications" 
-          icon="notifications"
-          label="Notifications"
-          @click="navigateTo('/patient-notifications')"
-        >
-          <q-badge 
-            v-if="unreadCount > 0" 
-            color="red" 
-            :label="unreadCount"
-            floating
-          />
-        </q-tab>
-        <q-tab 
-          name="queue" 
-          icon="people" 
-          label="Queue"
-          @click="navigateTo('/patient-queue')"
-        />
-      </q-tabs>
-    </q-footer>
+    <PatientBottomNav />
   </q-layout>
 </template>
 
@@ -250,13 +202,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 const router = useRouter()
 const unreadCount = ref<number>(0)
 const isSubmitting = ref(false)
 const formRef = ref()
-const currentTab = ref('records')
 const showUserMenu = ref(false)
 
 const userName = computed(() => {

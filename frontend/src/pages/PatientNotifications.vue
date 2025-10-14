@@ -1,7 +1,7 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-primary text-white">
+    <q-header class="bg-white text-teal-9">
       <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
           <img :src="logoUrl" alt="MediSync Logo" />
@@ -13,7 +13,7 @@
 
         <!-- Notification Icon -->
         <q-btn flat round icon="notifications" class="q-mr-sm">
-          <q-badge color="red" floating>3</q-badge>
+          <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
         <!-- User Menu -->
@@ -42,7 +42,7 @@
     </q-header>
 
     <q-page-container>
-      <q-page class="bg-grey-1 q-pa-md pb-safe">
+      <q-page class="patient-bg q-pa-md pb-safe">
         <div class="max-w-4xl mx-auto">
           <!-- Search and Filter Section -->
           <q-card class="q-mb-md">
@@ -100,10 +100,10 @@
             <q-card-section class="q-pt-none">
               <div v-if="filteredNotifications.length === 0" class="text-center q-py-xl">
                 <q-icon name="notifications_off" size="64px" color="grey-4" class="q-mb-md" />
-                <div class="text-h6 text-weight-medium text-grey-6 q-mb-sm">
+                <div class="text-h6 text-weight-medium q-mb-sm">
                   No notifications found
                 </div>
-                <div class="text-body2 text-grey-5">
+                <div class="text-body2">
                   Try adjusting your filters or search terms
                 </div>
               </div>
@@ -141,19 +141,17 @@
 
                   <q-item-section>
                     <q-item-label
-                      :class="n.read ? 'text-grey-6' : 'text-grey-9'"
                       class="text-weight-medium"
                     >
                       {{ n.title }}
                     </q-item-label>
                     <q-item-label
                       caption
-                      :class="n.read ? 'text-grey-5' : 'text-grey-7'"
                       lines="2"
                     >
                       {{ n.message }}
                     </q-item-label>
-                    <q-item-label caption class="text-grey-5 q-mt-xs">
+                    <q-item-label caption class="q-mt-xs">
                       {{ formatDate(n.createdAt) }} • {{ n.type }}
                       <q-badge v-if="n.archived" color="orange" label="Archived" class="q-ml-xs" />
                     </q-item-label>
@@ -282,59 +280,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Bottom Navigation -->
-    <q-footer class="bg-white text-grey-8 border-t">
-      <q-tabs
-        v-model="currentTab"
-        dense
-        class="text-grey-6"
-        active-color="teal"
-        indicator-color="teal"
-        align="justify"
-      >
-        <q-tab
-          name="home"
-          icon="home"
-          label="Home"
-        @click="$router.push('/patient-dashboard')"
-        />
-        
-        <q-tab
-          name="appointments"
-          icon="event"
-          label="Appointments"
-            @click="$router.push('/patient-appointment-schedule')"
-        />
-        
-        <q-tab
-          name="records"
-          icon="description"
-          label="Records"
-        @click="$router.push('/patient-medical-request')"
-        />
-        
-        <q-tab
-          name="notifications"
-          icon="notifications"
-          label="Notifications"
-        @click="$router.push('/patient-notifications')"
-        >
-          <q-badge
-            v-if="unreadCount > 0"
-            color="red"
-            :label="unreadCount > 99 ? '99+' : unreadCount"
-            floating
-          />
-        </q-tab>
-        
-        <q-tab
-          name="queue"
-          icon="people"
-          label="Queue"
-        @click="$router.push('/patient-queue')"
-        />
-      </q-tabs>
-    </q-footer>
+    <PatientBottomNav />
   </q-layout>
 </template>
 
@@ -342,7 +288,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import logoUrl from 'src/assets/logo.svg'
+import logoUrl from 'src/assets/logo.png'
+import PatientBottomNav from 'src/components/PatientBottomNav.vue'
 
 const router = useRouter()
 const activeTab = ref<FilterValue>('all')
@@ -352,6 +299,7 @@ const showNotificationDetail = ref(false)
 const selectedNotification = ref<Notification | null>(null)
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 const showUserMenu = ref(false)
+const unreadCount = ref(0)
 
 interface Notification {
   id: number
@@ -367,8 +315,6 @@ interface Notification {
 type FilterValue = 'all' | 'unread' | 'read' | 'appointments' | 'queue' | 'medical' | 'archived'
 
 const notifications = ref<Notification[]>([])
-
-const currentTab = ref('notifications')
 
 const userName = computed(() => {
   try {
@@ -387,7 +333,7 @@ const userInitials = computed(() => {
   return initials || (name[0]?.toUpperCase() ?? 'U')
 })
 
-const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+// unread count now handled by PatientBottomNav
 
 // Filter options for the vertical sidebar
 const filterOptions = computed((): { value: FilterValue; label: string; icon: string; count: number }[] => [
@@ -415,6 +361,13 @@ interface WindowWithLucide extends Window {
 onMounted(async () => {
   await fetchNotifications()
   try { (window as WindowWithLucide).lucide?.createIcons() } catch (e) { console.warn('lucide icons init failed', e) }
+  try {
+    const res = await api.get('/patient/notifications/unread-count/')
+    unreadCount.value = res.data?.count ?? 0
+  } catch (e) {
+    console.warn('unread count fetch failed', e)
+    unreadCount.value = 0
+  }
 })
 
 const fetchNotifications = async () => {

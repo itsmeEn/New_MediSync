@@ -19,6 +19,7 @@ urlpatterns = [
     path('appointments/<int:appointment_id>/reschedule/', views.reschedule_appointment, name='reschedule_appointment'),
     path('appointments/<int:appointment_id>/cancel/', views.cancel_appointment, name='cancel_appointment'),
     path('patient/appointments/', views.patient_appointments, name='patient_appointments'),
+    path('patient/dashboard/summary/', views.patient_dashboard_summary, name='patient_dashboard_summary'),
     
     # Messaging endpoints
     path('messaging/conversations/', views.get_conversations, name='get_conversations'),
