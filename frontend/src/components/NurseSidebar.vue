@@ -41,7 +41,7 @@
 
         <div class="user-info">
           <h6 class="user-name clickable-name" @click="navigateToProfile">{{ userProfile.full_name || 'Loading...' }}</h6>
-          <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
+          <p class="user-role">{{ userProfile.department || 'Nurse' }}</p>
           <q-chip
             :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
             text-color="white"
@@ -57,8 +57,8 @@
         <q-item
           clickable
           v-ripple
-          @click="navigateTo('doctor-dashboard')"
-          :class="['nav-item', { active: activeRoute === 'doctor-dashboard' }]"
+          @click="navigateTo('nurse-dashboard')"
+          :class="['nav-item', { active: activeRoute === 'nurse-dashboard' }]"
         >
           <q-item-section avatar>
             <q-icon name="dashboard" />
@@ -69,20 +69,8 @@
         <q-item
           clickable
           v-ripple
-          @click="navigateTo('appointments')"
-          :class="['nav-item', { active: activeRoute === 'appointments' }]"
-        >
-          <q-item-section avatar>
-            <q-icon name="event" />
-          </q-item-section>
-          <q-item-section>Appointments</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          @click="navigateTo('messaging')"
-          :class="['nav-item', { active: activeRoute === 'messaging' }]"
+          @click="navigateTo('nurse-messaging')"
+          :class="['nav-item', { active: activeRoute === 'nurse-messaging' }]"
         >
           <q-item-section avatar>
             <q-icon name="message" />
@@ -93,11 +81,11 @@
         <q-item
           clickable
           v-ripple
-          @click="navigateTo('patients')"
-          :class="['nav-item', { active: activeRoute === 'patients' }]"
+          @click="navigateTo('nurse-patient-assessment')"
+          :class="['nav-item', { active: activeRoute === 'patient-assessment' || activeRoute === 'nurse-patient-assessment' }]"
         >
           <q-item-section avatar>
-            <q-icon name="people" />
+            <q-icon name="assignment" />
           </q-item-section>
           <q-item-section>Patient Management</q-item-section>
         </q-item>
@@ -105,8 +93,20 @@
         <q-item
           clickable
           v-ripple
-          @click="navigateTo('analytics')"
-          :class="['nav-item', { active: activeRoute === 'analytics' }]"
+          @click="navigateTo('nurse-medicine-inventory')"
+          :class="['nav-item', { active: activeRoute === 'nurse-medicine-inventory' }]"
+        >
+          <q-item-section avatar>
+            <q-icon name="medication" />
+          </q-item-section>
+          <q-item-section>Medicine Inventory</q-item-section>
+        </q-item>
+
+        <q-item
+          clickable
+          v-ripple
+          @click="navigateTo('nurse-analytics')"
+          :class="['nav-item', { active: activeRoute === 'nurse-analytics' }]"
         >
           <q-item-section avatar>
             <q-icon name="analytics" />
@@ -117,8 +117,8 @@
         <q-item
           clickable
           v-ripple
-          @click="navigateTo('settings')"
-          :class="['nav-item', { active: activeRoute === 'settings' }]"
+          @click="navigateTo('nurse-settings')"
+          :class="['nav-item', { active: activeRoute === 'nurse-settings' }]"
         >
           <q-item-section avatar>
             <q-icon name="settings" />
@@ -133,6 +133,7 @@
       </div>
     </div>
   </q-drawer>
+  
 </template>
 
 <script setup lang="ts">
@@ -141,7 +142,6 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
 import { performLogout } from 'src/utils/logout';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 
 // Props
 interface Props {
@@ -154,15 +154,13 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 // Emits
-const emit = defineEmits<{
-  'update:modelValue': [value: boolean];
-}>();
+const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 
 // Types
 interface UserProfile {
   id: number;
   full_name: string;
-  specialization: string;
+  department?: string;
   verification_status: string;
   profile_picture?: string;
 }
@@ -175,7 +173,7 @@ const $q = useQuasar();
 const userProfile = ref<UserProfile>({
   id: 0,
   full_name: '',
-  specialization: '',
+  department: 'Nurse',
   verification_status: 'pending',
 });
 
@@ -186,12 +184,15 @@ const drawerOpen = computed({
 });
 
 const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U';
-  return userProfile.value.full_name
+  const name = userProfile.value.full_name || '';
+  const safe = name.trim();
+  const initials = safe
     .split(' ')
-    .map((name) => name.charAt(0))
+    .filter(Boolean)
+    .map((n) => n.charAt(0))
     .join('')
     .toUpperCase();
+  return initials || (safe ? safe.charAt(0).toUpperCase() : 'U');
 });
 
 // Methods
@@ -201,25 +202,25 @@ const toggleDrawer = () => {
 
 const navigateTo = (route: string) => {
   drawerOpen.value = false;
-  
   switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
+    case 'nurse-dashboard':
+      void router.push('/nurse-dashboard');
       break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
+    case 'nurse-messaging':
+      void router.push('/nurse-messaging');
       break;
-    case 'messaging':
-      void router.push('/doctor-messaging');
+    case 'nurse-patient-assessment':
+    case 'patient-assessment':
+      void router.push('/nurse-patient-assessment');
       break;
-    case 'patients':
-      void router.push('/doctor-patient-management');
+    case 'nurse-medicine-inventory':
+      void router.push('/nurse-medicine-inventory');
       break;
-    case 'analytics':
-      void router.push('/doctor-predictive-analytics');
+    case 'nurse-analytics':
+      void router.push('/nurse-analytics');
       break;
-    case 'settings':
-      void router.push('/doctor-settings');
+    case 'nurse-settings':
+      void router.push('/nurse-settings');
       break;
   }
 };
@@ -248,8 +249,8 @@ const logout = () => {
 };
 
 const navigateToProfile = () => {
-  void router.push('/doctor-settings');
-  emit('update:modelValue', false); // Close the sidebar on mobile
+  void router.push('/nurse-settings');
+  emit('update:modelValue', false);
 };
 
 const loadUserProfile = async () => {
@@ -257,35 +258,27 @@ const loadUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user || response.data;
 
-    // Check if verification status has changed
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
-
     userProfile.value = {
       id: userData.id,
       full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization || userData.specialization,
+      department: userData.nurse_profile?.department || userData.department || 'Nurse',
       verification_status: userData.verification_status,
       profile_picture: userData.profile_picture,
     };
 
-    // Show notification if verification status changed to approved
-    if (previousStatus !== newStatus && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
+    // Notify when verification becomes approved
+    if (userData.verification_status === 'approved') {
+      $q.notify({ type: 'positive', message: 'Your account is verified', position: 'top', timeout: 3000 });
     }
   } catch (error) {
-    console.error('Error loading user profile:', error);
+    console.error('Error loading nurse profile:', error);
   }
 };
 
 // Lifecycle
 onMounted(() => {
   void loadUserProfile();
-  
-  // Refresh user profile every 30 seconds to check for verification status updates
-  setInterval(() => {
-    void loadUserProfile();
-  }, 30000);
+  setInterval(() => void loadUserProfile(), 30000);
 });
 </script>
 
@@ -347,7 +340,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-
 .verified-badge {
   position: absolute;
   top: -5px;
@@ -377,7 +369,6 @@ onMounted(() => {
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(30, 118, 104, 0.3);
 }
-
 
 .profile-placeholder {
   width: 100%;

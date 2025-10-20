@@ -16,131 +16,11 @@
       @select-search-result="selectSearchResult"
       @show-notifications="showNotifications = true"
     />
-
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials || 'NU' }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">Nurse</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('nurse-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patient-assessment')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="assignment" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('nurse-medicine-inventory')"
-            class="nav-item"
-          >
-            <q-item-section avatar>
-              <q-icon name="medication" />
-            </q-item-section>
-            <q-item-section>Medicine Inventory</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-analytics')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+    <NurseSidebar v-model="rightDrawerOpen" :activeRoute="'nurse-analytics'" />
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Greeting Section -->
-      <div class="greeting-section">
+      <div class="greeting-section" v-if="false">
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <h2 class="greeting-text">
@@ -156,7 +36,7 @@
       </div>
 
       <!-- Analytics Cards Section -->
-      <div class="dashboard-cards-section">
+      <div class="dashboard-cards-section" v-if="false">
         <div class="dashboard-cards-grid">
           <!-- Medication Analysis Card -->
           <q-card
@@ -183,7 +63,7 @@
                     <span class="stat-label">Top Medications:</span>
                     <div class="medications-list">
                       <span
-                        v-for="med in analyticsData.medication_analysis.medication_pareto_data?.slice(
+                        v-for="med in analyticsData.medication_analysis?.medication_pareto_data?.slice(
                           0,
                           3,
                         )"
@@ -227,8 +107,7 @@
                     <span class="stat-label">Age Distribution:</span>
                     <div class="age-stats">
                       <span
-                        v-for="(count, ageGroup) in analyticsData.patient_demographics
-                          .age_distribution"
+                        v-for="(count, ageGroup) in (analyticsData.patient_demographics?.age_distribution ?? {})"
                         :key="ageGroup"
                         class="age-item"
                       >
@@ -240,8 +119,7 @@
                     <span class="stat-label">Gender Distribution:</span>
                     <div class="gender-stats">
                       <span
-                        v-for="(percentage, gender) in analyticsData.patient_demographics
-                          .gender_proportions"
+                        v-for="(percentage, gender) in (analyticsData.patient_demographics?.gender_proportions ?? {})"
                         :key="gender"
                         class="gender-item"
                       >
@@ -282,7 +160,7 @@
                     <span class="stat-label">Top Conditions:</span>
                     <div class="conditions-list">
                       <span
-                        v-for="illness in analyticsData.health_trends.top_illnesses_by_week?.slice(
+                        v-for="illness in analyticsData.health_trends?.top_illnesses_by_week?.slice(
                           0,
                           3,
                         )"
@@ -327,12 +205,12 @@
                     <div class="performance-stats">
                       <span class="performance-item"
                         >MAE:
-                        {{ analyticsData.volume_prediction.evaluation_metrics?.mae || 'N/A' }}</span
+                        {{ analyticsData.volume_prediction?.evaluation_metrics?.mae || 'N/A' }}</span
                       >
                       <span class="performance-item"
                         >RMSE:
                         {{
-                          analyticsData.volume_prediction.evaluation_metrics?.rmse || 'N/A'
+                          analyticsData.volume_prediction?.evaluation_metrics?.rmse || 'N/A'
                         }}</span
                       >
                     </div>
@@ -348,9 +226,32 @@
       </div>
 
       <!-- Analytics Data Display Section -->
-      <div class="analytics-section">
-        <q-card class="analytics-card">
-          <q-card-section class="analytics-header">
+      <div class="analytics-section main-analytics-section">
+        <div v-if="userProfile.verification_status !== 'approved'" class="verification-overlay">
+          <q-card class="verification-card">
+            <q-card-section class="verification-content">
+              <q-icon name="warning" size="64px" color="orange" />
+              <h4 class="verification-title">Account Verification Required</h4>
+              <p class="verification-message">
+                Your account needs to be verified before you can access analytics functionality.
+                Please upload your verification document to complete the process.
+              </p>
+              <q-chip color="negative" text-color="white" size="lg" icon="cancel">
+                Not Verified
+              </q-chip>
+              <q-btn
+                color="primary"
+                label="Upload Verification Document"
+                icon="upload_file"
+                @click="$router.push('/verification')"
+                class="q-mt-md"
+                unelevated
+              />
+            </q-card-section>
+          </q-card>
+        </div>
+        <q-card class="analytics-card main-analytics-card" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
+          <q-card-section class="analytics-header" v-if="false">
             <h3 class="analytics-title">NURSE ANALYTICS INSIGHTS</h3>
             <div class="analytics-actions">
               <q-btn
@@ -370,11 +271,44 @@
                 class="action-btn"
               />
             </div>
+
+            <div class="analytics-sidebar-panel">
+              <div class="sidebar-actions">
+                <q-btn color="primary" label="Generate PDF Report" icon="picture_as_pdf" size="md" @click="generatePDFReport" class="sidebar-btn" />
+                <q-btn color="secondary" label="Refresh Analytics Data" icon="refresh" size="md" @click="refreshAnalytics" class="sidebar-btn" />
+              </div>
+              <q-separator class="q-my-sm" />
+              <div class="ai-summary-header">AI-SUMMARY GENERATED RESPONSE</div>
+              <q-separator class="q-my-xs" />
+              <div class="ai-summary-content">
+                <em>
+                  Disclaimer: This is an automated, AI-generated recommendation that interprets the latest analytics findings based on the current data. It is intended to guide immediate resource allocation and strategic planning, not replace expert clinical judgment.
+                </em>
+              </div>
+            </div>
+
           </q-card-section>
 
           <q-card-section class="analytics-content">
+            <div class="analytics-sidebar-panel">
+              <q-card bordered flat class="ai-summary-card">
+                <q-card-section class="actions-row">
+                  <q-btn color="primary" label="Generate PDF Report" icon="picture_as_pdf" size="md" @click="generatePDFReport" class="sidebar-btn" />
+                  <q-btn color="secondary" label="Refresh Analytics Data" icon="refresh" size="md" @click="refreshAnalytics" class="sidebar-btn" />
+                </q-card-section>
+                <q-separator class="q-my-xs" />
+                <q-card-section>
+                  <div class="ai-summary-header">AI-SUMMARY GENERATED RESPONSE</div>
+                  <div class="ai-summary-content">
+                    <em>
+                      Disclaimer: This is an automated, AI-generated recommendation that interprets the latest analytics findings based on the current data. It is intended to guide immediate resource allocation and strategic planning, not replace expert clinical judgment.
+                    </em>
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
             <!-- Analytics Panels -->
-            <div class="analytics-panels-container">
+            <div class="analytics-panels-container structured-grid">
               <!-- Medication Analysis Panel -->
               <div class="analytics-panel medication-panel">
                 <h4 class="panel-title">Medication Analysis</h4>
@@ -432,33 +366,43 @@
                         />
                       </div>
                     </div>
-                    
-                    <!-- Gender Distribution Chart -->
-                    <div class="chart-section">
-                      <h5 class="chart-title">Gender Distribution</h5>
-                      <div class="chart-container">
-                        <Doughnut 
-                          :data="genderChartData" 
-                          :options="{
-                            ...doughnutOptions,
-                            plugins: {
-                              ...doughnutOptions.plugins,
-                              title: {
-                                display: true,
-                                text: 'Gender Distribution',
-                                font: { size: 14, weight: 'bold' }
-                              }
-                            }
-                          }" 
-                        />
-                      </div>
-                    </div>
+
                   </div>
                   <div v-else class="empty-data">
                     <div class="empty-state">
                       <q-icon name="people" size="48px" color="grey-5" />
                       <p>No demographics data available</p>
                       <p class="empty-subtitle">Patient demographic information will appear here</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Gender Distribution Panel -->
+              <div class="analytics-panel gender-panel">
+                <h4 class="panel-title">Gender Distribution</h4>
+                <div class="panel-content">
+                  <div v-if="analyticsData.patient_demographics?.gender_proportions" class="chart-container">
+                    <Doughnut 
+                      :data="genderChartData" 
+                      :options="{
+                        ...doughnutOptions,
+                        plugins: {
+                          ...doughnutOptions.plugins,
+                          title: {
+                            display: true,
+                            text: 'Gender Distribution',
+                            font: { size: 14, weight: 'bold' }
+                          }
+                        }
+                      }" 
+                    />
+                  </div>
+                  <div v-else class="empty-data">
+                    <div class="empty-state">
+                      <q-icon name="group" size="48px" color="grey-5" />
+                      <p>No gender distribution data available</p>
+                      <p class="empty-subtitle">Gender breakdown will appear here</p>
                     </div>
                   </div>
                 </div>
@@ -496,7 +440,7 @@
               </div>
 
               <!-- Volume Prediction Panel -->
-              <div class="analytics-panel volume-panel">
+              <div class="analytics-panel volume-panel prediction-panel">
                 <h4 class="panel-title">Patient Volume Prediction</h4>
                 <div class="panel-content">
                   <div v-if="analyticsData.volume_prediction" class="volume-prediction-content">
@@ -523,7 +467,7 @@
                     </div>
                     
                     <!-- Performance Metrics Cards -->
-                    <div v-if="analyticsData.volume_prediction.evaluation_metrics" class="metrics-cards">
+                    <div v-if="analyticsData.volume_prediction?.evaluation_metrics" class="metrics-cards">
                       <div class="metric-card">
                         <div class="metric-value">{{ analyticsData.volume_prediction.evaluation_metrics.mae }}</div>
                         <div class="metric-label">MAE</div>
@@ -557,10 +501,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from 'src/components/NurseHeader.vue';
+import NurseSidebar from 'src/components/NurseSidebar.vue';
+import { showVerificationToastOnce } from 'src/utils/verificationToast';
 import { Bar, Doughnut, Line } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -588,7 +533,6 @@ ChartJS.register(
   LineElement
 );
 
-const router = useRouter();
 const $q = useQuasar();
 
 const rightDrawerOpen = ref(false);
@@ -937,27 +881,8 @@ const userProfile = ref<{
 });
 
 // File input reference for profile picture upload
-const fileInput = ref<HTMLInputElement | null>(null);
+// Upload controls removed: initials-only avatar
 
-/**
- * Computed property that generates user initials from the full name
- * @returns {string} The initials of the user's name in uppercase
- *
- * How it works:
- * 1. Checks if full_name exists, returns 'U' if not
- * 2. Splits the full name by spaces to get individual names
- * 3. Maps each name to its first character
- * 4. Joins all first characters together
- * 5. Converts to uppercase for consistency
- */
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U';
-  return userProfile.value.full_name
-    .split(' ')
-    .map((name) => name.charAt(0))
-    .join('')
-    .toUpperCase();
-});
 
 /**
  * Computed property that formats the current date for display in the greeting
@@ -978,27 +903,6 @@ const currentDate = computed(() => {
   });
 });
 
-/**
- * Computed property that formats the profile picture URL for display
- * @returns {string | null} Complete URL for the profile picture or null if no picture
- *
- * How it works:
- * 1. Checks if profile_picture exists, returns null if not
- * 2. If the URL already starts with 'http', returns it as-is (external URL)
- * 3. Otherwise, prepends the backend server URL to create a complete path
- * 4. This handles both relative paths from the backend and absolute URLs
- */
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
-});
 
 // Search functionality methods
 const onSearchInput = async (value: string | number | null) => {
@@ -1145,90 +1049,6 @@ const toggleRightDrawer = () => {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 };
 
-/**
- * Triggers the file input dialog for profile picture upload
- * @returns {void}
- *
- * How it works:
- * 1. Uses optional chaining to safely access the file input reference
- * 2. Programmatically clicks the hidden file input element
- * 3. This opens the native file selection dialog
- * 4. The actual file handling is done in handleProfilePictureUpload
- */
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture);
-
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: { data?: { profile_picture?: string[]; detail?: string } };
-        };
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
 
 /**
  * Fetches user profile data from the API and updates the local state
@@ -1266,21 +1086,7 @@ const fetchUserProfile = async () => {
 
     // Show notification if verification status changed to approved
     if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      $q.notify({
-        type: 'positive',
-        message: '🎉 Congratulations! Your account has been verified and approved.',
-        position: 'top',
-        timeout: 5000,
-        actions: [
-          {
-            label: 'Dismiss',
-            color: 'white',
-            handler: () => {
-              // Notification will auto-dismiss
-            }
-          }
-        ]
-      });
+      showVerificationToastOnce(newStatus);
     }
 
     // Store profile picture in localStorage if available
@@ -1407,32 +1213,6 @@ const fetchNurseAnalytics = async () => {
  * - analytics: Already on analytics page (no action)
  * - settings: Navigate to settings page
  */
-const navigateTo = (route: string) => {
-  rightDrawerOpen.value = false;
-
-  switch (route) {
-    case 'nurse-dashboard':
-      void router.push('/nurse-dashboard');
-      break;
-    case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory');
-      break;
-    case 'nurse-messaging':
-      void router.push('/nurse-messaging');
-      break;
-    case 'patient-assessment':
-      void router.push('/nurse-patient-assessment');
-      break;
-    case 'nurse-analytics':
-      // Already on analytics page
-      break;
-    case 'nurse-settings':
-      void router.push('/nurse-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
-  }
-};
 
 /**
  * Handles user logout by clearing stored data and redirecting to login
@@ -1447,12 +1227,6 @@ const navigateTo = (route: string) => {
  * This ensures a clean logout by removing all authentication data
  * and user information from the browser's local storage
  */
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
 
 /**
  * Shows notification when medication analysis card is clicked
@@ -1672,16 +1446,6 @@ const handleStorageChange = (e: StorageEvent) => {
 
 // Listen for storage changes to sync profile picture across components
 window.addEventListener('storage', handleStorageChange);
-
-/**
- * Vue lifecycle hook that runs when the component is unmounted
- * @returns {void}
- * 1. Checks if timeInterval exists
- * 2. Clears the interval to prevent memory leaks
- * 3. This prevents the time update from continuing after component destruction
- *
- * This is important for preventing memory leaks and unnecessary background processes
- */
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
@@ -1693,6 +1457,69 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Verification Overlay Styles */
+.verification-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+}
+
+.verification-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  margin: 20px;
+}
+
+.verification-content {
+  text-align: center;
+  padding: 40px 30px;
+}
+
+.verification-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  margin: 20px 0 16px 0;
+}
+
+.verification-message {
+  font-size: 1rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.disabled-content {
+  opacity: 0.3;
+  pointer-events: none;
+  filter: blur(2px);
+}
+
+/* Main Analytics Section */
+.main-analytics-section {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.main-analytics-card {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
 /* Prototype Header Styles */
 .prototype-header {
   background: linear-gradient(135deg, #286660 0%, #4a7c59 100%);
@@ -1796,26 +1623,6 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-  border: 2px solid white !important;
-  transition: all 0.3s ease !important;
-}
-
-.upload-btn:hover {
-  background: #286660 !important;
-  transform: scale(1.1) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
 
 .verified-badge {
   position: absolute;
@@ -1896,12 +1703,6 @@ onUnmounted(() => {
   overflow: hidden !important;
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
 
 .profile-placeholder {
   width: 100%;
@@ -2202,6 +2003,19 @@ onUnmounted(() => {
 /* Analytics Section */
 .analytics-section {
   padding: 24px;
+  margin-top: 20px;
+}
+
+.ai-summary-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-top: 20px;
+}
+
+.actions-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .analytics-card {
@@ -2209,8 +2023,9 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  max-width: 1200px;
-  margin: 0 auto;
+  width: calc(100% - 48px);
+  max-width: 1800px;
+  margin: 0 24px;
 }
 
 .analytics-header {
@@ -2274,9 +2089,66 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   margin-top: 20px;
+  align-self: start;
 }
 
-.analytics-panel {
+/* Structured Grid Layout for Analytics Panels */
+.structured-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'surge volume'
+    'trends trends'
+    'demographics gender';
+  gap: 20px;
+}
+
+/* Map panels to grid areas */
+.medication-panel { grid-area: surge; }
+.volume-panel, .prediction-panel { grid-area: volume; }
+.trends-panel { grid-area: trends; }
+.demographics-panel { grid-area: demographics; }
+.gender-panel { grid-area: gender; }
+
+/* Responsive adjustments for grid */
+@media (max-width: 1200px) {
+  .structured-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'surge volume'
+      'trends trends'
+      'demographics gender';
+  }
+}
+@media (max-width: 768px) {
+  .structured-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'surge'
+      'volume'
+      'trends'
+      'demographics'
+      'gender';
+  }
+}
+
+/* Analytics content layout to place sidebar inside card */
+.analytics-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+.analytics-sidebar-panel { align-self: stretch; display: flex; flex-direction: column; height: 100%; }
+.sidebar-actions { display: flex; gap: 12px; margin-top: 8px; }
+.sidebar-btn { flex: 1; }
+.ai-summary-header { font-weight: 700; color: #1f3d3a; margin-bottom: 8px; }
+.ai-summary-content { color: #143b38; font-size: 14px; }
+/* Ensure panels left, sidebar right regardless of DOM order */
+.analytics-content > .analytics-panels-container { grid-column: 1; }
+.analytics-content > .analytics-sidebar-panel { grid-column: 2; }
+ 
+ .analytics-panel {
   background: #f8f9fa;
   border-radius: 12px;
   border: 1px solid #e9ecef;

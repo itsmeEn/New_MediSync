@@ -12,7 +12,7 @@ urlpatterns = [
     # API endpoints for user profiles
     path('profile/', views.get_user_profile, name='get_user_profile'),
     path('profile/update/', views.update_profile, name='update_profile'),
-    path('profile/update/picture/', views.update_profile_picture, name='update_profile_picture'),
+    # Removed: deprecated profile picture upload endpoint
     
     # Verification endpoints
     path('verification/upload/', views.upload_verification_document, name='upload_verification_document'),

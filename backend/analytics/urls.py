@@ -9,6 +9,8 @@ urlpatterns = [
     path('refresh/', views.trigger_data_refresh, name='trigger_refresh'),
     path('realtime/', views.get_real_time_analytics, name='real_time_analytics'),
     path('stream/', views.analytics_stream, name='analytics_stream'),
+    path('performance/', views.system_performance, name='system_performance'),
+    path('stress-test/', views.stress_test_analytics, name='stress_test_analytics'),
     
     # Role-specific analytics endpoints
     path('doctor/', views.doctor_analytics, name='doctor_analytics'),

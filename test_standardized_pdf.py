@@ -21,9 +21,12 @@ from backend.analytics.views import (
     get_custom_styles, 
     create_standardized_pdf_template,
     add_standardized_header,
-    add_analytics_dashboard,
+    add_analytics_sections_with_visualizations,
+    add_ai_interpretation_section,
+    add_doctor_signature,
     add_standardized_footer
 )
+from reportlab.platypus import Paragraph, Spacer, PageBreak
 
 def test_pdf_generation():
     """Test the standardized PDF generation functionality"""
@@ -67,26 +70,68 @@ def test_pdf_generation():
         add_standardized_header(story, hospital_info, user_info, "Analytics Report", styles)
         print("✓ Header section added")
         
-        # Test analytics dashboard with mock data
+        # Mock analytics data for sections
         mock_analytics_data = {
             'patient_demographics': {
                 'total_patients': 150,
-                'age_distribution': {'18-30': 25, '31-50': 40, '51-70': 35}
+                'age_distribution': {'18-30': 25, '31-50': 40, '51-70': 35},
+                'gender_proportions': {'Male': 52, 'Female': 48}
             },
             'health_trends': {
-                'common_conditions': ['Hypertension', 'Diabetes', 'Heart Disease']
+                'top_illnesses_by_week': [
+                    {'medical_condition': 'Hypertension', 'count': 42},
+                    {'medical_condition': 'Diabetes', 'count': 28},
+                    {'medical_condition': 'Heart Disease', 'count': 18}
+                ],
+                'common_conditions': [
+                    {'condition': 'Hypertension'},
+                    {'condition': 'Diabetes'},
+                    {'condition': 'Heart Disease'}
+                ]
+            },
+            'medication_analysis': {
+                'medication_pareto_data': [
+                    {'medication': 'Atorvastatin', 'frequency': 120},
+                    {'medication': 'Metformin', 'frequency': 95},
+                    {'medication': 'Lisinopril', 'frequency': 80}
+                ]
             },
             'illness_prediction': {
-                'risk_factors': ['Age', 'BMI', 'Blood Pressure', 'Cholesterol']
+                'association_result': 'Strong association detected between BMI and hypertension',
+                'chi_square_statistic': 27.5,
+                'p_value': 0.004
+            },
+            'volume_prediction': {
+                'evaluation_metrics': {'mae': 2.4, 'rmse': 3.1}
+            },
+            'surge_prediction': {
+                'forecasted_monthly_cases': [
+                    {'date': '2025-11', 'total_cases': 45},
+                    {'date': '2025-12', 'total_cases': 52},
+                    {'date': '2026-01', 'total_cases': 49}
+                ]
             }
         }
         
-        add_analytics_dashboard(story, mock_analytics_data, user_info, styles)
-        print("✓ Analytics dashboard added")
+        # Overview and sections using new layout
+        story.append(Paragraph("Overview:", styles['SectionHeaderNoBorder']))
+        story.append(Paragraph(
+            "This report provides comprehensive analytics insights for healthcare management. "
+            "It integrates patient demographics, health trends, medication patterns, and forecasting "
+            "to support evidence-based decisions and improve patient care outcomes.",
+            styles['ContentText']
+        ))
         
-        # Test footer
+        # New analytics sections and AI recommendations
+        add_analytics_sections_with_visualizations(story, mock_analytics_data, styles)
+        add_ai_interpretation_section(story, mock_analytics_data, styles)
+        
+        # Prepared by signature
+        add_doctor_signature(story, user_info, styles)
+        
+        # Footer
         add_standardized_footer(story, styles)
-        print("✓ Footer section added")
+        print("✓ Sections, AI recommendations, signature, and footer added")
         
         # Build the PDF
         doc.build(story)
@@ -136,22 +181,68 @@ def test_nurse_pdf():
         
         add_standardized_header(story, hospital_info, user_info, "Analytics Report", styles)
         
-        # Mock nurse-specific analytics data
+        # Mock analytics data for nurse report
         mock_nurse_data = {
             'patient_demographics': {
-                'total_patients': 75
+                'total_patients': 150,
+                'age_distribution': {'18-30': 25, '31-50': 40, '51-70': 35},
+                'gender_proportions': {'Male': 52, 'Female': 48}
+            },
+            'health_trends': {
+                'top_illnesses_by_week': [
+                    {'medical_condition': 'Hypertension', 'count': 42},
+                    {'medical_condition': 'Diabetes', 'count': 28},
+                    {'medical_condition': 'Heart Disease', 'count': 18}
+                ],
+                'common_conditions': [
+                    {'condition': 'Hypertension'},
+                    {'condition': 'Diabetes'},
+                    {'condition': 'Heart Disease'}
+                ]
             },
             'medication_analysis': {
-                'total_medications': 200,
-                'medication_categories': {'Antibiotics': 50, 'Pain Relief': 75, 'Cardiac': 75}
+                'medication_pareto_data': [
+                    {'medication': 'Atorvastatin', 'frequency': 120},
+                    {'medication': 'Metformin', 'frequency': 95},
+                    {'medication': 'Lisinopril', 'frequency': 80}
+                ]
+            },
+            'illness_prediction': {
+                'association_result': 'Strong association detected between BMI and hypertension',
+                'chi_square_statistic': 27.5,
+                'p_value': 0.004
             },
             'volume_prediction': {
-                'predicted_volume': 85
+                'evaluation_metrics': {'mae': 2.4, 'rmse': 3.1}
+            },
+            'surge_prediction': {
+                'forecasted_monthly_cases': [
+                    {'date': '2025-11', 'total_cases': 45},
+                    {'date': '2025-12', 'total_cases': 52},
+                    {'date': '2026-01', 'total_cases': 49}
+                ]
             }
         }
         
-        add_analytics_dashboard(story, mock_nurse_data, user_info, styles)
+        # Overview and sections using new layout
+        story.append(Paragraph("Overview:", styles['SectionHeaderNoBorder']))
+        story.append(Paragraph(
+            "This report summarizes key analytics insights tailored for nursing operations, "
+            "including patient demographics, health trend monitoring, medication utilization patterns, "
+            "and forecasting insights to support daily clinical decision-making.",
+            styles['ContentText']
+        ))
+        
+        # New analytics sections and AI recommendations
+        add_analytics_sections_with_visualizations(story, mock_nurse_data, styles)
+        add_ai_interpretation_section(story, mock_nurse_data, styles)
+        
+        # Prepared by signature
+        add_doctor_signature(story, user_info, styles)
+        
+        # Footer
         add_standardized_footer(story, styles)
+        print("✓ Nurse sections, AI recommendations, signature, and footer added")
         
         doc.build(story)
         

@@ -25,7 +25,7 @@ import base64
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
 from .serializers import (
     UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, 
-    ProfilePictureSerializer, ProfileUpdateSerializer, TwoFactorEnableSerializer,
+    ProfileUpdateSerializer, TwoFactorEnableSerializer,
     TwoFactorVerifySerializer, TwoFactorDisableSerializer, TwoFactorLoginSerializer
 )
 
@@ -243,20 +243,7 @@ def get_user_profile(request):
         'user': UserSerializer(request.user).data
     }, status=status.HTTP_200_OK)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def update_profile_picture(request):
-    """
-    Update user's profile picture
-    """
-    serializer = ProfilePictureSerializer(request.user, data=request.data, partial=True)
-    if serializer.is_valid():
-        serializer.save()
-        return Response({
-            'message': 'Profile picture updated successfully',
-            'user': UserSerializer(request.user).data
-        }, status=status.HTTP_200_OK)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# Deprecated: Removed endpoint for updating profile pictures
 
 
 @api_view(['PUT'])

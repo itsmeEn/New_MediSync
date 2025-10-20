@@ -763,6 +763,21 @@
             }
         }
 
+        /* Dashboard Grid (avoid Bootstrap row/col conflicts) */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: start;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        @media (max-width: 820px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @media (max-width: 480px) {
             .dashboard-cards-grid {
                 grid-template-columns: 1fr;
@@ -829,10 +844,7 @@
         <!-- Header -->
         <div class="admin-header">
             <div class="header-toolbar">
-                <!-- Menu button to open sidebar -->
-                <button class="menu-toggle-btn" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
+                <!-- Sidebar removed: menu toggle button no longer needed -->
                 
                 <!-- Left side - Search bar -->
                 <div class="header-left">
@@ -849,12 +861,6 @@
                 
                 <!-- Right side - Notifications, Time, Admin Info -->
                 <div class="header-right">
-                    <!-- Notifications -->
-                    <button class="notification-btn">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-badge" id="notificationCount">0</span>
-                    </button>
-                    
                     <!-- Time Display -->
                     <div class="time-display">
                         <i class="fas fa-clock"></i>
@@ -872,48 +878,11 @@
             </div>
         </div>
 
-        <!-- Sidebar -->
-        <div id="sidebar" class="admin-sidebar">
-            <div class="sidebar-content">
-                <!-- Logo Section -->
-                <div class="logo-section">
-                    <div class="logo-container">
-                        <img src="logo.png" alt="MediSync Logo" class="logo-image" />
-                        <span class="logo-text">MediSync Admin</span>
-                    </div>
-                    <button class="menu-btn" onclick="toggleSidebar()">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <!-- Navigation Menu -->
-                <div class="navigation-menu">
-                    <div class="nav-item active" onclick="showDashboard()">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Dashboard</span>
-                    </div>
-                    <div class="nav-item" onclick="showVerifications()">
-                        <i class="fas fa-user-check"></i>
-                        <span>Verifications</span>
-                    </div>
-                    <div class="nav-item" onclick="showUsers()">
-                        <i class="fas fa-users"></i>
-                        <span>User Management</span>
-                    </div>
-                    <div class="nav-item" onclick="showAnalytics()">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Analytics</span>
-                    </div>
-                    <div class="nav-item" onclick="showSettings()">
-                        <i class="fas fa-cog"></i>
-                        <span>Settings</span>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Sidebar removed -->
 
         <!-- Main Content -->
         <div class="main-content">
+            <div id="dashboardSection">
             <!-- Greeting Section -->
             <div class="greeting-section">
                 <div class="greeting-card">
@@ -984,40 +953,140 @@
                     </div>
                 </div>
             </div>
+            </div>
 
-            <!-- Verifications Table Section -->
-            <div class="verifications-section">
-                <div class="verifications-card">
-                    <div class="card-header">
-                        <h5 class="card-title">Verification Requests</h5>
-                        <div class="card-filters">
-                            <select id="statusFilter" class="filter-select">
-                                <option value="">All Status</option>
-                                <option value="pending">Pending</option>
-                                <option value="approved">Approved</option>
-                                <option value="declined">Declined</option>
-                                <option value="archived">Archived</option>
-                            </select>
+            <!-- Dashboard Grid: Verifications + Bottlenecks Analytics -->
+            <div class="dashboard-grid" id="dashboardGrid">
+                <div>
+                    <!-- Verifications Table Section -->
+                    <div class="verifications-section" id="verificationsSection">
+                        <div class="verifications-card">
+                            <div class="card-header">
+                                <h5 class="card-title">Verification Requests</h5>
+                                <div class="card-filters">
+                                    <select id="statusFilter" class="filter-select">
+                                        <option value="">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="approved">Approved</option>
+                                        <option value="declined">Declined</option>
+                                        <option value="archived">Archived</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="verifications-table">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Email</th>
+                                                <th>Role</th>
+                                                <th>Status</th>
+                                                <th>Submitted</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="verificationsTable">
+                                            <!-- Data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="verifications-table">
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Status</th>
-                                        <th>Submitted</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="verificationsTable">
-                                    <!-- Data will be loaded here -->
-                                </tbody>
-                            </table>
+                </div>
+                <div>
+                    <!-- Bottlenecks Analytics Panel -->
+                    <div class="verifications-card" id="bottlenecksSection">
+                        <div class="card-header">
+                            <h5 class="card-title">Module Performance</h5>
+                            <div class="card-filters">
+                                <button id="analyzeBottlenecksBtn" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-chart-line"></i> Analyze
+                                </button>
+                            </div>
                         </div>
+                        <div class="card-body">
+                            <div style="margin-bottom: 12px; color: #666; font-size: 13px;">
+                                Visualizes doctor, nurse, and patient module latency and reliability.
+                            </div>
+                            <canvas id="latencyChart" height="140"></canvas>
+                            <div style="height: 12px"></div>
+                            <canvas id="successChart" height="140"></canvas>
+                            <div id="bottlenecksSummary" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Section: System Performance -->
+            <div id="analyticsSection" style="display: none;">
+                <div class="greeting-card" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="greeting-content">
+                        <h2 class="greeting-text">System Performance</h2>
+                        <p class="greeting-subtitle">Analytics tools and stress testing utilities.</p>
+                    </div>
+                </div>
+
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Detailed Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Platform:</strong> <span id="platformInfo">–</span></p>
+                                <p><strong>PSUtil Available:</strong> <span id="psutilAvailable">–</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Process:</strong> PID <span id="procPid">–</span>, Threads <span id="procThreads">–</span></p>
+                                <p><strong>Process RSS:</strong> <span id="procRss">–</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Section: Frontend Stress Test -->
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Frontend Stress Test (Doctor, Nurse, Patient)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label for="stressGroup" class="form-label">Target</label>
+                                <select id="stressGroup" class="form-select">
+                                    <option value="all" selected>All (Doctor, Nurse, Patient)</option>
+                                    <option value="doctor">Doctor</option>
+                                    <option value="nurse">Nurse</option>
+                                    <option value="patient">Patient</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="stressConcurrency" class="form-label">Concurrency</label>
+                                <input id="stressConcurrency" type="number" class="form-control" value="8" min="1" max="64">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="stressRequests" class="form-label">Requests per endpoint</label>
+                                <input id="stressRequests" type="number" class="form-control" value="30" min="1" max="1000">
+                            </div>
+                            <div class="col-md-3">
+                                <button id="runStressTestBtn" class="btn btn-primary w-100">
+                                    <i class="fas fa-bolt"></i> Run Stress Test
+                                </button>
+                            </div>
+                        </div>
+                        <div id="stressResultsContainer" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Section (placeholder) -->
+            <div id="settingsSection" style="display: none;">
+                <div class="greeting-card" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="greeting-content">
+                        <h2 class="greeting-text">Settings</h2>
+                        <p class="greeting-subtitle">Configure admin preferences and platform settings here.</p>
                     </div>
                 </div>
             </div>
@@ -1094,6 +1163,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="admin.js"></script>
 </body>
 </html>

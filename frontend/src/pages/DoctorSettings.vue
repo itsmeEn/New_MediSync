@@ -34,30 +34,11 @@
                   <div class="profile-section">
                     <div class="profile-picture-container">
                       <q-avatar size="120px" class="profile-avatar">
-                        <img
-                          v-if="profilePictureUrl"
-                          :src="profilePictureUrl"
-                          alt="Profile Picture"
-                        />
-                        <div v-else class="profile-placeholder">
+                        <div class="profile-placeholder">
                           {{ userInitials }}
                         </div>
                       </q-avatar>
-                      <q-btn
-                        round
-                        color="primary"
-                        icon="camera_alt"
-                        size="sm"
-                        class="upload-btn"
-                        @click="triggerFileUpload"
-                      />
-                      <input
-                        ref="fileInput"
-                        type="file"
-                        accept="image/*"
-                        style="display: none"
-                        @change="handleProfilePictureUpload"
-                      />
+                      <!-- Upload controls removed: initials-only avatar -->
                     </div>
 
                     <div class="profile-form">
@@ -371,14 +352,13 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
+
+import { showVerificationToastOnce } from 'src/utils/verificationToast';
 // import { AxiosError } from 'axios' // Unused import
 
 // Reactive data
 const rightDrawerOpen = ref(false);
 const showNotifications = ref(false);
-// Unused variables removed: text, loading
-// Header functions removed: toggleRightDrawer - now handled by DoctorHeader component
-
 // User profile data
 const userProfile = ref({
   first_name: '',
@@ -462,8 +442,6 @@ const specializationOptions = [
   { label: 'Other', value: 'other' },
 ];
 
-// File input reference for profile picture upload
-const fileInput = ref<HTMLInputElement | null>(null);
 
 // Computed properties
 const userInitials = computed(() => {
@@ -473,384 +451,14 @@ const userInitials = computed(() => {
   return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
 });
 
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // Check if it's a relative path starting with /
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    // Use the API base URL from axios configuration
-    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-    return `${baseURL}${userProfile.value.profile_picture}`;
-  }
-
-  // If it's a relative path without leading slash, add it
-  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-  return `${baseURL}/${userProfile.value.profile_picture}`;
-});
 
 
 const $q = useQuasar();
 
 
-// Profile picture upload functions
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
 
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
 
-    // Enhanced file validation
-    const validationResult = await validateProfilePicture(file);
-    if (!validationResult.isValid) {
-      $q.notify({
-        type: 'negative',
-        message: validationResult.message,
-        position: 'top',
-        timeout: 4000,
-        actions: [
-          {
-            label: 'Dismiss',
-            color: 'white',
-            handler: () => {}
-          }
-        ]
-      });
-      target.value = ''; // Clear the input
-      return;
-    }
 
-    // Show loading notification
-    const loadingNotification = $q.notify({
-      type: 'ongoing',
-      message: 'Uploading profile picture...',
-      position: 'top',
-      timeout: 0,
-      spinner: true
-    });
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      // Enhanced API call with timeout and retry logic
-      const response = await uploadProfilePictureWithRetry(formData);
-
-      // Update profile picture
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store the updated profile picture in localStorage for cross-page sync
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      currentUser.profile_picture = response.data.user.profile_picture;
-      localStorage.setItem('user', JSON.stringify(currentUser));
-
-      // Dismiss loading notification
-      loadingNotification();
-
-      // Show success notification
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-        icon: 'check_circle',
-        actions: [
-          {
-            label: 'Dismiss',
-            color: 'white',
-            handler: () => {}
-          }
-        ]
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      // Dismiss loading notification
-      loadingNotification();
-      
-      console.error('Profile picture upload failed:', error);
-
-      const errorDetails = parseUploadError(error);
-      
-      const baseNotifyOptions = {
-        type: 'negative' as const,
-        message: errorDetails.message,
-        position: 'top' as const,
-        timeout: 6000,
-        icon: 'error',
-        actions: [
-          {
-            label: 'Retry',
-            color: 'white' as const,
-            handler: () => {
-              // Trigger file upload again
-              triggerFileUpload();
-            }
-          },
-          {
-            label: 'Dismiss',
-            color: 'white' as const,
-            handler: () => {}
-          }
-        ]
-      };
-
-      const notifyOptions = errorDetails.caption 
-        ? { ...baseNotifyOptions, caption: errorDetails.caption }
-        : baseNotifyOptions;
-
-      $q.notify(notifyOptions);
-
-      // Clear the file input
-      target.value = '';
-    }
-  }
-};
-
-// Enhanced file validation function
-const validateProfilePicture = (file: File): Promise<{ isValid: boolean; message: string }> => {
-  // Check if file exists
-  if (!file) {
-    return Promise.resolve({ isValid: false, message: 'No file selected. Please choose an image file.' });
-  }
-
-  // Enhanced file type validation
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
-  
-  const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-  
-  if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
-    return Promise.resolve({ 
-      isValid: false, 
-      message: 'Invalid file format. Please select a JPG, PNG, or WebP image file.' 
-    });
-  }
-
-  // Enhanced file size validation with detailed messages
-  const maxSize = 5 * 1024 * 1024; // 5MB
-  const minSize = 1024; // 1KB minimum
-  
-  if (file.size > maxSize) {
-    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-    return Promise.resolve({ 
-      isValid: false, 
-      message: `File size (${fileSizeMB}MB) exceeds the 5MB limit. Please choose a smaller image.` 
-    });
-  }
-
-  if (file.size < minSize) {
-    return Promise.resolve({ 
-      isValid: false, 
-      message: 'File is too small. Please select a valid image file.' 
-    });
-  }
-
-  // Image dimension validation
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      
-      // Check minimum dimensions
-      if (img.width < 100 || img.height < 100) {
-        resolve({ 
-          isValid: false, 
-          message: 'Image dimensions are too small. Minimum size is 100x100 pixels.' 
-        });
-        return;
-      }
-
-      // Check maximum dimensions
-      if (img.width > 4000 || img.height > 4000) {
-        resolve({ 
-          isValid: false, 
-          message: 'Image dimensions are too large. Maximum size is 4000x4000 pixels.' 
-        });
-        return;
-      }
-
-      resolve({ isValid: true, message: '' });
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve({ 
-        isValid: false, 
-        message: 'Invalid image file. The file appears to be corrupted or not a valid image.' 
-      });
-    };
-
-    img.src = url;
-  });
-};
-
-// Enhanced API call with retry logic and timeout
-const uploadProfilePictureWithRetry = async (formData: FormData, maxRetries = 2): Promise<{ data: { user: { profile_picture: string } } }> => {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      // Create a timeout promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Upload timeout')), 30000); // 30 second timeout
-      });
-
-      // Create the upload promise
-      const uploadPromise = api.post('/users/profile/update/picture/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 30000, // 30 second timeout
-      });
-
-      // Race between upload and timeout
-      const response = await Promise.race([uploadPromise, timeoutPromise]);
-      return response;
-
-    } catch (error: unknown) {
-      lastError = error as Error;
-      
-      // Don't retry on certain errors
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { status?: number } };
-        if (axiosError.response?.status === 400 || axiosError.response?.status === 413 || axiosError.response?.status === 415) {
-          throw error;
-        }
-      }
-
-      // If this is the last attempt, throw the error
-      if (attempt === maxRetries) {
-        throw error;
-      }
-
-      // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
-  }
-
-  throw lastError || new Error('Upload failed after retries');
-};
-
-// Enhanced error parsing function
-const parseUploadError = (error: unknown): { message: string; caption?: string } => {
-  // Network/timeout errors
-  if (error instanceof Error) {
-    if (error.message === 'Upload timeout') {
-      return {
-        message: 'Upload timed out',
-        caption: 'The upload took too long. Please check your internet connection and try again.'
-      };
-    }
-    if (error.message.includes('Network Error') || error.message.includes('ERR_NETWORK')) {
-      return {
-        message: 'Network connection failed',
-        caption: 'Please check your internet connection and try again.'
-      };
-    }
-  }
-
-  // API response errors
-  if (error && typeof error === 'object' && 'response' in error) {
-    const axiosError = error as {
-      response?: { 
-        status?: number;
-        data?: { 
-          profile_picture?: string[]; 
-          detail?: string;
-          error?: string;
-          message?: string;
-        } 
-      };
-    };
-
-    const status = axiosError.response?.status;
-    const data = axiosError.response?.data;
-
-    // Handle specific HTTP status codes
-    switch (status) {
-      case 400:
-        if (data?.profile_picture?.[0]) {
-          return { message: data.profile_picture[0] };
-        }
-        return { 
-          message: 'Invalid file or request',
-          caption: 'Please ensure you\'re uploading a valid image file.'
-        };
-
-      case 401:
-        return { 
-          message: 'Authentication failed',
-          caption: 'Please log in again and try uploading.'
-        };
-
-      case 403:
-        return { 
-          message: 'Permission denied',
-          caption: 'You don\'t have permission to update your profile picture.'
-        };
-
-      case 413:
-        return { 
-          message: 'File too large',
-          caption: 'The image file exceeds the server\'s size limit. Please choose a smaller image.'
-        };
-
-      case 415:
-        return { 
-          message: 'Unsupported file type',
-          caption: 'Please upload a JPG, PNG, or WebP image file.'
-        };
-
-      case 429:
-        return { 
-          message: 'Too many requests',
-          caption: 'Please wait a moment before trying to upload again.'
-        };
-
-      case 500:
-        return { 
-          message: 'Server error occurred',
-          caption: 'There was a problem on our end. Please try again in a few minutes.'
-        };
-
-      case 503:
-        return { 
-          message: 'Service temporarily unavailable',
-          caption: 'The upload service is temporarily down. Please try again later.'
-        };
-
-      default:
-        if (data?.detail) {
-          return { message: data.detail };
-        }
-        if (data?.error) {
-          return { message: data.error };
-        }
-        if (data?.message) {
-          return { message: data.message };
-        }
-    }
-  }
-
-  // Generic fallback error
-  return { 
-    message: 'Upload failed',
-    caption: 'An unexpected error occurred. Please try again or contact support if the problem persists.'
-  };
-};
 
 // Real-time functions removed - now handled by DoctorHeader component
 
@@ -1096,13 +704,7 @@ const fetchUserProfile = async () => {
 
     // Show notification if verification status changed to approved
     if (previousStatus !== newStatus && newStatus === 'approved') {
-      $q.notify({
-        type: 'positive',
-        message: '🎉 Your account has been verified!',
-        position: 'top',
-        timeout: 5000,
-        actions: [{ label: 'Dismiss', color: 'white' }],
-      });
+      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
     }
 
     // Update localStorage with new verification status

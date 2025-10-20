@@ -162,26 +162,11 @@
         <div class="sidebar-user-profile">
           <div class="profile-picture-container">
             <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
+              <div class="profile-placeholder">
                 {{ userInitials }}
               </div>
             </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
+            <!-- Upload controls removed: initials-only avatar -->
             <q-icon
               :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
               :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
@@ -758,6 +743,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
+import { performLogout } from 'src/utils/logout';
 
 const router = useRouter();
 const $q = useQuasar();
@@ -822,28 +808,6 @@ const userProfile = ref<{
   verification_status: 'not_submitted',
 });
 
-// Profile picture handling
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // Check if it's a relative path starting with /
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    // Use the API base URL from axios configuration
-    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-    return `${baseURL}${userProfile.value.profile_picture}`;
-  }
-
-  // If it's a relative path without leading slash, add it
-  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-  return `${baseURL}/${userProfile.value.profile_picture}`;
-});
 
 const userInitials = computed(() => {
   const name = userProfile.value.full_name || 'User';
@@ -854,21 +818,6 @@ const userInitials = computed(() => {
     .toUpperCase();
 });
 
-const triggerFileUpload = () => {
-  const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-  if (fileInput) {
-    fileInput.click();
-  }
-};
-
-const handleProfilePictureUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-    // Handle file upload logic here
-    console.log('File selected:', file.name);
-  }
-};
 
 // File input reference removed - not used in new design
 
@@ -1204,11 +1153,6 @@ const navigateTo = (route: string) => {
 };
 
 const logout = () => {
-  // Clear all authentication data
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  
   // Show logout notification
   $q.notify({
     type: 'positive',
@@ -1216,9 +1160,9 @@ const logout = () => {
     position: 'top',
     timeout: 2000,
   });
-  
-  // Redirect to login page
-  void router.push('/login');
+
+  // Perform centralized logout and redirect
+  void performLogout(router);
 };
 
 // Profile picture functions removed - not used in new design
@@ -1539,7 +1483,6 @@ function generateScheduleRows(): string {
 // View management function
 function setView(view: 'day' | 'week' | 'month') {
   currentView.value = view;
-  // TODO: Implement different view logic
   console.log('Switched to view:', view);
 }
 
@@ -1551,14 +1494,14 @@ const unreadNotificationsCount = computed(() => {
 
 const loadNotifications = async (): Promise<void> => {
   try {
-    console.log('📬 Loading doctor notifications...');
+    console.log('Loading doctor notifications...');
 
     const response = await api.get('/operations/notifications/');
     notifications.value = response.data || [];
 
-    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+    console.log('Doctor notifications loaded:', notifications.value.length);
   } catch (error: unknown) {
-    console.error('❌ Error loading doctor notifications:', error);
+    console.error('Error loading doctor notifications:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load notifications',
@@ -1604,9 +1547,6 @@ const markAllNotificationsRead = async (): Promise<void> => {
     });
   }
 };
-
-// Removed duplicate time formatter. The unified `formatTime` helper above
-// handles both ISO date-time strings and plain HH:MM strings.
 
 // Medical requests functions
 const loadMedicalRequests = (): void => {

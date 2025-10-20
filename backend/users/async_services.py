@@ -154,7 +154,8 @@ class AsyncUserService:
                 'gender': user.gender,
                 'address': user.address,
                 'is_verified': user.is_verified,
-                'profile_picture': user.profile_picture.url if user.profile_picture else None
+                # Deprecated: profile_picture may be a plain string; return as-is without .url
+                'profile_picture': user.profile_picture if user.profile_picture else None
             }
             
             # Get role-specific profile

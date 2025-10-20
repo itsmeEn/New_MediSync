@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count, Q
@@ -2273,3 +2273,19 @@ def check_queue_availability(request):
         return Response({
             'error': f'Failed to check queue availability: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Lightweight UI configuration endpoint for frontend styling
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ui_config(request):
+    """Return UI configuration values for patient-facing elements.
+
+    Moving these values to the backend allows central control of visual
+    constants without redeploying the app.
+    """
+    config = {
+        'patient_bottom_nav_bg': '#f3f4f6',
+        'patient_nav_pill_bg': '#f5f5f7',
+    }
+    return Response(config, status=status.HTTP_200_OK)

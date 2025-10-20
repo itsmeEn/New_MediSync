@@ -59,4 +59,7 @@ urlpatterns = [
     path('queue/status/logs/', views.queue_status_logs, name='queue_status_logs'),
     path('queue/join/', views.join_queue, name='join_queue'),
     path('queue/availability/', views.check_queue_availability, name='check_queue_availability'),
+
+    # UI configuration for patient frontend elements
+    path('ui/config/', views.ui_config, name='ui_config'),
 ]
