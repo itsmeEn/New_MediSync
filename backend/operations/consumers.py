@@ -221,6 +221,11 @@ class QueueStatusConsumer(AsyncWebsocketConsumer):
             'type': 'queue_notification',
             'notification': notification_data
         }))
+        
+        # Mark notification as delivered if notification_id is provided
+        notification_id = notification_data.get('notification_id')
+        if notification_id:
+            await self.mark_notification_delivered(notification_id)
 
     async def queue_position_update(self, event):
         """Send queue position update to WebSocket"""
@@ -230,6 +235,23 @@ class QueueStatusConsumer(AsyncWebsocketConsumer):
             'position': position_data
         }))
 
+    @database_sync_to_async
+    def mark_notification_delivered(self, notification_id):
+        """Mark a notification as delivered"""
+        try:
+            from .models import Notification
+            from django.utils import timezone
+            
+            notification = Notification.objects.get(id=notification_id)
+            notification.delivery_status = Notification.DELIVERY_DELIVERED
+            notification.delivered_at = timezone.now()
+            notification.save()
+            return True
+        except Notification.DoesNotExist:
+            return False
+        except Exception:
+            return False
+    
     @database_sync_to_async
     def get_current_queue_status(self):
         """Get current queue status for department"""

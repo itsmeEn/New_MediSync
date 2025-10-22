@@ -285,7 +285,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import logoUrl from 'src/assets/logo.png'
@@ -300,6 +300,10 @@ const selectedNotification = ref<Notification | null>(null)
 const longPressTimer = ref<NodeJS.Timeout | null>(null)
 const showUserMenu = ref(false)
 const unreadCount = ref(0)
+
+// Queue websocket state
+const websocket = ref<WebSocket | null>(null)
+const selectedDepartment = ref('OPD')
 
 interface Notification {
   id: number
@@ -368,7 +372,70 @@ onMounted(async () => {
     console.warn('unread count fetch failed', e)
     unreadCount.value = 0
   }
+  setupWebSocket()
 })
+
+onUnmounted(() => {
+  if (websocket.value) {
+    websocket.value.close()
+  }
+})
+
+const setupWebSocket = () => {
+  try {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
+    const backendHost = base.hostname
+    const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80')
+
+    // Include user id if available to receive user-specific notices
+    let userIdSegment = ''
+    try {
+      const rawUser = localStorage.getItem('user') || '{}'
+      const parsed = JSON.parse(rawUser)
+      if (parsed && parsed.id) {
+        userIdSegment = `${parsed.id}/`
+      }
+    } catch { userIdSegment = '' }
+
+    const dept = selectedDepartment.value || 'OPD'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${dept}/${userIdSegment}`
+    websocket.value = new WebSocket(wsUrl)
+
+    websocket.value.onopen = () => {
+      console.log('PatientNotifications WebSocket connected')
+    }
+
+    websocket.value.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      if (data.type === 'queue_notification') {
+        const n = data.notification || {}
+        const eventType = n.event || 'info'
+        const isOpened = eventType === 'queue_opened'
+        const title = isOpened ? 'Queue Opened' : (eventType === 'queue_closed' ? 'Queue Closed' : 'Queue Update')
+        const message = n.message || `Queue is now ${isOpened ? 'OPEN' : 'CLOSED'} for ${n.department || dept}.`
+        const item: Notification = {
+          id: Date.now(),
+          title,
+          message,
+          type: 'queue',
+          read: false,
+          archived: false,
+          createdAt: new Date().toISOString()
+        }
+        notifications.value = [item, ...notifications.value]
+        unreadCount.value = unreadCount.value + 1
+      }
+    }
+
+    websocket.value.onclose = () => {
+      console.log('PatientNotifications WebSocket disconnected')
+      setTimeout(setupWebSocket, 5000)
+    }
+  } catch (e) {
+    console.warn('Failed to setup PatientNotifications WebSocket', e)
+  }
+}
 
 const fetchNotifications = async () => {
   try {

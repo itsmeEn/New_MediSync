@@ -1,0 +1,67 @@
+{
+    "department":  "OPD",
+    "normal_queue":  [
+                         {
+                             "queue_number":  9,
+                             "patient_name":  "anna",
+                             "department":  "OPD",
+                             "status":  "waiting",
+                             "position_in_queue":  1,
+                             "enqueue_time":  "2025-10-20T14:52:30.169003+08:00"
+                         },
+                         {
+                             "queue_number":  10,
+                             "patient_name":  "Test Patient",
+                             "department":  "OPD",
+                             "status":  "waiting",
+                             "position_in_queue":  2,
+                             "enqueue_time":  "2025-10-20T16:59:08.587658+08:00"
+                         }
+                     ],
+    "priority_queue":  [
+                           {
+                               "queue_number":  3,
+                               "patient_name":  "Angelo Rodel",
+                               "priority_level":  "with_child",
+                               "department":  "OPD",
+                               "priority_position":  1,
+                               "status":  "waiting",
+                               "enqueue_time":  "2025-10-20T14:42:51.502401+08:00",
+                               "started_at":  null,
+                               "finished_at":  null
+                           }
+                       ],
+    "all_patients":  [
+                         {
+                             "id":  null,
+                             "queue_number":  3,
+                             "patient_name":  "Angelo Rodel",
+                             "department":  "OPD",
+                             "status":  "waiting",
+                             "position":  1,
+                             "enqueue_time":  "2025-10-20T14:42:51.502401+08:00",
+                             "queue_type":  "priority",
+                             "priority_level":  "with_child"
+                         },
+                         {
+                             "id":  null,
+                             "queue_number":  9,
+                             "patient_name":  "anna",
+                             "department":  "OPD",
+                             "status":  "waiting",
+                             "position":  1,
+                             "enqueue_time":  "2025-10-20T14:52:30.169003+08:00",
+                             "queue_type":  "normal"
+                         },
+                         {
+                             "id":  null,
+                             "queue_number":  10,
+                             "patient_name":  "Test Patient",
+                             "department":  "OPD",
+                             "status":  "waiting",
+                             "position":  2,
+                             "enqueue_time":  "2025-10-20T16:59:08.587658+08:00",
+                             "queue_type":  "normal"
+                         }
+                     ]
+}

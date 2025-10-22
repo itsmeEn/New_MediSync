@@ -221,7 +221,7 @@ const profilePictureUrl = computed(() => {
   }
 
   // Get base URL without /api suffix for media files
-  let baseURL = api.defaults.baseURL || 'http://localhost:8001';
+  let baseURL = api.defaults.baseURL || 'http://localhost:8000';
   baseURL = baseURL.replace(/\/api\/?$/, '');
 
   // Check if it's a relative path starting with /

@@ -28,6 +28,18 @@ app.conf.beat_schedule = {
         'task': 'backend.analytics.tasks.refresh_analytics_cache',
         'schedule': 1800.0,  # Run every 30 minutes
     },
+    'auto-close-queues': {
+        'task': 'backend.operations.tasks.auto_close_queues',
+        'schedule': 300.0,  # Run every 5 minutes
+    },
+    'retry-failed-notifications': {
+        'task': 'backend.operations.tasks.retry_failed_notifications',
+        'schedule': 900.0,  # Run every 15 minutes
+    },
+    'update-queue-statistics': {
+        'task': 'backend.operations.tasks.update_queue_statistics',
+        'schedule': 120.0,  # Run every 2 minutes
+    },
 }
 
 app.conf.timezone = 'UTC'

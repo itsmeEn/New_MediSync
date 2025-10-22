@@ -52,25 +52,14 @@
 
           <!-- Queue Status Banner -->
           <q-banner 
-            v-if="!queueStatus.is_open" 
-            class="bg-red-1 text-red-8 q-mb-md" 
-            rounded
-          >
-            <template v-slot:avatar>
-              <q-icon name="warning" color="red" />
-            </template>
-            Queue is currently closed. Please check back during operating hours.
-          </q-banner>
-
-          <q-banner 
-            v-else-if="!isQueueAvailable" 
+            v-if="!isQueueAvailableApi" 
             class="bg-orange-1 text-orange-8 q-mb-md" 
             rounded
           >
             <template v-slot:avatar>
               <q-icon name="schedule" color="orange" />
             </template>
-            Queue is not available at this time. Operating hours: {{ queueScheduleText }}
+            {{ availabilityReason || ('Queue is not available at this time. Operating hours: ' + queueScheduleText) }}
           </q-banner>
 
           <!-- Current Status Cards -->
@@ -118,7 +107,7 @@
                     outlined
                     emit-value
                     map-options
-                    :disable="!queueStatus.is_open || !isQueueAvailable"
+                    :disable="!isQueueAvailableApi"
                   />
                 </div>
                 <div class="col-auto">
@@ -126,20 +115,62 @@
                     color="primary"
                     icon="add"
                     label="Join Queue"
-                    @click="joinQueue"
+                    @click="openJoinDialog"
                     :loading="joiningQueue"
-                    :disable="!selectedDepartment || !queueStatus.is_open || !isQueueAvailable"
+                    :disable="!selectedDepartment || !isQueueAvailableApi"
                     unelevated
                     class="full-height"
                   />
                 </div>
               </div>
 
-              <div v-if="queueStatus.is_open && isQueueAvailable" class="text-caption q-mt-sm">
+              <div v-if="queueStatus.is_open && isQueueAvailableApi" class="text-caption q-mt-sm">
                 Current queue length: {{ queueEntries.length }} patients
               </div>
             </q-card-section>
           </q-card>
+
+          <!-- Join Queue Modal -->
+          <q-dialog v-model="joinDialog">
+            <q-card style="min-width: 360px">
+              <q-card-section class="row items-center q-pb-none">
+                <div class="text-h6">Join Queue</div>
+                <q-space />
+                <q-btn icon="close" flat round dense v-close-popup @click="resetJoinDialog" />
+              </q-card-section>
+
+              <q-card-section>
+                <div class="q-mb-md">
+                  Do you fall into any of these priority categories?
+                  <div class="text-caption q-mt-xs">PWD, Pregnant, Senior Citizen, Accompanying a Child</div>
+                </div>
+
+                <q-option-group
+                  v-model="dialogIsPriority"
+                  type="radio"
+                  :options="[
+                    { label: 'Yes', value: true },
+                    { label: 'No', value: false }
+                  ]"
+                />
+
+                <div v-if="dialogIsPriority" class="q-mt-md">
+                  <div class="text-caption q-mb-sm">Select category</div>
+                  <q-option-group
+                    v-model="dialogPriorityLevel"
+                    type="radio"
+                    :options="priorityOptions"
+                    color="primary"
+                  />
+                </div>
+              </q-card-section>
+
+              <q-card-actions align="right">
+                <q-btn flat label="Cancel" v-close-popup @click="resetJoinDialog" />
+                <q-btn color="primary" :loading="joiningQueue" :disable="!selectedDepartment || !isQueueAvailableApi || dialogIsPriority === null" label="Join" @click="confirmJoinFromDialog" />
+              </q-card-actions>
+            </q-card>
+          </q-dialog>
 
           <!-- Current Queue -->
           <q-card class="q-mb-md">
@@ -265,13 +296,15 @@ const progressValue = ref<number>(0)
 
 // New queue management state
 const joiningQueue = ref(false)
-const selectedDepartment = ref('general')
+const selectedDepartment = ref('OPD')
 const queueStatus = ref({
   is_open: false,
-  department: 'general',
+  department: 'OPD',
   total_patients: 0,
   estimated_wait_time: 0
 })
+const isQueueAvailableApi = ref(false)
+const availabilityReason = ref<string | null>(null)
 
 interface QueueSchedule {
   id: number
@@ -316,32 +349,25 @@ const userInitials = computed(() => {
 
 // Queue management computed properties
 const departmentOptions = computed(() => [
-  { label: 'General Medicine', value: 'general' },
-  { label: 'Emergency', value: 'emergency' },
-  { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Cardiology', value: 'cardiology' },
-  { label: 'Orthopedics', value: 'orthopedics' }
+  { label: 'Out Patient Department', value: 'OPD' },
+  { label: 'Pharmacy', value: 'Pharmacy' },
+  { label: 'Appointment', value: 'Appointment' }
 ])
 
-const isQueueAvailable = computed(() => {
-  if (!queueStatus.value.is_open) return false
-  
-  const now = new Date()
-  const currentTime = now.getHours() * 60 + now.getMinutes()
-  
-  // Check if current time is within any active schedule
-  return queueSchedules.value.some(schedule => {
-    if (!schedule.is_active) return false
-    
-    const startTimeParts = schedule.start_time?.split(':') || ['0', '0']
-    const endTimeParts = schedule.end_time?.split(':') || ['0', '0']
-    
-    const startTime = parseInt(startTimeParts[0] || '0') * 60 + parseInt(startTimeParts[1] || '0')
-    const endTime = parseInt(endTimeParts[0] || '0') * 60 + parseInt(endTimeParts[1] || '0')
-    
-    return currentTime >= startTime && currentTime <= endTime
-  })
-})
+// Add priority options for joining priority queue
+const priorityOptions = computed(() => [
+  { label: 'Person With Disability (PWD)', value: 'pwd' },
+  { label: 'Pregnant', value: 'pregnant' },
+  { label: 'Senior Citizen', value: 'senior' },
+  { label: 'Accompanying a Child', value: 'with_child' }
+])
+
+const selectedPriority = ref<string | null>(null)
+
+// Join Queue modal state
+const joinDialog = ref(false)
+const dialogIsPriority = ref<boolean | null>(null)
+const dialogPriorityLevel = ref<string>('pwd')
 
 const queueScheduleText = computed(() => {
   const activeSchedules = queueSchedules.value.filter(s => s.is_active)
@@ -355,33 +381,50 @@ const queueScheduleText = computed(() => {
 
 
 // Methods
+const openJoinDialog = () => {
+  if (!isQueueAvailableApi.value) {
+    $q.notify({ type: 'warning', message: availabilityReason.value || 'Queue is not available right now.', position: 'top' })
+    return
+  }
+  dialogIsPriority.value = null
+  dialogPriorityLevel.value = 'pwd'
+  joinDialog.value = true
+}
+
+const resetJoinDialog = () => {
+  dialogIsPriority.value = null
+  dialogPriorityLevel.value = 'pwd'
+}
+
+const confirmJoinFromDialog = async () => {
+  if (dialogIsPriority.value === null) {
+    $q.notify({ type: 'warning', message: 'Please select Yes or No to continue.', position: 'top' })
+    return
+  }
+  // Map modal choice to API payload (priority_level when Yes)
+  selectedPriority.value = dialogIsPriority.value ? dialogPriorityLevel.value : null
+  joinDialog.value = false
+  await joinQueue()
+  resetJoinDialog()
+}
+
 const joinQueue = async () => {
   if (!selectedDepartment.value) return
   
   joiningQueue.value = true
   try {
     await api.post('/operations/queue/join/', {
-      department: selectedDepartment.value
+      department: selectedDepartment.value,
+      // Include priority_level if selected
+      priority_level: selectedPriority.value ?? undefined
     })
-    
-    $q.notify({
-      type: 'positive',
-      message: 'Successfully joined the queue!',
-      position: 'top'
-    })
-    
-    // Refresh queue data
+    $q.notify({ type: 'positive', message: 'Successfully joined the queue!', position: 'top' })
     await fetchQueueData()
   } catch (error: unknown) {
     const errorMessage = error instanceof Error && 'response' in error 
       ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to join queue'
       : 'Failed to join queue'
-    
-    $q.notify({
-      type: 'negative',
-      message: errorMessage,
-      position: 'top'
-    })
+    $q.notify({ type: 'negative', message: errorMessage, position: 'top' })
   } finally {
     joiningQueue.value = false
   }
@@ -390,15 +433,24 @@ const joinQueue = async () => {
 const fetchQueueData = async () => {
   try {
     // Fetch queue status
-    const statusRes = await api.get(`/operations/queue/status/?department=${selectedDepartment.value || 'general'}`)
+    const statusRes = await api.get(`/operations/queue/status/?department=${selectedDepartment.value || 'OPD'}`)
     queueStatus.value = statusRes.data || queueStatus.value
 
-    // Fetch queue schedules
-    const scheduleRes = await api.get(`/operations/queue/schedules/?department=${selectedDepartment.value || 'general'}`)
-    queueSchedules.value = scheduleRes.data || []
+    // Derive queue schedules from status current schedule
+    const sStart = statusRes.data?.current_schedule_start_time || null
+    const sEnd = statusRes.data?.current_schedule_end_time || null
+    const dept = statusRes.data?.department || (selectedDepartment.value || 'OPD')
+    queueSchedules.value = (sStart && sEnd)
+      ? [{ id: 0, start_time: sStart, end_time: sEnd, is_active: true, department: dept }]
+      : []
+
+    // Check queue availability via backend
+    const availRes = await api.get(`/operations/queue/availability/?department=${selectedDepartment.value || 'OPD'}`)
+    isQueueAvailableApi.value = !!(availRes.data && availRes.data.is_available)
+    availabilityReason.value = (availRes.data && availRes.data.reason) || null
 
     // Fetch queue summary
-    const summaryRes = await api.get('/patient/queue/summary/')
+    const summaryRes = await api.get(`/operations/patient/dashboard/summary/?department=${selectedDepartment.value || 'OPD'}`)
     const data = summaryRes.data || {}
     nowServing.value = data.nowServing || ''
     currentPatient.value = data.currentPatient || ''
@@ -406,11 +458,21 @@ const fetchQueueData = async () => {
     estimatedWaitMins.value = data.estimatedWaitMins || 0
     progressValue.value = data.progressValue || 0
 
-    // Fetch queue list
-    const listRes = await api.get('/patient/queue/list/')
-    queueEntries.value = (listRes.data || []) as QueueEntry[]
+    // No patient-visible queue list endpoint; keep empty
+    queueEntries.value = []
   } catch (e) {
     console.warn('Failed to fetch queue data', e)
+  }
+}
+
+const refreshAvailability = async () => {
+  try {
+    const dept = selectedDepartment.value || 'OPD'
+    const availRes = await api.get(`/operations/queue/availability/?department=${dept}`)
+    isQueueAvailableApi.value = !!(availRes.data && availRes.data.is_available)
+    availabilityReason.value = (availRes.data && availRes.data.reason) || null
+  } catch (e) {
+    console.warn('Failed to refresh queue availability', e)
   }
 }
 
@@ -420,7 +482,19 @@ const setupWebSocket = () => {
     const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
     const backendHost = base.hostname
     const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80')
-    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${selectedDepartment.value || 'general'}/`
+
+    // Try to include user-specific segment to receive position updates
+    let userIdSegment = ''
+    try {
+      const rawUser = localStorage.getItem('user') || '{}'
+      const parsed = JSON.parse(rawUser)
+      if (parsed && parsed.id) {
+        userIdSegment = `${parsed.id}/`
+      }
+    } catch { userIdSegment = '' }
+
+    const dept = selectedDepartment.value || 'OPD'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${dept}/${userIdSegment}`
     
     websocket.value = new WebSocket(wsUrl)
     
@@ -431,15 +505,70 @@ const setupWebSocket = () => {
     websocket.value.onmessage = (event) => {
       const data = JSON.parse(event.data)
       
-      if (data.type === 'queue_status_update') {
+      if (data.type === 'queue_status' || data.type === 'queue_status_update') {
         queueStatus.value = data.status
+        // Refresh availability when status changes
+        void refreshAvailability()
+        
+        // Also refresh the full queue data to update UI
+        void fetchQueueData()
+      } else if (data.type === 'queue_schedule' || data.type === 'queue_schedule_update') {
+        queueSchedules.value = data.schedules || []
       } else if (data.type === 'queue_position_update') {
         myPosition.value = data.position.position
         estimatedWaitMins.value = data.position.estimated_wait_time
       } else if (data.type === 'queue_notification') {
+        const n = data.notification || {}
+        const event_type = n.event || ''
+        
+        // Check if queue was opened
+        if (event_type === 'queue_opened') {
+          console.log('Queue opened notification received, refreshing availability')
+          // Refresh availability immediately
+          void refreshAvailability()
+          // Also refresh the full queue data
+          void fetchQueueData()
+          
+          // Show success notification to patient
+          $q.notify({
+            type: 'positive',
+            message: n.message || `The ${n.department || 'queue'} is now OPEN! You can now join.`,
+            position: 'top',
+            timeout: 5000,
+            icon: 'check_circle'
+          })
+        } else if (event_type === 'queue_closed') {
+          console.log('Queue closed notification received, refreshing availability')
+          // Refresh availability immediately
+          void refreshAvailability()
+          void fetchQueueData()
+          
+          $q.notify({
+            type: 'warning',
+            message: n.message || `The ${n.department || 'queue'} has been closed.`,
+            position: 'top',
+            icon: 'info'
+          })
+        } else {
+          // Other queue notifications
+          const msg = n.message 
+            || (n.notification && n.notification.message) 
+            || (event_type === 'queue_started' && n.department && n.queue_number 
+              ? `Your turn at ${n.department}. Queue #${n.queue_number} started.` 
+              : (event_type === 'queue_joined' && n.department && n.queue_number 
+                ? `Joined ${n.department} queue. Queue #${n.queue_number}.`
+                : 'Queue update received.'))
+          $q.notify({
+            type: 'info',
+            message: msg,
+            position: 'top'
+          })
+        }
+      } else if (data.type === 'patient_joined_queue') {
+        // Legacy event support
         $q.notify({
           type: 'info',
-          message: data.notification.message,
+          message: 'Successfully joined the queue!',
           position: 'top'
         })
       }

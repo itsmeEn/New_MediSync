@@ -31,12 +31,9 @@ const resolveBaseURL = (): string => {
     return mobileEndpoints[0] || 'http://localhost:8000/api';
   }
 
-  // For web browsers, use the current hostname and adjust port during dev
+  // For web browsers, use the current hostname and prefer port 8000
   const host = window.location?.hostname || 'localhost';
-  const frontPort = window.location?.port || '';
-  // If running on a dev port (non-empty), prefer backend 8001; otherwise 8000
-  const backendPort = frontPort ? '8001' : '8000';
-  const webEndpoint = `http://${host}:${backendPort}/api`;
+  const webEndpoint = `http://${host}:8000/api`;
   return webEndpoint;
 };
 
@@ -73,23 +70,18 @@ const MOBILE_ENDPOINTS = [
   'http://localhost:8000/api', // Fallback
 ];
 
-// Web fallback testing: prefer :8001, fall back to :8000 if unreachable
+// Web fallback testing: prefer :8000, optionally try :8001 for legacy setups
 const resolveWebEndpointWithFallback = async (): Promise<string> => {
   const host = window.location?.hostname || 'localhost';
-  const frontPort = window.location?.port || '';
-  const primary = `http://${host}:${frontPort ? '8001' : '8000'}/api`;
-  const fallback = `http://${host}:8000/api`;
+  const primary = `http://${host}:8000/api`;
+  const fallback = `http://${host}:8001/api`;
 
-  // If primary is already :8000 (non-dev), return it directly
-  if (!frontPort) {
-    return primary;
-  }
-
-  // Test :8001, then fallback to :8000
+  // Test :8000 first
   const okPrimary = await testConnectivity(primary);
   if (okPrimary) {
     return primary;
   }
+  // Then try :8001 as a secondary option
   const okFallback = await testConnectivity(fallback);
   if (okFallback) {
     return fallback;
@@ -224,7 +216,7 @@ api.interceptors.response.use(
   },
 );
 
-export default defineBoot(({ app }) => {
+export default defineBoot(async ({ app }) => {
   // for use inside Vue files (Options API) through this.$axios and this.$api
 
   app.config.globalProperties.$axios = axios;
@@ -235,9 +227,8 @@ export default defineBoot(({ app }) => {
   // ^ ^ ^ this will allow to use this.$api (for Vue Options API form)
   //       so you can easily perform requests against your app's API
 
-  // Kick off async endpoint optimization and fallback logic
-  // This runs after boot without requiring user interaction
-  void optimizeEndpoint();
+  // Ensure we pick a reachable base URL before the app starts making requests
+  await optimizeEndpoint();
 });
 
 export { api };

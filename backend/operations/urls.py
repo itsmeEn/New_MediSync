@@ -42,6 +42,8 @@ urlpatterns = [
     
     # Nurse queue endpoints
     path('nurse/queue/patients/', views.nurse_queue_patients, name='nurse_queue_patients'),
+    path('nurse/queue/remove/', views.nurse_remove_from_queue, name='nurse_remove_from_queue'),
+    path('nurse/queue/mark-served/', views.nurse_mark_served, name='nurse_mark_served'),
     
     # Doctor selection endpoints
     path('available-doctors/', views.get_available_doctors, name='get_available_doctors'),
@@ -59,4 +61,6 @@ urlpatterns = [
     path('queue/status/logs/', views.queue_status_logs, name='queue_status_logs'),
     path('queue/join/', views.join_queue, name='join_queue'),
     path('queue/availability/', views.check_queue_availability, name='check_queue_availability'),
+    path('queue/start-processing/', views.start_queue_processing, name='start_queue_processing'),
+    path('queue/notifications/confirm/', views.confirm_notification_delivery, name='confirm_notification_delivery'),
 ]

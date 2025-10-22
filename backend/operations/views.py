@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from .models import AppointmentManagement, QueueManagement, PriorityQueue, Notification, Messaging, DoctorAvailability, Conversation, Message, MessageReaction, MessageNotification, QueueSchedule, QueueStatus, QueueStatusLog
 from backend.users.models import User
-from .serializers import DashboardStatsSerializer, ConversationSerializer, MessageSerializer, CreateMessageSerializer, CreateReactionSerializer, UserSerializer, MessageNotificationSerializer, QueueScheduleSerializer, QueueStatusSerializer, QueueStatusLogSerializer, CreateQueueScheduleSerializer, UpdateQueueStatusSerializer
+from .serializers import DashboardStatsSerializer, ConversationSerializer, MessageSerializer, CreateMessageSerializer, CreateReactionSerializer, UserSerializer, MessageNotificationSerializer, QueueScheduleSerializer, QueueStatusSerializer, QueueStatusLogSerializer, CreateQueueScheduleSerializer, UpdateQueueStatusSerializer, NotificationSerializer, QueueSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
@@ -733,14 +733,64 @@ def patient_appointments(request):
 @permission_classes([IsAuthenticated])
 def patient_dashboard_summary(request):
     """
-    Minimal patient dashboard summary for OPD.
+    Unified patient dashboard summary for a department.
     Returns string fields: nowServing, currentPatient, myPosition.
-    - nowServing: current queue number being served from QueueStatus
-    - currentPatient: name of the patient currently in progress (if any)
-    - myPosition: the authenticated patient's position in the OPD queue
+    - nowServing: unified index of the first patient (1 if any)
+    - currentPatient: name of the patient currently at the top of the unified queue
+    - myPosition: the authenticated patient's unified position in the queue
     """
     try:
         department = request.query_params.get('department', 'OPD')
+
+        # Collect priority and normal queue entries
+        priority_qs = PriorityQueue.objects.filter(
+            department=department,
+            status__in=['in_progress', 'waiting']
+        ).order_by('priority_position', 'enqueue_time')
+
+        normal_qs = QueueManagement.objects.filter(
+            department=department,
+            status__in=['in_progress', 'waiting']
+        ).order_by('position_in_queue', 'enqueue_time')
+
+        items = []
+        for p in priority_qs:
+            items.append({
+                'patient_user_id': getattr(getattr(p.patient, 'user', None), 'id', None),
+                'patient_name': str(getattr(getattr(p.patient, 'user', None), 'full_name', '') or ''),
+                'queue_type': 'priority',
+                'status': p.status,
+                'position': p.priority_position or 0,
+                'enqueue_time': p.enqueue_time,
+                'started_at': p.started_at,
+            })
+        for n in normal_qs:
+            items.append({
+                'patient_user_id': getattr(getattr(n.patient, 'user', None), 'id', None),
+                'patient_name': str(getattr(getattr(n.patient, 'user', None), 'full_name', '') or ''),
+                'queue_type': 'normal',
+                'status': n.status,
+                'position': n.position_in_queue or 0,
+                'enqueue_time': n.enqueue_time,
+                'started_at': n.started_at,
+            })
+
+        def status_rank(s: str) -> int:
+            return 0 if s == 'in_progress' else (1 if s == 'waiting' else 2)
+
+        def type_rank(t: str) -> int:
+            return 0 if t == 'priority' else 1
+
+        # Unified sorting across both queues
+        items_sorted = sorted(
+            items,
+            key=lambda x: (
+                status_rank(x['status']),
+                type_rank(x['queue_type']),
+                (x['position'] or 0),
+                (x['enqueue_time'] or timezone.now())
+            )
+        )
 
         summary = {
             'nowServing': '',
@@ -748,34 +798,16 @@ def patient_dashboard_summary(request):
             'myPosition': ''
         }
 
-        # Current queue status
-        status_obj = QueueStatus.objects.filter(department=department).first()
-        if status_obj and status_obj.current_serving is not None:
-            summary['nowServing'] = str(status_obj.current_serving)
+        if items_sorted:
+            summary['nowServing'] = '1'
+            summary['currentPatient'] = items_sorted[0].get('patient_name', '')
 
-        # Current patient being served/in progress
-        current_entry = QueueManagement.objects.filter(
-            department=department,
-            status__in=['in_progress']
-        ).order_by('enqueue_time').first()
-
-        if current_entry:
-            # Use full name if available via related user
-            try:
-                summary['currentPatient'] = str(getattr(current_entry.patient.user, 'full_name', '') or '')
-            except Exception:
-                # Fallback to patient representation
-                summary['currentPatient'] = str(getattr(current_entry.patient, 'full_name', '') or '')
-
-        # Authenticated patient's position
-        my_entry = QueueManagement.objects.filter(
-            department=department,
-            patient__user=request.user,
-            status__in=['waiting', 'in_progress']
-        ).order_by('enqueue_time').first()
-
-        if my_entry and my_entry.position_in_queue:
-            summary['myPosition'] = str(my_entry.position_in_queue)
+            # Authenticated user's unified position
+            my_user_id = request.user.id
+            for idx, it in enumerate(items_sorted, start=1):
+                if it.get('patient_user_id') == my_user_id:
+                    summary['myPosition'] = str(idx)
+                    break
 
         return Response(summary, status=status.HTTP_200_OK)
 
@@ -1335,38 +1367,73 @@ def delete_medicine(request, medicine_id):
 @permission_classes([IsAuthenticated])
 def nurse_queue_patients(request):
     """
-    Get patients in queue for nurses
+    Get patients in queue for nurses with optional department filtering and
+    a consolidated list including queue type indicators.
     """
     try:
         user = request.user
-        
+
         # Check if user is a nurse
         if user.role != 'nurse':
             return Response({
                 'error': 'Access denied. Only nurses can view patient queue.'
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        # Get normal queue patients
+
+        # Department filter (default to nurse profile department or OPD)
+        department = request.query_params.get('department') or getattr(getattr(user, 'nurse_profile', None), 'department', None) or 'OPD'
+
+        # Get normal queue patients (waiting or in_progress)
         normal_queue = QueueManagement.objects.filter(
-            department='OPD',
-            status='waiting'
-        ).order_by('position_in_queue')
-        
-        # Get priority queue patients
+            department=department,
+            status__in=['waiting', 'in_progress']
+        ).order_by('position_in_queue', 'enqueue_time')
+
+        # Get priority queue patients (waiting or in_progress)
         priority_queue = PriorityQueue.objects.filter(
-            department='OPD'
-        ).order_by('priority_position')
-        
+            department=department,
+            status__in=['waiting', 'in_progress']
+        ).order_by('priority_position', 'enqueue_time')
+
         from .serializers import QueueSerializer, PriorityQueueSerializer
-        
+
         normal_serializer = QueueSerializer(normal_queue, many=True)
         priority_serializer = PriorityQueueSerializer(priority_queue, many=True)
-        
+
+        # Build consolidated list with queue_type and normalized fields
+        def normalize_normal(n):
+            return {
+                'id': n.get('id'),
+                'queue_number': n.get('queue_number'),
+                'patient_name': n.get('patient_name'),
+                'department': n.get('department'),
+                'status': n.get('status'),
+                'position': n.get('position_in_queue'),
+                'enqueue_time': n.get('enqueue_time'),
+                'queue_type': 'normal',
+            }
+
+        def normalize_priority(p):
+            return {
+                'id': p.get('id'),
+                'queue_number': p.get('queue_number'),
+                'patient_name': p.get('patient_name'),
+                'department': p.get('department'),
+                'status': p.get('status'),
+                'position': p.get('priority_position'),
+                'enqueue_time': p.get('enqueue_time'),
+                'queue_type': 'priority',
+                'priority_level': p.get('priority_level'),
+            }
+
+        consolidated = [normalize_normal(n) for n in normal_serializer.data] + [normalize_priority(p) for p in priority_serializer.data]
+
         return Response({
+            'department': department,
             'normal_queue': normal_serializer.data,
-            'priority_queue': priority_serializer.data
+            'priority_queue': priority_serializer.data,
+            'all_patients': consolidated
         }, status=status.HTTP_200_OK)
-        
+
     except Exception as e:
         return Response({
             'error': f'Failed to fetch queue patients: {str(e)}'
@@ -1866,16 +1933,19 @@ def queue_schedules(request):
                     additional_notes=f'Schedule created from {schedule.start_time} to {schedule.end_time}'
                 )
                 
-                # Broadcast schedule update via WebSocket
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f'queue_{schedule.department}',
-                    {
-                        'type': 'queue_schedule_update',
-                        'schedule': QueueScheduleSerializer(schedule).data,
-                        'status': QueueStatusSerializer(queue_status).data
-                    }
-                )
+                # Broadcast schedule update via WebSocket (non-blocking)
+                try:
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'queue_{schedule.department}',
+                        {
+                            'type': 'queue_schedule_update',
+                            'schedule': QueueScheduleSerializer(schedule).data,
+                            'status': QueueStatusSerializer(queue_status).data
+                        }
+                    )
+                except Exception:
+                    pass
                 
                 return Response(QueueScheduleSerializer(schedule).data, status=status.HTTP_201_CREATED)
             
@@ -1932,16 +2002,19 @@ def queue_schedule_detail(request, schedule_id):
                         additional_notes='Schedule updated'
                     )
                     
-                    # Broadcast update via WebSocket
-                    channel_layer = get_channel_layer()
-                    async_to_sync(channel_layer.group_send)(
-                        f'queue_{updated_schedule.department}',
-                        {
-                            'type': 'queue_schedule_update',
-                            'schedule': QueueScheduleSerializer(updated_schedule).data,
-                            'status': QueueStatusSerializer(queue_status).data
-                        }
-                    )
+                    # Broadcast update via WebSocket (non-blocking)
+                    try:
+                        channel_layer = get_channel_layer()
+                        async_to_sync(channel_layer.group_send)(
+                            f'queue_{updated_schedule.department}',
+                            {
+                                'type': 'queue_schedule_update',
+                                'schedule': QueueScheduleSerializer(updated_schedule).data,
+                                'status': QueueStatusSerializer(queue_status).data
+                            }
+                        )
+                    except Exception:
+                        pass
                 except QueueStatus.DoesNotExist:
                     pass
                 
@@ -1970,16 +2043,19 @@ def queue_schedule_detail(request, schedule_id):
                     additional_notes='Schedule deleted'
                 )
                 
-                # Broadcast update via WebSocket
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f'queue_{department}',
-                    {
-                        'type': 'queue_schedule_update',
-                        'schedule': None,
-                        'status': QueueStatusSerializer(queue_status).data
-                    }
-                )
+                # Broadcast update via WebSocket (non-blocking)
+                try:
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'queue_{department}',
+                        {
+                            'type': 'queue_schedule_update',
+                            'schedule': None,
+                            'status': QueueStatusSerializer(queue_status).data
+                        }
+                    )
+                except Exception:
+                    pass
             except QueueStatus.DoesNotExist:
                 pass
             
@@ -2047,10 +2123,31 @@ def queue_status(request):
                 }
             )
             
+            # Track if we need to send notifications
+            should_notify_patients = False
+            notification_stats = None
+            
             if not created:
                 old_status = queue_status.is_open
                 queue_status.is_open = is_open
                 queue_status.last_updated_by = request.user
+                
+                # Update status message
+                queue_status.update_status_message()
+                
+                # Link to current schedule if available
+                try:
+                    current_schedule = QueueSchedule.objects.filter(
+                        department=department,
+                        is_active=True
+                    ).first()
+                    if current_schedule:
+                        queue_status.current_schedule = current_schedule
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Could not link schedule: {str(e)}")
+                
                 queue_status.save()
                 
                 # Log the status change
@@ -2060,24 +2157,106 @@ def queue_status(request):
                     new_status=is_open,
                     change_reason='manual',
                     changed_by=request.user,
-                    additional_notes=f'Queue {"enabled" if is_open else "disabled"} manually'
+                    additional_notes=f'Queue {"enabled" if is_open else "disabled"} manually by {request.user.full_name}'
                 )
                 
-                # Broadcast status change via WebSocket
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    f'queue_{department}',
-                    {
-                        'type': 'queue_status_update',
-                        'status': QueueStatusSerializer(queue_status).data,
-                        'previous_status': old_status
-                    }
-                )
+                # If queue is being opened, send notifications to all patients
+                if is_open and not old_status:
+                    should_notify_patients = True
+                    
+                    # Create persistent notifications for all patients
+                    try:
+                        import asyncio
+                        from .async_services import AsyncNotificationService
+                        
+                        notification_message = f"The {department} queue is now OPEN! You can now join the queue."
+                        
+                        # Run async notification service
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            notification_stats = loop.run_until_complete(
+                                AsyncNotificationService.send_notification_to_all_patients(
+                                    message=notification_message,
+                                    department=department
+                                )
+                            )
+                        finally:
+                            loop.close()
+                        
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.info(
+                            f"Queue opened notification sent to {notification_stats.get('notifications_created', 0)} patients. "
+                            f"Failed: {notification_stats.get('notifications_failed', 0)}"
+                        )
+                    except Exception as e:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error sending patient notifications: {str(e)}", exc_info=True)
+                        # Continue even if notification fails
+                
+                # Broadcast status change via WebSocket (non-blocking)
+                try:
+                    channel_layer = get_channel_layer()
+                    async_to_sync(channel_layer.group_send)(
+                        f'queue_{department}',
+                        {
+                            'type': 'queue_status_update',
+                            'status': QueueStatusSerializer(queue_status).data,
+                            'previous_status': old_status
+                        }
+                    )
+                    
+                    # Also notify department listeners of the new queue state
+                    async_to_sync(channel_layer.group_send)(
+                        f'queue_{department}',
+                        {
+                            'type': 'queue_notification',
+                            'notification': {
+                                'event': 'queue_opened' if is_open else 'queue_closed',
+                                'department': department,
+                                'message': f"Queue is now {'OPEN' if is_open else 'CLOSED'} for {department}.",
+                                'timestamp': timezone.now().isoformat()
+                            }
+                        }
+                    )
+                    
+                    # Mark WebSocket notifications as sent
+                    if notification_stats and notification_stats.get('notification_ids'):
+                        for notif_id in notification_stats['notification_ids']:
+                            try:
+                                notif = Notification.objects.get(id=notif_id)
+                                notif.delivery_status = Notification.DELIVERY_SENT
+                                notif.sent_at = timezone.now()
+                                notif.delivery_attempts = 1
+                                notif.save()
+                            except Notification.DoesNotExist:
+                                pass
+                            except Exception as e:
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.warning(f"Could not update notification {notif_id}: {str(e)}")
+                                
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"WebSocket broadcast error: {str(e)}", exc_info=True)
+                    # Non-blocking: continue even if WS fails
             
-            return Response({
+            response_data = {
                 'message': f'Queue {"opened" if is_open else "closed"} successfully',
                 'status': QueueStatusSerializer(queue_status).data
-            }, status=status.HTTP_200_OK)
+            }
+            
+            # Add notification stats if available
+            if notification_stats:
+                response_data['notification_stats'] = {
+                    'total_patients_notified': notification_stats.get('notifications_created', 0),
+                    'notification_failures': notification_stats.get('notifications_failed', 0)
+                }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
     
     except Exception as e:
         return Response({
@@ -2126,19 +2305,28 @@ def join_queue(request):
         
         department = request.data.get('department', 'OPD')
         
-        # Check if patient is already in queue
-        existing_queue = QueueManagement.objects.filter(
+        # Check if patient is already in queue (normal or priority)
+        existing_normal = QueueManagement.objects.filter(
             patient=request.user.patient_profile,
+            department=department,
             status='waiting'
         ).first()
+
+        existing_priority = PriorityQueue.objects.filter(
+            patient=request.user.patient_profile,
+            status='waiting',
+            department=department
+        ).first()
         
-        if existing_queue:
+        if existing_normal or existing_priority:
+            eq = existing_priority or existing_normal
+            position = getattr(eq, 'position_in_queue', None) or getattr(eq, 'priority_position', None)
             return Response({
                 'error': 'You are already in the queue',
                 'queue_info': {
-                    'queue_number': existing_queue.queue_number,
-                    'position': existing_queue.position_in_queue,
-                    'estimated_wait_time': existing_queue.estimated_wait_time
+                    'queue_number': eq.queue_number,
+                    'position': position,
+                    'estimated_wait_time': getattr(eq, 'estimated_wait_time', None)
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
         
@@ -2153,16 +2341,11 @@ def join_queue(request):
                     'queue_status': 'closed'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Check if current time is within schedule
+            # Queue is open; allow joining regardless of schedule time windows
+            # Schedule windows still drive auto-close in other parts of the system
             if queue_status.current_schedule:
-                current_time = timezone.now().time()
                 schedule = queue_status.current_schedule
-                
-                if not (schedule.start_time <= current_time <= schedule.end_time):
-                    return Response({
-                        'error': f'Queue is only open from {schedule.start_time} to {schedule.end_time}',
-                        'queue_status': 'outside_schedule'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                # Intentionally skip time-based restriction here to respect manual toggles
         
         except QueueStatus.DoesNotExist:
             return Response({
@@ -2170,44 +2353,132 @@ def join_queue(request):
                 'queue_status': 'not_configured'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create queue entry
-        queue_entry = QueueManagement.objects.create(
-            patient=request.user.patient_profile,
+        # Determine if priority queue is requested
+        priority_level = request.data.get('priority_level')
+        allowed_levels = {'pwd', 'pregnant', 'senior', 'with_child'}
+        
+        if priority_level and priority_level in allowed_levels:
+            queue_entry = PriorityQueue.objects.create(
+                patient=request.user.patient_profile,
+                department=department,
+                priority_level=priority_level,
+                status='waiting',
+                skip_normal_queues=True
+            )
+            entry_type = 'priority'
+            # Log queue join (as a system note; no status change)
+            QueueStatusLog.objects.create(
+                department=department,
+                previous_status=queue_status.is_open,
+                new_status=queue_status.is_open,
+                change_reason='system',
+                changed_by=request.user,
+                additional_notes=f'Priority patient {request.user.get_full_name()} joined queue (#{queue_entry.queue_number})'
+            )
+            notif_message = f'You joined the priority queue. Your number is #{queue_entry.queue_number}. Position: {getattr(queue_entry, "priority_position", None)}'
+        else:
+            queue_entry = QueueManagement.objects.create(
+                patient=request.user.patient_profile,
+                department=department,
+                status='waiting'
+            )
+            entry_type = 'normal'
+            QueueStatusLog.objects.create(
+                department=department,
+                previous_status=queue_status.is_open,
+                new_status=queue_status.is_open,
+                change_reason='system',
+                changed_by=request.user,
+                additional_notes=f'Patient {request.user.get_full_name()} joined queue (#{queue_entry.queue_number})'
+            )
+            notif_message = f'You joined the queue. Your number is #{queue_entry.queue_number}. Position: {getattr(queue_entry, "position_in_queue", None)}'
+        
+        # Update queue status counts and broadcast updates
+        waiting_normal = QueueManagement.objects.filter(
             department=department,
             status='waiting'
-        )
-        
-        # Log queue join
-        QueueStatusLog.objects.create(
-            queue_status=queue_status,
-            action='patient_joined',
-            performed_by=request.user,
-            details=f'Patient {request.user.get_full_name()} joined queue (#{queue_entry.queue_number})'
-        )
-        
-        # Broadcast queue update via WebSocket
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f'queue_{department}',
-            {
-                'type': 'patient_joined_queue',
-                'patient': {
-                    'id': request.user.id,
-                    'name': request.user.get_full_name(),
-                    'queue_number': queue_entry.queue_number,
-                    'position': queue_entry.position_in_queue
-                }
-            }
-        )
-        
-        # Send notification to patient
-        Notification.objects.create(
+        ).count()
+        waiting_priority = PriorityQueue.objects.filter(
+            department=department,
+            status='waiting'
+        ).count()
+        queue_status.total_waiting = waiting_normal + waiting_priority
+        queue_status.last_updated_by = request.user
+        queue_status.update_status_message()
+        queue_status.save()
+
+        # Create and mark notification as sent
+        notif = Notification.objects.create(
             user=request.user,
-            message=f'You have successfully joined the queue. Your queue number is #{queue_entry.queue_number}. Current position: {queue_entry.position_in_queue}'
+            message=notif_message,
+            channel=Notification.CHANNEL_WEBSOCKET,
+            delivery_status=Notification.DELIVERY_SENT,
+            sent_at=timezone.now()
         )
+
+        # Broadcast updates via WebSocket (non-blocking)
+        try:
+            channel_layer = get_channel_layer()
+
+            # Compute position and estimated wait for the user
+            queue_entry.refresh_from_db()
+            if entry_type == 'priority':
+                position_value = queue_entry.priority_position
+                est_td = queue_entry.get_estimated_wait_time()
+            else:
+                position_value = queue_entry.position_in_queue
+                est_td = queue_entry.get_estimated_wait_time()
+            estimated_wait_minutes = 0
+            if est_td:
+                try:
+                    estimated_wait_minutes = int(est_td.total_seconds() // 60)
+                except Exception:
+                    estimated_wait_minutes = 0
+
+            # Broadcast department-wide status
+            async_to_sync(channel_layer.group_send)(
+                f'queue_{department}',
+                {
+                    'type': 'queue_status_update',
+                    'status': QueueStatusSerializer(queue_status).data
+                }
+            )
+
+            # Notify user about successful join
+            async_to_sync(channel_layer.group_send)(
+                f'queue_user_{request.user.id}',
+                {
+                    'type': 'queue_notification',
+                    'notification': {
+                        'event': 'queue_joined',
+                        'department': department,
+                        'queue_number': queue_entry.queue_number,
+                        'message': notif.message,
+                        'notification': NotificationSerializer(notif).data,
+                        'timestamp': timezone.now().isoformat()
+                    }
+                }
+            )
+
+            # Send the user's current position and estimated wait time
+            async_to_sync(channel_layer.group_send)(
+                f'queue_user_{request.user.id}',
+                {
+                    'type': 'queue_position_update',
+                    'position': {
+                        'position': str(position_value) if position_value is not None else '',
+                        'estimated_wait_time': estimated_wait_minutes
+                    }
+                }
+            )
+        except Exception:
+            pass
         
-        from .serializers import QueueManagementSerializer
-        return Response(QueueManagementSerializer(queue_entry).data, status=status.HTTP_201_CREATED)
+        from .serializers import QueueSerializer, PriorityQueueSerializer
+        if entry_type == 'priority':
+            return Response({'type': 'priority', 'entry': PriorityQueueSerializer(queue_entry).data}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'type': 'normal', 'entry': QueueSerializer(queue_entry).data}, status=status.HTTP_201_CREATED)
     
     except Exception as e:
         return Response({
@@ -2234,22 +2505,26 @@ def check_queue_availability(request):
             if not is_available:
                 reason = 'Queue is currently closed'
             elif queue_status.current_schedule:
-                current_time = timezone.now().time()
                 schedule = queue_status.current_schedule
-                
-                if not (schedule.start_time <= current_time <= schedule.end_time):
-                    is_available = False
-                    reason = f'Queue is only open from {schedule.start_time} to {schedule.end_time}'
+                # Intentionally ignore schedule time window when queue is manually open
+                # Schedule windows still drive auto-close elsewhere
+                # (No change to reason unless queue is closed)
             
             # Check if patient is already in queue (for patients only)
             already_in_queue = False
             if hasattr(request.user, 'patient_profile'):
-                existing_queue = QueueManagement.objects.filter(
+                existing_normal = QueueManagement.objects.filter(
                     patient=request.user.patient_profile,
-                    status='waiting'
+                    department=department,
+                    status__in=['waiting', 'in_progress']
+                ).exists()
+                existing_priority = PriorityQueue.objects.filter(
+                    patient=request.user.patient_profile,
+                    department=department,
+                    status__in=['waiting', 'in_progress']
                 ).exists()
                 
-                if existing_queue:
+                if existing_normal or existing_priority:
                     already_in_queue = True
                     is_available = False
                     reason = 'You are already in the queue'
@@ -2273,3 +2548,400 @@ def check_queue_availability(request):
         return Response({
             'error': f'Failed to check queue availability: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_queue_processing(request):
+    """
+    Nurses start processing the next patient in a department queue.
+    Triggers real-time notification to the patient with timestamp tracking and delivery status.
+    """
+    try:
+        # Only nurses can start processing
+        if not hasattr(request.user, 'nurse_profile'):
+            return Response({'error': 'Only nurses can start queue processing'}, status=status.HTTP_403_FORBIDDEN)
+
+        department = request.data.get('department')
+        if not department:
+            return Response({'error': 'Department is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure queue status exists and is open
+        try:
+            queue_status = QueueStatus.objects.get(department=department)
+        except QueueStatus.DoesNotExist:
+            return Response({'error': 'Queue status not found for department'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not queue_status.is_open:
+            return Response({'error': 'Queue is currently closed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # First, complete any currently in-progress patient
+        prev_priority = PriorityQueue.objects.filter(
+            department=department,
+            status='in_progress'
+        ).order_by('started_at', 'enqueue_time').first()
+        prev_normal = QueueManagement.objects.filter(
+            department=department,
+            status='in_progress'
+        ).order_by('started_at', 'enqueue_time').first()
+        previous_entry = prev_priority or prev_normal
+        if previous_entry:
+            try:
+                previous_entry.mark_completed()
+                # Ensure dequeue_time is set for normal queue completion
+                if isinstance(previous_entry, QueueManagement) and not previous_entry.dequeue_time:
+                    previous_entry.dequeue_time = timezone.now()
+                    previous_entry.save()
+            except Exception:
+                # Fallback to direct update if model method is unavailable in this context
+                if isinstance(previous_entry, PriorityQueue):
+                    PriorityQueue.objects.filter(pk=previous_entry.id).update(
+                        status='completed',
+                        finished_at=timezone.now()
+                    )
+                else:
+                    QueueManagement.objects.filter(pk=previous_entry.id).update(
+                        status='completed',
+                        finished_at=timezone.now(),
+                        dequeue_time=timezone.now()
+                    )
+                    QueueManagement.update_queue_positions_for_department(department)
+            # Clear current serving if it was the previous entry
+            if queue_status.current_serving == previous_entry.queue_number:
+                queue_status.current_serving = None
+
+        # Get the next waiting patient, prioritizing priority queue
+        next_priority = PriorityQueue.objects.filter(
+            department=department,
+            status='waiting'
+        ).order_by('priority_position', 'enqueue_time').first()
+
+        next_type = None
+        if next_priority:
+            PriorityQueue.objects.filter(pk=next_priority.id).update(
+                status='in_progress',
+                started_at=timezone.now()
+            )
+            next_entry = next_priority
+            next_type = 'priority'
+        else:
+            next_normal = QueueManagement.objects.filter(
+                department=department,
+                status='waiting'
+            ).order_by('position_in_queue', 'enqueue_time').first()
+
+            if not next_normal:
+                # Update status to reflect no waiting patients
+                queue_status.current_serving = None
+                queue_status.total_waiting = 0
+                queue_status.update_status_message()
+                queue_status.last_updated_by = request.user
+                queue_status.save()
+                return Response({'message': 'No patients waiting in the queue'}, status=status.HTTP_200_OK)
+
+            QueueManagement.objects.filter(pk=next_normal.id).update(
+                status='in_progress',
+                started_at=timezone.now()
+            )
+            next_entry = next_normal
+            next_type = 'normal'
+
+        # Refresh from DB to get updated values
+        next_entry.refresh_from_db()
+
+        # Update queue status metrics across both queues
+        remaining_waiting = (
+            QueueManagement.objects.filter(department=department, status='waiting').count() +
+            PriorityQueue.objects.filter(department=department, status='waiting').count()
+        )
+
+        queue_status.current_serving = next_entry.queue_number
+        queue_status.total_waiting = remaining_waiting
+        queue_status.last_updated_by = request.user
+        queue_status.update_status_message()
+        queue_status.save()
+
+        # Log processing start (system note; no status change)
+        try:
+            QueueStatusLog.objects.create(
+                department=department,
+                previous_status=queue_status.is_open,
+                new_status=queue_status.is_open,
+                change_reason='system',
+                changed_by=request.user,
+                additional_notes=f'Started processing {"priority" if next_type == "priority" else "normal"} queue (#{next_entry.queue_number})'
+            )
+        except Exception:
+            pass
+
+        # Create and mark notification as sent
+        notif = Notification.objects.create(
+            user=next_entry.patient.user,
+            message=f'Your turn at {department}. Please proceed to the triage room for {department} (Queue #{next_entry.queue_number}).',
+            channel=Notification.CHANNEL_WEBSOCKET,
+            delivery_status=Notification.DELIVERY_SENT,
+            sent_at=timezone.now()
+        )
+
+        # Broadcast via WebSocket to department and specific patient
+        try:
+            channel_layer = get_channel_layer()
+            # Department status update
+            async_to_sync(channel_layer.group_send)(
+                f'queue_{department}',
+                {
+                    'type': 'queue_status_update',
+                    'status': QueueStatusSerializer(queue_status).data
+                }
+            )
+            # Patient-specific notification
+            async_to_sync(channel_layer.group_send)(
+                f'queue_user_{next_entry.patient.user.id}',
+                {
+                    'type': 'queue_notification',
+                    'notification': {
+                        'event': 'queue_started',
+                        'department': department,
+                        'destination_department': department,
+                        'instruction': 'Proceed to the triage room',
+                        'queue_number': next_entry.queue_number,
+                        'notification': NotificationSerializer(notif).data,
+                        'timestamp': timezone.now().isoformat()
+                    }
+                }
+            )
+        except Exception:
+            # Non-blocking: if WS fails, keep REST response
+            pass
+
+        # Response payload
+        return Response({
+            'message': 'Queue processing started',
+            'department': department,
+            'current_serving': next_entry.queue_number,
+            'total_waiting': remaining_waiting,
+            'queue_status': QueueStatusSerializer(queue_status).data,
+            'patient': {
+                'id': next_entry.patient.user.id,
+                'name': next_entry.patient.user.full_name
+            },
+            'notification': NotificationSerializer(notif).data
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': f'Failed to start queue processing: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def confirm_notification_delivery(request):
+    """
+    Patient confirms delivery of a notification.
+    Sets delivered_at and delivery_status=delivered.
+    """
+    try:
+        notif_id = request.data.get('notification_id')
+        if not notif_id:
+            return Response({'error': 'notification_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            notif = Notification.objects.get(id=notif_id)
+        except Notification.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the recipient (or staff) can confirm delivery
+        if notif.user != request.user and not request.user.is_staff:
+            return Response({'error': 'Not authorized to confirm this notification'}, status=status.HTTP_403_FORBIDDEN)
+
+        notif.delivery_status = Notification.DELIVERY_DELIVERED
+        notif.delivered_at = timezone.now()
+        notif.save()
+
+        return Response({'message': 'Notification delivery confirmed', 'notification': NotificationSerializer(notif).data}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': f'Failed to confirm delivery: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def nurse_remove_from_queue(request):
+    try:
+        # Only nurses can modify queues
+        if not hasattr(request.user, 'nurse_profile'):
+            return Response({'error': 'Only nurses can modify queues'}, status=status.HTTP_403_FORBIDDEN)
+
+        entry_id = request.data.get('entry_id')
+        queue_type = request.data.get('queue_type', 'normal')
+        department = request.data.get('department', 'OPD')
+
+        if not entry_id:
+            return Response({'error': 'entry_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get queue status if exists
+        try:
+            queue_status = QueueStatus.objects.get(department=department)
+        except QueueStatus.DoesNotExist:
+            queue_status = None
+
+        if queue_type == 'priority':
+            # Accept both primary key and queue_number for robustness
+            removed_entry = PriorityQueue.objects.filter(id=entry_id, department=department).first()
+            if not removed_entry:
+                removed_entry = PriorityQueue.objects.filter(queue_number=entry_id, department=department).first()
+            if not removed_entry:
+                return Response({'error': 'Priority queue entry not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            # If current serving matches, clear it
+            if queue_status and queue_status.current_serving == removed_entry.queue_number:
+                queue_status.current_serving = None
+
+            # Delete the entry
+            removed_entry.delete()
+        else:
+            # Accept both primary key and queue_number
+            removed_entry = QueueManagement.objects.filter(id=entry_id, department=department).first()
+            if not removed_entry:
+                removed_entry = QueueManagement.objects.filter(queue_number=entry_id, department=department).first()
+            if not removed_entry:
+                return Response({'error': 'Queue entry not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            if queue_status and queue_status.current_serving == removed_entry.queue_number:
+                queue_status.current_serving = None
+
+            # Delete and recalculate positions for normal queue
+            removed_entry.delete()
+            QueueManagement.update_queue_positions_for_department(department)
+
+        # Update QueueStatus counts and broadcast
+        if queue_status:
+            queue_status.total_waiting = (
+                QueueManagement.objects.filter(department=department, status='waiting').count() +
+                PriorityQueue.objects.filter(department=department, status='waiting').count()
+            )
+            queue_status.last_updated_by = request.user
+            queue_status.update_status_message()
+            queue_status.save()
+
+            # Log removal
+            try:
+                QueueStatusLog.objects.create(
+                    queue_status=queue_status,
+                    action='entry_removed',
+                    performed_by=request.user,
+                    details=f'Removed {"priority" if queue_type == "priority" else "normal"} queue entry'
+                )
+            except Exception:
+                pass
+
+            # Broadcast via WebSocket
+            try:
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    f'queue_{department}',
+                    {
+                        'type': 'queue_status_update',
+                        'status': QueueStatusSerializer(queue_status).data
+                    }
+                )
+            except Exception:
+                pass
+
+        return Response({'message': 'Entry removed successfully'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to remove entry: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def nurse_mark_served(request):
+    try:
+        # Only nurses can modify queues
+        if not hasattr(request.user, 'nurse_profile'):
+            return Response({'error': 'Only nurses can modify queues'}, status=status.HTTP_403_FORBIDDEN)
+
+        entry_id = request.data.get('entry_id')
+        queue_type = request.data.get('queue_type', 'normal')
+        department = request.data.get('department', 'OPD')
+
+        if not entry_id:
+            return Response({'error': 'entry_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get queue status if exists
+        try:
+            queue_status = QueueStatus.objects.get(department=department)
+        except QueueStatus.DoesNotExist:
+            queue_status = None
+
+        # Fetch and mark entry as completed (accept id or queue_number)
+        if queue_type == 'priority':
+            entry = PriorityQueue.objects.filter(id=entry_id, department=department).first()
+            if not entry:
+                entry = PriorityQueue.objects.filter(queue_number=entry_id, department=department).first()
+            if not entry:
+                return Response({'error': 'Priority queue entry not found'}, status=status.HTTP_404_NOT_FOUND)
+            entry.mark_completed()
+        else:
+            entry = QueueManagement.objects.filter(id=entry_id, department=department).first()
+            if not entry:
+                entry = QueueManagement.objects.filter(queue_number=entry_id, department=department).first()
+            if not entry:
+                return Response({'error': 'Queue entry not found'}, status=status.HTTP_404_NOT_FOUND)
+            entry.mark_completed()
+            # Ensure dequeue_time is set for normal queue completion
+            if hasattr(entry, 'dequeue_time') and not entry.dequeue_time:
+                entry.dequeue_time = timezone.now()
+                entry.save()
+
+        # Update QueueStatus counts and broadcast
+        if queue_status:
+            queue_status.total_waiting = (
+                QueueManagement.objects.filter(department=department, status='waiting').count() +
+                PriorityQueue.objects.filter(department=department, status='waiting').count()
+            )
+            # Clear current serving if this was the current one
+            if queue_status.current_serving == entry.queue_number:
+                queue_status.current_serving = None
+            queue_status.last_updated_by = request.user
+            queue_status.update_status_message()
+            queue_status.save()
+
+            # Log completion
+            try:
+                QueueStatusLog.objects.create(
+                    queue_status=queue_status,
+                    action='entry_completed',
+                    performed_by=request.user,
+                    details=f'Served {"priority" if queue_type == "priority" else "normal"} queue (#{entry.queue_number})'
+                )
+            except Exception:
+                pass
+
+            # Notify patient
+            try:
+                Notification.objects.create(
+                    user=entry.patient.user,
+                    message=f'Your queue at {department} has been completed (#{entry.queue_number}).',
+                    channel=Notification.CHANNEL_WEBSOCKET,
+                    delivery_status=Notification.DELIVERY_SENT,
+                    sent_at=timezone.now()
+                )
+            except Exception:
+                pass
+
+            # Broadcast via WebSocket
+            try:
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    f'queue_{department}',
+                    {
+                        'type': 'queue_status_update',
+                        'status': QueueStatusSerializer(queue_status).data
+                    }
+                )
+            except Exception:
+                pass
+
+        return Response({'message': 'Entry marked as served'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to mark as served: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

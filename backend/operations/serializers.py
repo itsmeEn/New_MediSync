@@ -36,19 +36,29 @@ class QueueSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = QueueManagement
-        fields = ['queue_number', 'patient_name', 'department', 'status', 'position_in_queue', 'enqueue_time']
+        fields = ['id', 'queue_number', 'patient_name', 'department', 'status', 'position_in_queue', 'enqueue_time']
 
 class PriorityQueueSerializer(serializers.ModelSerializer):
     patient_name = serializers.CharField(source='patient.user.full_name', read_only=True)
     
     class Meta:
         model = PriorityQueue
-        fields = ['queue_number', 'patient_name', 'priority_level', 'department', 'priority_position']
+        fields = ['id', 'queue_number', 'patient_name', 'priority_level', 'department', 'priority_position', 'status', 'enqueue_time', 'started_at', 'finished_at']
 
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ['id', 'message', 'is_read', 'created_at']
+        fields = [
+            'id',
+            'message',
+            'is_read',
+            'channel',
+            'delivery_status',
+            'sent_at',
+            'delivered_at',
+            'delivery_attempts',
+            'created_at',
+        ]
 
 # NurseChartSerializer commented out until NurseChart model is fully implemented
 # class NurseChartSerializer(serializers.ModelSerializer):
@@ -247,12 +257,34 @@ class QueueScheduleSerializer(serializers.ModelSerializer):
 class QueueStatusSerializer(serializers.ModelSerializer):
     """Serializer for queue status"""
     last_updated_by_name = serializers.CharField(source='last_updated_by.full_name', read_only=True)
+    current_schedule_start_time = serializers.SerializerMethodField()
+    current_schedule_end_time = serializers.SerializerMethodField()
+    current_schedule_days_of_week = serializers.SerializerMethodField()
     
     class Meta:
         model = QueueStatus
         fields = ['id', 'department', 'is_open', 'current_serving', 'total_waiting',
                  'estimated_wait_time', 'status_message', 'last_updated_by', 
-                 'last_updated_by_name', 'last_updated_at', 'created_at']
+                 'last_updated_by_name', 'last_updated_at', 'created_at',
+                 'current_schedule_start_time', 'current_schedule_end_time', 'current_schedule_days_of_week']
+
+    def get_current_schedule_start_time(self, obj):
+        try:
+            return obj.current_schedule.start_time if obj.current_schedule else None
+        except Exception:
+            return None
+
+    def get_current_schedule_end_time(self, obj):
+        try:
+            return obj.current_schedule.end_time if obj.current_schedule else None
+        except Exception:
+            return None
+
+    def get_current_schedule_days_of_week(self, obj):
+        try:
+            return obj.current_schedule.days_of_week if obj.current_schedule else None
+        except Exception:
+            return None
 
 
 class QueueStatusLogSerializer(serializers.ModelSerializer):

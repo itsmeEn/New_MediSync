@@ -516,7 +516,7 @@ const getMediaUrl = (path: string | undefined): string => {
   if (path.startsWith('http')) return path;
   
   // Get base URL without /api suffix for media files
-  let baseURL = api.defaults.baseURL || 'http://localhost:8001';
+  let baseURL = api.defaults.baseURL || 'http://localhost:8000';
   baseURL = baseURL.replace(/\/api\/?$/, '');
   
   return path.startsWith('/') ? `${baseURL}${path}` : `${baseURL}/${path}`;

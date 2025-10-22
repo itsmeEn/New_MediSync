@@ -7,6 +7,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 import base64
 import json
+from django.db import transaction
 
 
 # Custom User Model
@@ -24,10 +25,40 @@ Users = get_user_model()
 class Notification(models.Model):
     """
     Notifies the users about their queue status, appointment reminders, etc.
+    Includes delivery tracking with timestamps and channels.
     """
+    CHANNEL_WEBSOCKET = 'websocket'
+    CHANNEL_EMAIL = 'email'
+    CHANNEL_SMS = 'sms'
+    CHANNEL_PUSH = 'push'
+
+    CHANNEL_CHOICES = [
+        (CHANNEL_WEBSOCKET, 'WebSocket'),
+        (CHANNEL_EMAIL, 'Email'),
+        (CHANNEL_SMS, 'SMS'),
+        (CHANNEL_PUSH, 'Push Notification'),
+    ]
+
+    DELIVERY_PENDING = 'pending'
+    DELIVERY_SENT = 'sent'
+    DELIVERY_DELIVERED = 'delivered'
+    DELIVERY_FAILED = 'failed'
+
+    DELIVERY_STATUS_CHOICES = [
+        (DELIVERY_PENDING, 'Pending'),
+        (DELIVERY_SENT, 'Sent'),
+        (DELIVERY_DELIVERED, 'Delivered'),
+        (DELIVERY_FAILED, 'Failed'),
+    ]
+
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="notifications")
     message = models.TextField(help_text="Notification message.")
     is_read = models.BooleanField(default=False, help_text="Indicates if the notification has been read.")
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default=CHANNEL_WEBSOCKET)
+    delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default=DELIVERY_PENDING)
+    sent_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the notification was sent.")
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the notification was delivered.")
+    delivery_attempts = models.PositiveIntegerField(default=0, help_text="Number of delivery attempts.")
     created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when the notification was created.")
     updated_at = models.DateTimeField(auto_now=True, help_text="Timestamp when the notification was last updated.")
 
@@ -87,25 +118,33 @@ class QueueManagement(models.Model):
         
     #fifo implementtion
     def save(self, *args, **kwargs):
-        #auto sign the queueung number in each patients
-        if not self.position_in_queue_number:
-            last_position = QueueManagement.objects.filter(
-                department=self.department, status_in_queue =[
-                    'waiting', 'in_progress', 'cancelled'
-                ]).aggregate(
-                    maximum_position = models.Max("position_in_queue", default=0
-                )["position" + 1]
-            )
-        
-        #automaticall assigns the patient queue number
-        if not self.queue_number:
-            last_queue_number = QueueManagement.objects.filter(
-                department=self.department).aggregate(
-                    maximum_queue_number = models.Max("queue_number", default=0)
-            )
-        super().save(*args, **kwargs)
-        self.update_queue_positions()
-    
+        """
+        Assign a globally unique queue_number and per-department FIFO position_on_queue
+        in a safe way, then persist and normalize positions.
+        """
+        creating = self.pk is None
+        with transaction.atomic():
+            # Assign queue number globally unique across all departments
+            if creating and not self.queue_number:
+                last_queue_number = QueueManagement.objects.aggregate(
+                    maximum_queue_number=models.Max("queue_number")
+                )["maximum_queue_number"] or 0
+                self.queue_number = last_queue_number + 1
+
+            # Assign FIFO position per department for waiting/in_progress entries
+            if creating and not self.position_in_queue:
+                last_position = QueueManagement.objects.filter(
+                    department=self.department,
+                    status__in=["waiting", "in_progress"]
+                ).aggregate(
+                    maximum_position=models.Max("position_in_queue")
+                )["maximum_position"] or 0
+                self.position_in_queue = last_position + 1
+
+            super().save(*args, **kwargs)
+            # Normalize positions of waiting patients by enqueue_time (FIFO)
+            self.update_queue_positions()
+
     #update the queueu 
     def update_queue_positions(self):
         """
@@ -126,6 +165,20 @@ class QueueManagement(models.Model):
         """
         calculate the estimated waiting time for each patient in the queue.
         """
+
+    @classmethod
+    def update_queue_positions_for_department(cls, department: str):
+        """
+        Recalculate FIFO positions for all waiting normal-queue entries in a department.
+        Safe for use after deletions, cancellations, or bulk updates.
+        """
+        waiting_patients = cls.objects.filter(
+            department=department, status="waiting"
+        ).order_by("enqueue_time")
+        for index, patient in enumerate(waiting_patients, start=1):
+            if patient.position_in_queue != index:
+                cls.objects.filter(id=patient.id).update(position_in_queue=index)
+
     def get_estimated_wait_time(self):
         if self.status != "waiting":
             return None
@@ -152,25 +205,26 @@ class QueueManagement(models.Model):
         
         return avg_service_time * patients_ahead_count
     
-    def started_at(self):
+    def mark_started(self):
         """
-        The time where the service actually started.
+        Mark this queue entry as started and set timestamp.
         """
         self.status = "in_progress"
         self.started_at = timezone.now()
         self.save()
-        
+
+    def mark_completed(self):
         """
-        time when the service is completed
+        Mark this queue entry as completed and set completion timestamp.
+        Also updates actual_wait_time if start time was recorded.
         """
-    def completed_at(self):
         self.status = "completed"
-        self.completed_at = timezone.now()
-        
+        # Use finished_at as the completion timestamp field
+        self.finished_at = timezone.now()
         if self.started_at:
-            self.actual_wait_time = self.started_at - self.enqueue_time
+            self.actual_wait_time = self.finished_at - self.enqueue_time
         self.save()
-        #update the patients wueue positions or number 
+        # Update subsequent queue positions after completion
         self.update_queue_positions()
         
     def get_next_in_queue(self):
@@ -187,6 +241,7 @@ class QueueManagement(models.Model):
         Get the queue for a specific department.
         """
         queue = cls.objects.filter(department=department).order_by("position_in_queue")
+        return queue
         
     def __str__(self):
         return f"Queue {self.queue_number} - Patient: {self.patient.full_name}"
@@ -295,23 +350,35 @@ class AppointmentManagement(models.Model):
 # no show.
 class PriorityQueue(models.Model):
     """Priority queue model for handling patients with special needs or conditions or age. """
-    appointment_id = models.ForeignKey(AppointmentManagement, on_delete=models.CASCADE, related_name="priority_queue")
+    appointment_id = models.ForeignKey(AppointmentManagement, on_delete=models.CASCADE, related_name="priority_queue", null=True, blank=True)
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name="priority_queue")
     notification = models.ForeignKey(Notification, on_delete=models.SET_NULL, null=True, blank=True, related_name="priority_queue")
     #prioritty level based on age, condition, or other factors
     priority_level = models.CharField(
         max_length=50, choices=[
             ("pwd", "Person With Disability"),
+            ("pregnant", "Pregnant"),
             ("senior", "Senior Citizen"),
+            ("with_child", "Accompanying a Child"),
         ], default="senior", help_text="Priority level of the patient in the queue."
     )
     department = models.CharField(max_length=100, choices =[
         ("OPD", "Out Patient Department"),
-        ("Billing", "Billing"),
         ("Pharmacy", "Pharmacy"),
         ("Appointment", "Appointment"),
     ], help_text="Department for which the queue is managed.", 
                                   default="OPD")
+    
+    # Status and timestamps for queue lifecycle
+    status = models.CharField(max_length=50, choices=[
+        ("waiting", "Waiting"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ], default="waiting")
+    enqueue_time = models.DateTimeField(default=timezone.now, help_text="Timestamp when the patient was added to the priority queue.")
+    started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the priority processing started.")
+    finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the priority processing finished.")
     
     actual_wait_time = models.DurationField(null=True, blank=True, help_text="Actual wait time for the patient.")
     estimated_wait_time = models.DurationField(null=True, blank=True, help_text="Estimated wait time for the patient.")
@@ -323,35 +390,40 @@ class PriorityQueue(models.Model):
     skip_normal_queues = models.BooleanField(default=False, help_text="Indicates if the patient should be skipped from the FIFO queue.")
 
     class Meta:
-        ordering = ["-priority_level", "priority_position", "created_at"]
+        ordering = ["enqueue_time", "priority_position", "created_at"]
         db_table = "priority_queue"
         verbose_name = "Priority Queue"
         verbose_name_plural = "Priority Queues"
         
     def save(self, *args, **kwargs):
-        #auto assign queue number
+        #auto assign queue number per department
         if not self.queue_number:
             self.queue_number = PriorityQueue.objects.filter(
                 department=self.department
             ).aggregate(
-                maximum_queue_number = models.Max("queue_number", default=0)
-            )['maximum_queue_number'] + 1
+                maximum_queue_number = models.Max("queue_number")
+            )['maximum_queue_number'] or 0
+            self.queue_number += 1
             
-        #auto assign priority positions
+        #auto assign priority positions (FIFO within priority queue)
         if not self.priority_position:
-            self.priority_position = PriorityQueue.objects.filter(
-                department=self.department, priority_level=self.priority_level
-            ).count() + 1
+            last_position = PriorityQueue.objects.filter(
+                department=self.department,
+                status__in=["waiting", "in_progress"]
+            ).aggregate(
+                maximum_position=models.Max("priority_position")
+            )["maximum_position"] or 0
+            self.priority_position = last_position + 1
         super().save(*args, **kwargs)
        
     """
-    Calculate the estimated waiting time priority lists
+    Calculate the estimated waiting time for priority lists
     """ 
     def get_estimated_wait_time(self):
         if self.status != "waiting":
             return None
         
-        # Calculate average service time
+        # Calculate average service time based on completed normal queues
         completed_queues = QueueManagement.objects.filter(
             department=self.department, status="completed",
             started_at__isnull=False, finished_at__isnull=False
@@ -362,27 +434,28 @@ class PriorityQueue(models.Model):
             avg_service_time = total_service_time / completed_queues.count()
         else:
             # Use a default value if no one has completed yet
-            avg_service_time = timedelta(minutes=15) 
+            avg_service_time = timedelta(minutes=15)
             
-        #count the patients in higher priority like seniors, pwd something like that
-        higher_priority_count = PriorityQueue.objects.filter(
-            department=self.department,status_in=[
-                "waitng", "in_progress"],
-            priority_level__in=["pwd", "senior"],
-            priority_position__lt=self.priority_position
+        # Count priority patients ahead in the same department
+        patients_ahead_count = PriorityQueue.objects.filter(
+            department=self.department,
+            status__in=["waiting", "in_progress"],
+            enqueue_time__lt=self.enqueue_time
         ).count()
         
-        if self.priority_level == "senior":
-            patients_ahead = higher_priority_count
-        elif self.priority_level == "pwd":
-            patients_ahead = higher_priority_count
-        else: #low priority or just the people in normal queues
-            low_priority_count = PriorityQueue.objects.filter(
-                department=self.department,status_in=[
-                "waitng", "in_progress"]
-            ).count()
-        
-        return avg_service_time * patients_ahead
+        return avg_service_time * patients_ahead_count
+
+    def mark_started(self):
+        self.status = "in_progress"
+        self.started_at = timezone.now()
+        self.save()
+
+    def mark_completed(self):
+        self.status = "completed"
+        self.finished_at = timezone.now()
+        if self.started_at:
+            self.actual_wait_time = self.finished_at - self.enqueue_time
+        self.save()
 
     def __str__(self):
         return f"Priority Queue - Patient: {self.patient.user.full_name} ({self.priority_level})"
@@ -727,7 +800,6 @@ class QueueSchedule(models.Model):
         max_length=100,
         choices=[
             ("OPD", "Out Patient Department"),
-            ("Billing", "Billing"),
             ("Pharmacy", "Pharmacy"),
             ("Appointment", "Appointment"),
         ],
@@ -812,7 +884,6 @@ class QueueStatus(models.Model):
         max_length=100,
         choices=[
             ("OPD", "Out Patient Department"),
-            ("Billing", "Billing"),
             ("Pharmacy", "Pharmacy"),
             ("Appointment", "Appointment"),
         ],
@@ -885,6 +956,39 @@ class QueueStatus(models.Model):
         else:
             self.status_message = "Queue Closed"
     
+    def should_auto_close(self):
+        """
+        Check if queue should be automatically closed based on schedule.
+        Returns True if current time is past the scheduled end time.
+        """
+        if not self.current_schedule or not self.is_open:
+            return False
+        
+        current_time = timezone.now().time()
+        schedule = self.current_schedule
+        
+        # Check if we're past the end time
+        if current_time > schedule.end_time:
+            return True
+        
+        # Check if manual override is preventing auto-close
+        if schedule.manual_override and schedule.override_status == 'enabled':
+            return False
+        
+        return False
+    
+    def auto_close_if_needed(self):
+        """
+        Automatically close the queue if past scheduled time.
+        Returns True if queue was closed, False otherwise.
+        """
+        if self.should_auto_close():
+            self.is_open = False
+            self.update_status_message()
+            self.save()
+            return True
+        return False
+    
     def __str__(self):
         return f"{self.department} Queue Status: {'Open' if self.is_open else 'Closed'}"
 
@@ -897,7 +1001,6 @@ class QueueStatusLog(models.Model):
         max_length=100,
         choices=[
             ("OPD", "Out Patient Department"),
-            ("Billing", "Billing"),
             ("Pharmacy", "Pharmacy"),
             ("Appointment", "Appointment"),
         ],

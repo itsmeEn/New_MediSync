@@ -17,8 +17,8 @@ from .models import (
     MessageNotification, MessageReaction, MedicineInventory,
     PatientAssignment, ConsultationNotes
 )
-from users.models import GeneralDoctorProfile, NurseProfile, PatientProfile
-from utils.async_db import AsyncModelManager, AsyncTransactionManager, async_safe
+from backend.users.models import GeneralDoctorProfile, NurseProfile, PatientProfile
+from backend.utils.async_db import AsyncModelManager, AsyncTransactionManager, async_safe
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -346,9 +346,9 @@ class AsyncNotificationService:
             for notification in notifications:
                 result.append({
                     'id': notification.id,
-                    'title': notification.title,
                     'message': notification.message,
-                    'notification_type': notification.notification_type,
+                    'channel': notification.channel,
+                    'delivery_status': notification.delivery_status,
                     'is_read': notification.is_read,
                     'created_at': notification.created_at.isoformat()
                 })
@@ -381,4 +381,115 @@ class AsyncNotificationService:
             return updated_count
         except Exception as e:
             logger.error(f"Error marking notifications as read: {str(e)}")
+            raise
+    
+    @staticmethod
+    @async_safe(timeout=60)
+    async def send_notification_to_all_patients(message: str, department: str = None) -> Dict[str, Any]:
+        """
+        Send notification to all patients.
+        If department is specified, only notify patients in that department's queue.
+        
+        Args:
+            message: The notification message to send
+            department: Optional department filter
+            
+        Returns:
+            Dictionary with notification statistics
+        """
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            
+            # Get all patient users
+            patients = await sync_to_async(list)(
+                User.objects.filter(role='patient').select_related('patient_profile')
+            )
+            
+            notifications_created = []
+            notifications_failed = []
+            
+            for patient in patients:
+                try:
+                    # Create notification record
+                    notification = await AsyncModelManager.create_object(
+                        Notification,
+                        user=patient,
+                        message=message,
+                        channel=Notification.CHANNEL_WEBSOCKET,
+                        delivery_status=Notification.DELIVERY_PENDING,
+                        delivery_attempts=0
+                    )
+                    notifications_created.append(notification)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to create notification for patient {patient.id}: {str(e)}")
+                    notifications_failed.append({
+                        'patient_id': patient.id,
+                        'error': str(e)
+                    })
+            
+            logger.info(f"Created {len(notifications_created)} notifications for queue opening. Failed: {len(notifications_failed)}")
+            
+            return {
+                'success': True,
+                'total_patients': len(patients),
+                'notifications_created': len(notifications_created),
+                'notifications_failed': len(notifications_failed),
+                'notification_ids': [n.id for n in notifications_created]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error sending notifications to all patients: {str(e)}")
+            raise
+    
+    @staticmethod
+    @async_safe(timeout=30)
+    async def mark_notification_delivered(notification_id: int) -> bool:
+        """Mark a notification as delivered."""
+        try:
+            notification = await AsyncModelManager.get_object_or_none(
+                Notification, id=notification_id
+            )
+            
+            if notification:
+                from django.utils import timezone
+                await AsyncModelManager.update_object(
+                    notification,
+                    delivery_status=Notification.DELIVERY_DELIVERED,
+                    delivered_at=timezone.now()
+                )
+                return True
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error marking notification as delivered: {str(e)}")
+            return False
+    
+    @staticmethod
+    @async_safe(timeout=30)
+    async def retry_failed_notifications(max_attempts: int = 3) -> int:
+        """Retry sending failed notifications."""
+        try:
+            # Get notifications that failed but haven't exceeded max attempts
+            notifications = await sync_to_async(list)(
+                Notification.objects.filter(
+                    delivery_status=Notification.DELIVERY_FAILED,
+                    delivery_attempts__lt=max_attempts
+                )
+            )
+            
+            retry_count = 0
+            for notification in notifications:
+                await AsyncModelManager.update_object(
+                    notification,
+                    delivery_status=Notification.DELIVERY_PENDING,
+                    delivery_attempts=notification.delivery_attempts + 1
+                )
+                retry_count += 1
+            
+            return retry_count
+            
+        except Exception as e:
+            logger.error(f"Error retrying failed notifications: {str(e)}")
             raise
