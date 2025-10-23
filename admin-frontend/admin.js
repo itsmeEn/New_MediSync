@@ -1,11 +1,15 @@
 // Configuration
 const API_BASE_URL = 'http://localhost:8000/api/admin';
+const ANALYTICS_BASE_URL = API_BASE_URL.replace('/api/admin', '/api/analytics');
 
 // Global variables
 let currentUser = null;
 let verifications = [];
 let selectedVerification = null;
 let csrfToken = null;
+let currentSection = 'dashboard';
+let latencyChartInstance = null;
+let successChartInstance = null;
 
 // Get CSRF token
 async function getCSRFToken() {
@@ -85,6 +89,18 @@ function setupEventListeners() {
     // Time update
     updateTime();
     setInterval(updateTime, 1000);
+
+    // Stress test button
+    const runStressBtn = document.getElementById('runStressTestBtn');
+    if (runStressBtn) {
+        runStressBtn.addEventListener('click', runStressTest);
+    }
+
+    // Bottlenecks analyze button
+    const analyzeBtn = document.getElementById('analyzeBottlenecksBtn');
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener('click', loadBottleneckAnalytics);
+    }
 }
 
 // Update time display
@@ -103,68 +119,372 @@ function updateTime() {
     }
 }
 
-// Toggle sidebar
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('open');
+
+// Centralized navigation handler
+function navigateTo(section) {
+    currentSection = section;
+
+    // Update active nav item
+    document.querySelectorAll('.navigation-menu .nav-item').forEach(item => item.classList.remove('active'));
+    const activeItem = document.querySelector(`.navigation-menu .nav-item[data-nav="${section}"]`);
+    if (activeItem) activeItem.classList.add('active');
+
+    // Sections map: which containers to show per section
+    const sectionsMap = {
+        dashboard: ['dashboardSection', 'verificationsSection', 'bottlenecksSection'],
+        verifications: ['verificationsSection'],
+        analytics: ['analyticsSection'],
+        settings: ['settingsSection']
+    };
+
+    // Hide all sections first
+    ['dashboardSection', 'verificationsSection', 'bottlenecksSection', 'analyticsSection', 'settingsSection']
+        .forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+    // Show the target sections
+    const toShow = sectionsMap[section] || [];
+    toShow.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+    });
+
+    // Data loading hooks
+    if (section === 'dashboard') {
+        // Refresh key stats and verifications list when returning to dashboard
+        loadDashboardData();
+        // Render bottlenecks analytics
+        loadBottleneckAnalytics();
+    } else if (section === 'verifications') {
+        // Ensure verifications list is up-to-date
+        loadVerifications();
+    } else if (section === 'analytics') {
+        // System performance cards removed; only show stress testing UI
+        // Ensure stress test results container is cleared
+        const container = document.getElementById('stressResultsContainer');
+        if (container) container.innerHTML = '';
+    }
+
+    // Sidebar removed; no mobile toggle needed
+}
+
+// Load bottlenecks analytics via stress-test endpoint and render charts
+async function loadBottleneckAnalytics() {
+    try {
+        const token = localStorage.getItem('admin_access_token');
+        if (!token) return;
+
+        const url = `${ANALYTICS_BASE_URL}/stress-test/?group=all&concurrency=4&requests=20`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || 'Failed to load bottleneck analytics');
+        }
+
+        renderBottleneckCharts(payload.data);
+    } catch (error) {
+        console.error('Error loading bottleneck analytics:', error);
+        showToast('Error', error.message || 'Failed to analyze modules', 'error');
     }
 }
 
-// Navigation functions
-function showDashboard() {
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
-    
-    // Close sidebar on mobile
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
+function renderBottleneckCharts(data) {
+    const groups = data?.groups || {};
+    const order = ['doctor', 'nurse', 'patient'];
+    const labels = [];
+    const avgLatency = [];
+    const p95Latency = [];
+    const successRate = [];
+
+    order.forEach(key => {
+        const s = groups[key]?.summary;
+        if (s) {
+            labels.push(key.charAt(0).toUpperCase() + key.slice(1));
+            avgLatency.push(s.avg_latency_ms ?? 0);
+            p95Latency.push(s.p95_latency_ms ?? 0);
+            successRate.push(s.success_rate ?? 0);
+        }
+    });
+
+    // Latency chart
+    const latCtx = document.getElementById('latencyChart');
+    if (latCtx) {
+        if (latencyChartInstance) latencyChartInstance.destroy();
+        latencyChartInstance = new Chart(latCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Avg (ms)', data: avgLatency, backgroundColor: 'rgba(40,102,96,0.6)' },
+                    { label: 'P95 (ms)', data: p95Latency, backgroundColor: 'rgba(255,159,64,0.7)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    title: { display: true, text: 'Latency by Module' }
+                },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'ms' } }
+                }
+            }
+        });
+    }
+
+    // Success rate chart
+    const sucCtx = document.getElementById('successChart');
+    if (sucCtx) {
+        if (successChartInstance) successChartInstance.destroy();
+        successChartInstance = new Chart(sucCtx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Success Rate (%)', data: successRate, backgroundColor: 'rgba(75,192,192,0.7)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    title: { display: true, text: 'Reliability by Module' }
+                },
+                scales: {
+                    y: { beginAtZero: true, max: 100, title: { display: true, text: '%' } }
+                }
+            }
+        });
+    }
+
+    // Simple summary: highlight potential bottleneck by highest P95
+    const summaryEl = document.getElementById('bottlenecksSummary');
+    if (summaryEl && labels.length) {
+        let maxIdx = 0;
+        for (let i = 1; i < p95Latency.length; i++) {
+            if (p95Latency[i] > p95Latency[maxIdx]) maxIdx = i;
+        }
+        const worst = labels[maxIdx];
+        const p95 = p95Latency[maxIdx].toFixed(0);
+        const sr = successRate[maxIdx]?.toFixed ? successRate[maxIdx].toFixed(1) : successRate[maxIdx];
+        summaryEl.innerHTML = `<div class="alert alert-warning">Potential bottleneck: <strong>${worst}</strong> (P95 ~ ${p95} ms, Success ${sr}%).</div>`;
     }
 }
 
-function showVerifications() {
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
-    
-    // Close sidebar on mobile
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
+// Run stress test via analytics API
+async function runStressTest() {
+    showLoading(true);
+    try {
+        const token = localStorage.getItem('admin_access_token');
+        if (!token) {
+            logout();
+            return;
+        }
+
+        const group = document.getElementById('stressGroup')?.value || 'all';
+        const concurrency = parseInt(document.getElementById('stressConcurrency')?.value || '8', 10);
+        const requests = parseInt(document.getElementById('stressRequests')?.value || '30', 10);
+
+        const url = `${ANALYTICS_BASE_URL}/stress-test/?group=${encodeURIComponent(group)}&concurrency=${concurrency}&requests=${requests}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || 'Stress test failed');
+        }
+
+        renderStressResults(payload.data);
+        showToast('Success', 'Stress test completed', 'success');
+    } catch (error) {
+        console.error('Error running stress test:', error);
+        showToast('Error', error.message || 'Failed to run stress test', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function showUsers() {
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
-    
-    // Close sidebar on mobile
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
+function renderStressResults(data) {
+    const container = document.getElementById('stressResultsContainer');
+    if (!container) return;
+
+    const base = data?.base_url || '';
+    const started = data?.started_at || '';
+    const finished = data?.finished_at || '';
+    const params = data?.params || {};
+    const groups = data?.groups || {};
+
+    let html = '';
+    html += `<div class="alert alert-info">` +
+            `Base: <code>${base}</code> &nbsp; ` +
+            `Started: <code>${started}</code> &nbsp; ` +
+            `Finished: <code>${finished}</code> &nbsp; ` +
+            `Duration: <code>${data?.duration_ms || '–'} ms</code> &nbsp; ` +
+            `Params: group=<code>${params.group}</code>, concurrency=<code>${params.concurrency}</code>, requests/endpoint=<code>${params.requests_per_endpoint}</code>` +
+            `</div>`;
+
+    // Group summaries
+    Object.keys(groups).forEach(g => {
+        const s = groups[g]?.summary || {};
+        html += `<div class="card mb-3">` +
+                `<div class="card-header"><strong>${g.charAt(0).toUpperCase() + g.slice(1)} Summary</strong></div>` +
+                `<div class="card-body">` +
+                `<div class="row">` +
+                `<div class="col-md-3"><div><strong>Total Requests</strong></div><div>${s.total_requests ?? '–'}</div></div>` +
+                `<div class="col-md-3"><div><strong>Success Rate</strong></div><div>${s.success_rate != null ? s.success_rate + '%' : '–'}</div></div>` +
+                `<div class="col-md-2"><div><strong>Avg (ms)</strong></div><div>${s.avg_latency_ms ?? '–'}</div></div>` +
+                `<div class="col-md-2"><div><strong>P95 (ms)</strong></div><div>${s.p95_latency_ms ?? '–'}</div></div>` +
+                `<div class="col-md-2"><div><strong>Max (ms)</strong></div><div>${s.max_latency_ms ?? '–'}</div></div>` +
+                `</div>` +
+                `</div>` +
+                `</div>`;
+
+        // Endpoint table
+        const eps = groups[g]?.endpoints || {};
+        html += `<div class="table-responsive mb-4">` +
+                `<table class="table table-sm">` +
+                `<thead><tr>` +
+                `<th>Endpoint</th><th>Requests</th><th>Success</th><th>Errors</th>` +
+                `<th>Avg (ms)</th><th>P95 (ms)</th><th>Max (ms)</th><th>Status Dist</th>` +
+                `</tr></thead><tbody>`;
+        Object.keys(eps).forEach(ep => {
+            const m = eps[ep] || {};
+            const dist = m.status_distribution || {};
+            const distStr = Object.keys(dist).map(k => `${k}:${dist[k]}`).join(', ');
+            html += `<tr>` +
+                    `<td><code>${ep}</code></td>` +
+                    `<td>${m.requests ?? '–'}</td>` +
+                    `<td>${m.success_count ?? '–'}</td>` +
+                    `<td>${m.error_count ?? '–'}</td>` +
+                    `<td>${m.avg_latency_ms ?? '–'}</td>` +
+                    `<td>${m.p95_latency_ms ?? '–'}</td>` +
+                    `<td>${m.max_latency_ms ?? '–'}</td>` +
+                    `<td>${distStr || '–'}</td>` +
+                    `</tr>`;
+        });
+        html += `</tbody></table></div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+// Load system performance metrics
+async function loadSystemPerformance() {
+    showLoading(true);
+    try {
+        const token = localStorage.getItem('admin_access_token');
+        if (!token) {
+            logout();
+            return;
+        }
+
+        const response = await fetch(`${ANALYTICS_BASE_URL}/performance/`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || 'Failed to fetch performance metrics');
+        }
+
+        const data = payload.data || {};
+        const cpu = data.cpu || {};
+        const memory = data.memory || null;
+        const processInfo = data.process || {};
+
+        // CPU
+        const cpuLoadEl = document.getElementById('cpuLoad');
+        const cpuPercentEl = document.getElementById('cpuPercent');
+        if (cpuLoadEl) {
+            const l1 = cpu.load_1 != null ? cpu.load_1.toFixed(2) : '–';
+            const l5 = cpu.load_5 != null ? cpu.load_5.toFixed(2) : '–';
+            const l15 = cpu.load_15 != null ? cpu.load_15.toFixed(2) : '–';
+            cpuLoadEl.textContent = `${l1} / ${l5} / ${l15}`;
+        }
+        if (cpuPercentEl) {
+            cpuPercentEl.textContent = cpu.percent != null ? cpu.percent.toFixed(1) : '–';
+        }
+
+        // Memory
+        const memUsageEl = document.getElementById('memoryUsage');
+        const memPercentEl = document.getElementById('memoryPercent');
+        if (memory && memUsageEl) {
+            memUsageEl.textContent = `${formatBytes(memory.used)} / ${formatBytes(memory.total)}`;
+        } else if (memUsageEl) {
+            memUsageEl.textContent = 'Unavailable';
+        }
+        if (memPercentEl) {
+            memPercentEl.textContent = memory && memory.percent != null ? memory.percent.toFixed(1) : '–';
+        }
+
+        // Uptime and timestamps
+        const uptimeEl = document.getElementById('uptimeValue');
+        const updatedAtEl = document.getElementById('perfUpdatedAt');
+        if (uptimeEl) {
+            uptimeEl.textContent = data.uptime_seconds != null ? formatUptime(data.uptime_seconds) : 'Unknown';
+        }
+        if (updatedAtEl && data.server_time) {
+            const dt = new Date(data.server_time);
+            updatedAtEl.textContent = dt.toLocaleString();
+        }
+
+        // Details
+        const platformEl = document.getElementById('platformInfo');
+        const psutilEl = document.getElementById('psutilAvailable');
+        const procPidEl = document.getElementById('procPid');
+        const procThreadsEl = document.getElementById('procThreads');
+        const procRssEl = document.getElementById('procRss');
+        if (platformEl) platformEl.textContent = data.platform || '–';
+        if (psutilEl) psutilEl.textContent = data.psutil_available ? 'Yes' : 'No';
+        if (procPidEl) procPidEl.textContent = processInfo.pid != null ? processInfo.pid : '–';
+        if (procThreadsEl) procThreadsEl.textContent = processInfo.threads != null ? processInfo.threads : '–';
+        if (procRssEl) procRssEl.textContent = processInfo.rss != null ? formatBytes(processInfo.rss) : '–';
+    } catch (error) {
+        console.error('Error loading system performance:', error);
+        showToast('Error', 'Failed to load system performance', 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
-function showAnalytics() {
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
-    
-    // Close sidebar on mobile
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
-    }
+function formatBytes(bytes) {
+    if (!bytes && bytes !== 0) return '–';
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const value = bytes / Math.pow(1024, i);
+    return `${value.toFixed(1)} ${sizes[i]}`;
 }
 
-function showSettings() {
-    // Update active nav item
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
-    
-    // Close sidebar on mobile
-    if (window.innerWidth <= 768) {
-        toggleSidebar();
-    }
+function formatUptime(seconds) {
+    const s = Number(seconds);
+    const d = Math.floor(s / (3600 * 24));
+    const h = Math.floor((s % (3600 * 24)) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    const parts = [];
+    if (d) parts.push(`${d}d`);
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    parts.push(`${sec}s`);
+    return parts.join(' ');
 }
 
 // Card click handlers
@@ -172,6 +492,7 @@ function showPendingVerifications() {
     const statusFilter = document.getElementById('statusFilter');
     if (statusFilter) {
         statusFilter.value = 'pending';
+        navigateTo('verifications');
         filterVerifications();
     }
 }
@@ -180,6 +501,7 @@ function showApprovedVerifications() {
     const statusFilter = document.getElementById('statusFilter');
     if (statusFilter) {
         statusFilter.value = 'approved';
+        navigateTo('verifications');
         filterVerifications();
     }
 }
@@ -188,6 +510,7 @@ function showDeclinedVerifications() {
     const statusFilter = document.getElementById('statusFilter');
     if (statusFilter) {
         statusFilter.value = 'declined';
+        navigateTo('verifications');
         filterVerifications();
     }
 }
@@ -196,6 +519,7 @@ function showArchivedVerifications() {
     const statusFilter = document.getElementById('statusFilter');
     if (statusFilter) {
         statusFilter.value = 'archived';
+        navigateTo('verifications');
         filterVerifications();
     }
 }
@@ -248,6 +572,9 @@ function showDashboard() {
             });
             greetingSubtitle.textContent = `Manage your healthcare platform - ${today}`;
         }
+
+        // Default view on login
+        navigateTo('dashboard');
     }
 }
 

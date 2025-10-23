@@ -34,13 +34,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
 
 const route = useRoute()
 
 const unreadCount = ref<number>(0)
+
+// WebSocket for medication alerts; module scope to manage lifecycle
+let medicationWS: WebSocket | null = null
 
 const items = [
   { key: 'queue', label: 'queue', icon: 'format_list_numbered', to: '/patient-queue' },
@@ -69,8 +72,60 @@ const fetchUnreadCount = async () => {
   }
 }
 
+const setupMedicationWS = (): void => {
+  try {
+    const userStr = localStorage.getItem('user') || '{}'
+    const userObj = JSON.parse(userStr)
+    const patientId: number | undefined = userObj?.patient_profile?.id
+    if (!patientId) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
+    const backendHost = base.hostname
+    const backendPort = base.port || '8000'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/medication/${patientId}/`
+
+    const ws = new WebSocket(wsUrl)
+    medicationWS = ws
+    ws.onopen = () => {
+      // Connected to medication channel
+    }
+    ws.onmessage = async (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data)
+        if (data?.type === 'medication_notification') {
+          // Increment badge and refresh from backend to keep in sync
+          unreadCount.value = (unreadCount.value || 0) + 1
+          await fetchUnreadCount()
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    ws.onclose = () => {
+      // Attempt lightweight reconnect after a delay
+      setTimeout(() => {
+        try { setupMedicationWS() } catch { /* ignore */ }
+      }, 5000)
+    }
+  } catch {
+    // Ignore setup errors
+  }
+}
+
 onMounted(() => {
   void fetchUnreadCount()
+  setupMedicationWS()
+})
+
+onUnmounted(() => {
+  try {
+    if (medicationWS) medicationWS.close()
+  } catch {
+    // ignore
+  } finally {
+    medicationWS = null
+  }
 })
 </script>
 
@@ -87,7 +142,8 @@ onMounted(() => {
   right: 0;
   width: 100%;
   z-index: 1000;
-  background: transparent;
+  /* Light gray background for the bottom navigation area */
+  background: #f3f4f6;
   padding: 8px 10px 16px;
 }
 

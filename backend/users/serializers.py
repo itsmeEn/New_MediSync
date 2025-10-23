@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
 from django.utils import timezone
-from .image_utils import ImageProcessor, process_profile_picture
+# Removed image processing imports; profile picture uploads are deprecated
 import re
 
 
@@ -58,7 +58,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = [
             "email", "full_name", "role", "date_of_birth", "gender", 
             "password", "password2", "license_number", "specialization", "department",
-            "profile_picture", "verification_document"
+            "verification_document"
         ]
         extra_kwargs = {"password": {"write_only": True}}
 
@@ -127,51 +127,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
-class ProfilePictureSerializer(serializers.ModelSerializer):
-    """
-    Enhanced serializer for updating profile pictures with validation and optimization.
-    """
-    class Meta:
-        model = User
-        fields = ["profile_picture"]
-    
-    def validate_profile_picture(self, value):
-        """
-        Comprehensive validation for profile picture uploads.
-        """
-        if value:
-            try:
-                # Use the ImageProcessor for validation
-                validation_result = ImageProcessor.validate_image_file(value)
-                
-                # Log any warnings
-                if validation_result.get('warnings'):
-                    # In a production environment, you might want to log these warnings
-                    pass
-                
-                return value
-                
-            except Exception as e:
-                raise serializers.ValidationError(str(e))
-        
-        return value
-    
-    def update(self, instance, validated_data):
-        """
-        Update user profile picture with optimization.
-        """
-        profile_picture = validated_data.get('profile_picture')
-        
-        if profile_picture:
-            try:
-                # Process and optimize the image
-                optimized_image = process_profile_picture(profile_picture, instance.id)
-                validated_data['profile_picture'] = optimized_image
-                
-            except Exception as e:
-                raise serializers.ValidationError(f"Failed to process image: {str(e)}")
-        
-        return super().update(instance, validated_data)
+# Removed: ProfilePictureSerializer (profile picture uploads are deprecated)
 
 class VerificationDocumentSerializer(serializers.ModelSerializer):
     """

@@ -32,6 +32,9 @@ daphne==4.0.0
 reportlab==4.0.7
 matplotlib>=3.8.0
 
+# HTTP client for stress-test analytics
+requests>=2.31.0
+
 # Two-Factor Authentication
 pyotp==2.9.0
 qrcode==7.4.2

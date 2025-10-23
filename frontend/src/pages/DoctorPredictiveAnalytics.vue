@@ -13,9 +13,7 @@
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <h2 class="greeting-text">
-              Predictive Analytics Dashboard,
-              {{ userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) }}
-              {{ userProfile.full_name }}
+              Predictive Analytics Dashboard
             </h2>
             <p class="greeting-subtitle">
               AI-powered insights for clinical decision making - {{ currentDate }}
@@ -25,7 +23,7 @@
       </div>
 
       <!-- Analytics Cards Section -->
-      <div class="dashboard-cards-section">
+      <div class="dashboard-cards-section" v-if="false">
         <div class="dashboard-cards-grid">
           <!-- Patient Demographics Card -->
           <q-card
@@ -51,21 +49,20 @@
                   <div class="stat-row">
                     <span class="stat-label">Total Patients:</span>
                     <span class="stat-value">{{
-                      analyticsData.patient_demographics.total_patients || 'N/A'
+                      analyticsData.patient_demographics?.total_patients ?? 'N/A'
                     }}</span>
                   </div>
                   <div class="stat-row">
                     <span class="stat-label">Average Age:</span>
                     <span class="stat-value"
-                      >{{ analyticsData.patient_demographics.average_age || 'N/A' }} years</span
+                      >{{ analyticsData.patient_demographics?.average_age ?? 'N/A' }} years</span
                     >
                   </div>
                   <div class="stat-row">
                     <span class="stat-label">Gender Distribution:</span>
                     <div class="gender-stats">
                       <span
-                        v-for="(percentage, gender) in analyticsData.patient_demographics
-                          .gender_proportions"
+                        v-for="(percentage, gender) in analyticsData.patient_demographics?.gender_proportions || {}"
                         :key="gender"
                         class="gender-item"
                       >
@@ -105,19 +102,19 @@
                   <div class="stat-row">
                     <span class="stat-label">Chi-Square Statistic:</span>
                     <span class="stat-value">{{
-                      analyticsData.illness_prediction.chi_square_statistic || 'N/A'
+                      analyticsData.illness_prediction?.chi_square_statistic ?? 'N/A'
                     }}</span>
                   </div>
                   <div class="stat-row">
                     <span class="stat-label">P-Value:</span>
                     <span class="stat-value">{{
-                      analyticsData.illness_prediction.p_value || 'N/A'
+                      analyticsData.illness_prediction?.p_value ?? 'N/A'
                     }}</span>
                   </div>
                   <div class="stat-row">
                     <span class="stat-label">Association Result:</span>
                     <span class="stat-value">{{
-                      analyticsData.illness_prediction.association_result || 'N/A'
+                      analyticsData.illness_prediction?.association_result ?? 'N/A'
                     }}</span>
                   </div>
                 </div>
@@ -153,7 +150,7 @@
                     <span class="stat-label">Top Conditions:</span>
                     <div class="conditions-list">
                       <span
-                        v-for="condition in analyticsData.health_trends.top_illnesses_by_week?.slice(
+                        v-for="condition in analyticsData.health_trends?.top_illnesses_by_week?.slice(
                           0,
                           3,
                         )"
@@ -168,7 +165,7 @@
                     <span class="stat-label">Trend Analysis:</span>
                     <div class="trend-items">
                       <span
-                        v-for="condition in analyticsData.health_trends.trend_analysis?.increasing_conditions?.slice(
+                        v-for="condition in analyticsData.health_trends?.trend_analysis?.increasing_conditions?.slice(
                           0,
                           2,
                         )"
@@ -211,14 +208,14 @@
                   <div class="stat-row">
                     <span class="stat-label">Model Accuracy:</span>
                     <span class="stat-value"
-                      >{{ analyticsData.surge_prediction.model_accuracy || 'N/A' }}%</span
+                      >{{ analyticsData.surge_prediction?.model_accuracy ?? 'N/A' }}%</span
                     >
                   </div>
                   <div class="stat-row">
                     <span class="stat-label">Risk Factors:</span>
                     <div class="risk-factors">
                       <span
-                        v-for="factor in analyticsData.surge_prediction.risk_factors?.slice(0, 2)"
+                        v-for="factor in surgeRiskFactors.slice(0, 2)"
                         :key="factor"
                         class="risk-item"
                       >
@@ -239,7 +236,7 @@
       <!-- Analytics Data Display Section -->
       <div class="analytics-section">
         <q-card class="analytics-card">
-          <q-card-section class="analytics-header">
+          <q-card-section class="analytics-header" v-if="false">
             <h3 class="analytics-title">REAL-TIME ANALYTICS INSIGHTS</h3>
             <div class="analytics-actions">
               <q-btn
@@ -263,7 +260,7 @@
 
           <q-card-section class="analytics-content">
             <!-- Analytics Panels -->
-            <div class="analytics-panels-container">
+            <div class="analytics-panels-container structured-grid">
               <!-- Demographics Panel -->
               <div class="analytics-panel demographics-panel">
                 <h4 class="panel-title">Patient Demographics</h4>
@@ -274,29 +271,41 @@
                       <canvas ref="ageChart" width="400" height="200"></canvas>
                     </div>
 
-                    <!-- Gender Distribution Chart -->
-                    <div class="chart-container">
-                      <canvas ref="genderChart" width="400" height="200"></canvas>
-                    </div>
+                    <!-- Gender chart moved to separate Gender Distribution panel -->
 
                     <!-- Summary Statistics -->
                     <div class="summary-stats">
                       <div class="stat-item">
                         <span class="stat-label">Total Patients:</span>
                         <span class="stat-value">{{
-                          analyticsData.patient_demographics.total_patients
+                          analyticsData.patient_demographics?.total_patients ?? 'N/A'
                         }}</span>
                       </div>
                       <div class="stat-item">
                         <span class="stat-label">Average Age:</span>
                         <span class="stat-value"
-                          >{{ analyticsData.patient_demographics.average_age }} years</span
+                          >{{ analyticsData.patient_demographics?.average_age ?? 'N/A' }} years</span
                         >
                       </div>
                     </div>
                   </div>
                   <div v-else class="empty-data">
                     <p>No demographics data available</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Gender Distribution Panel (Bottom Right) -->
+              <div class="analytics-panel gender-panel">
+                <h4 class="panel-title">Gender Distribution</h4>
+                <div class="panel-content">
+                  <div v-if="analyticsData.patient_demographics?.gender_proportions" class="analytics-data">
+                    <div class="chart-container">
+                      <canvas ref="genderChart" width="400" height="200"></canvas>
+                    </div>
+                  </div>
+                  <div v-else class="empty-data">
+                    <p>No gender distribution data available</p>
                   </div>
                 </div>
               </div>
@@ -347,18 +356,35 @@
                 </div>
               </div>
 
+
               <!-- Patient Volume Prediction Panel -->
               <div class="analytics-panel prediction-panel">
                 <h4 class="panel-title">Patient Volume Prediction</h4>
                 <div class="panel-content">
-                  <div v-if="analyticsData.illness_prediction || analyticsData.surge_prediction" class="analytics-data">
+                  <div v-if="analyticsData.volume_prediction || analyticsData.illness_prediction || analyticsData.surge_prediction" class="analytics-data">
                     <!-- Volume Comparison Chart -->
                     <div class="chart-container">
                       <canvas ref="volumeComparisonChart" width="400" height="200"></canvas>
                     </div>
 
+                    <!-- Latest Predicted and Actual Output Summary -->
+                    <div class="summary-stats q-mt-xs">
+                      <div class="stat-item">
+                        <span class="stat-label">Predicted Volume (latest)</span>
+                        <span class="stat-value">{{ latestVolumeOutput.predicted != null ? formatNumber(latestVolumeOutput.predicted) : 'N/A' }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Actual Volume (latest)</span>
+                        <span class="stat-value">{{ latestVolumeOutput.actual != null ? formatNumber(latestVolumeOutput.actual) : 'N/A' }}</span>
+                      </div>
+                      <div class="stat-item">
+                        <span class="stat-label">Period</span>
+                        <span class="stat-value">{{ latestVolumeOutput.label ?? 'N/A' }}</span>
+                      </div>
+                    </div>
+
                     <!-- Statistical Summary -->
-                    <div class="statistical-summary">
+                    <div v-if="false" class="statistical-summary">
                       <div class="stat-row">
                         <div class="stat-card">
                           <div class="stat-icon">📊</div>
@@ -381,21 +407,18 @@
                         </div>
                       </div>
 
-                      <div class="analysis-result">
+                      <div v-if="false" class="analysis-result">
                         <h5>Analysis Summary:</h5>
                         <p class="result-text">
                           {{ analyticsData.illness_prediction?.association_result || 'Analyzing patient volume trends and forecasting future demand to optimize resource allocation.' }}
                         </p>
                       </div>
 
-                      <div
-                        v-if="analyticsData.illness_prediction?.significant_factors"
-                        class="significant-factors"
-                      >
+                      <div v-if="false" class="significant-factors">
                         <h5>Key Factors:</h5>
                         <div class="factors-list">
                           <div
-                            v-for="factor in analyticsData.illness_prediction.significant_factors"
+                            v-for="factor in (analyticsData.illness_prediction?.significant_factors || [])"
                             :key="factor"
                             class="factor-item"
                           >
@@ -419,7 +442,25 @@
                     <!-- Surge Prediction Chart -->
                     <div v-if="analyticsData.surge_prediction" class="chart-container">
                       <canvas ref="surgeChart" width="400" height="200"></canvas>
+                      <!-- Totals and Emerging Illness Answer (inside card) -->
+                      <div class="row items-center q-mt-sm q-gutter-md surge-summary-row">
+                        <div class="col-auto total-cases-display">
+                          <q-icon name="insights" size="18px" color="primary" class="q-mr-xs" />
+                          <span class="total-number text-h6 q-mr-xs">{{ formatNumber(surgeTotalCases) }}</span>
+                          <span class="total-label">total predicted cases</span>
+                        </div>
+                        <div class="col-auto emerging-illness-answer">
+                          <span class="label text-subtitle2">Emerging illness:</span>
+                          <span class="illness-type text-bold text-primary q-ml-xs">{{ emergingIllnessSummary.illness || 'Unknown' }}</span>
+                          <span v-if="emergingIllnessSummary.predictedTotal != null" class="illness-count q-ml-xs">— {{ formatNumber(emergingIllnessSummary.predictedTotal) }} cases</span>
+                          <q-badge v-if="emergingIllnessSummary.riskLevel" :color="riskLevelColor(emergingIllnessSummary.riskLevel)" :label="emergingIllnessSummary.riskLevel" class="q-ml-xs" />
+                        </div>
+                      </div>
                     </div>
+
+                    <!-- Weekly illness forecast removed -->
+
+                    <!-- Forecasted Cases Answer removed per request -->
 
                     <!-- Predicted Illnesses Section -->
                     <div v-if="analyticsData.health_trends?.trend_analysis?.increasing_conditions" class="predicted-illnesses-section">
@@ -447,6 +488,39 @@
                       </div>
                     </div>
 
+                    <!-- Monthly SARIMA Illness Forecast -->
+                    <div v-if="analyticsData.monthly_illness_forecast?.monthly_illness_forecast" class="monthly-forecast-section">
+                      <h5>Monthly Illness Forecast (SARIMA):</h5>
+                      <div class="monthly-forecast-list">
+                        <div
+                          v-for="item in analyticsData.monthly_illness_forecast.monthly_illness_forecast.slice(0, 6)"
+                          :key="`${item.illness}-${item.month}`"
+                          class="monthly-forecast-card"
+                        >
+                          <div class="illness-name">{{ item.illness }}</div>
+                          <div class="month-prediction">
+                            <q-icon name="event" size="16px" color="primary" />
+                            <span class="month-text">{{ item.month }}</span>
+                          </div>
+                          <div class="predicted-cases">
+                            <q-icon name="stacked_line_chart" size="16px" color="primary" />
+                            <span class="cases-text">{{ formatNumber(item.predicted_cases) }} cases</span>
+                          </div>
+                          <div class="forecast-meta">
+                            <q-badge :color="riskLevelColor(item.risk_level)" :label="(item.risk_level || 'Unknown')" />
+                            <q-chip :color="item.trend === 'increasing' ? 'negative' : item.trend === 'decreasing' ? 'positive' : 'warning'" text-color="white" dense>
+                              <q-icon :name="item.trend === 'increasing' ? 'trending_up' : item.trend === 'decreasing' ? 'trending_down' : 'drag_handle'" class="q-mr-xs" />
+                              {{ item.trend || 'stable' }}
+                            </q-chip>
+                          </div>
+                        </div>
+                      </div>
+                      <!-- Illness-specific monthly series chart -->
+                      <div class="chart-container q-mt-md">
+                        <canvas ref="monthlyIllnessChart" width="400" height="200"></canvas>
+                      </div>
+                    </div>
+
                     <!-- Top Current Illnesses -->
                     <div v-if="analyticsData.health_trends?.top_illnesses_by_week" class="current-illnesses-section">
                       <h5>Current Top Illnesses:</h5>
@@ -463,28 +537,9 @@
                       </div>
                     </div>
 
-                    <!-- Model Accuracy -->
-                    <div v-if="analyticsData.surge_prediction" class="model-info">
-                      <div class="accuracy-item">
-                        <span class="accuracy-label">Prediction Accuracy:</span>
-                        <span class="accuracy-value"
-                          >{{ analyticsData.surge_prediction.model_accuracy }}%</span
-                        >
-                      </div>
-                    </div>
+                    <!-- Prediction Accuracy section removed per request -->
 
-                    <!-- Risk Factors -->
-                    <div v-if="analyticsData.surge_prediction?.risk_factors" class="risk-factors">
-                      <h5>Risk Factors:</h5>
-                      <ul>
-                        <li
-                          v-for="factor in analyticsData.surge_prediction.risk_factors"
-                          :key="factor"
-                        >
-                          {{ factor }}
-                        </li>
-                      </ul>
-                    </div>
+                    <!-- Risk Factors section intentionally removed per request -->
                   </div>
                   <div v-else class="empty-data">
                     <p>No surge prediction data available</p>
@@ -492,9 +547,34 @@
                 </div>
               </div>
             </div>
+
+            <!-- Actions + Disclaimer + AI Summary combined into single card -->
+            <div class="analytics-sidebar-panel">
+              <q-card bordered flat class="ai-summary-card">
+                <q-card-section class="actions-row">
+                  <q-btn color="primary" label="Generate PDF Report" icon="picture_as_pdf" size="md" @click="generatePDFReport" class="sidebar-btn" />
+                  <q-btn color="secondary" label="Refresh Analytics Data" icon="refresh" size="md" @click="refreshAnalytics" class="sidebar-btn" />
+                </q-card-section>
+                <q-separator class="q-my-xs" />
+                <q-card-section>
+                  <div class="ai-summary-header">AI-SUMMARY GENERATED RESPONSE</div>
+                  <div class="ai-summary-disclaimer">
+                    <em>
+                      Disclaimer: This is an automated, AI-generated recommendation that interprets the latest analytics findings based on the current data. It is intended to guide immediate resource allocation and strategic planning, not replace expert clinical judgment.
+                    </em>
+                  </div>
+                  <div class="ai-summary-text">
+                    {{ aiSummaryText }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+
           </q-card-section>
         </q-card>
       </div>
+
+
 
       <router-view />
     </q-page-container>
@@ -548,10 +628,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import { Chart, registerables } from 'chart.js';
+import type { ChartDataset, TooltipItem } from 'chart.js';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
 
@@ -569,6 +650,9 @@ const genderChart = ref<HTMLCanvasElement | null>(null);
 const trendsChart = ref<HTMLCanvasElement | null>(null);
 const surgeChart = ref<HTMLCanvasElement | null>(null);
 const volumeComparisonChart = ref<HTMLCanvasElement | null>(null);
+const modelAccuracyChart = ref<HTMLCanvasElement | null>(null);
+const confidenceLevelChart = ref<HTMLCanvasElement | null>(null);
+const monthlyIllnessChart = ref<HTMLCanvasElement | null>(null);
 
 // Chart instances
 let ageChartInstance: Chart | null = null;
@@ -576,6 +660,9 @@ let genderChartInstance: Chart | null = null;
 let trendsChartInstance: Chart | null = null;
 let surgeChartInstance: Chart | null = null;
 let volumeComparisonChartInstance: Chart | null = null;
+let modelAccuracyChartInstance: Chart | null = null;
+let confidenceLevelChartInstance: Chart | null = null;
+let monthlyIllnessChartInstance: Chart | null = null;
 
 // Analytics data interfaces
 interface PatientDemographics {
@@ -606,6 +693,18 @@ interface HealthTrends {
   };
 }
 
+interface VolumePrediction {
+  evaluation_metrics?: {
+    mae: number;
+    rmse: number;
+  };
+  forecasted_data?: Array<{
+    date: string;
+    predicted_volume: number;
+    actual_volume?: number;
+  }>;
+}
+
 interface SurgePrediction {
   forecasted_monthly_cases?: Array<{
     date: string;
@@ -615,11 +714,27 @@ interface SurgePrediction {
   risk_factors?: string[];
 }
 
+interface MonthlyIllnessForecast {
+  monthly_illness_forecast?: Array<{
+    illness: string;
+    month: string;
+    predicted_cases: number;
+    risk_level?: string;
+    trend?: 'increasing' | 'decreasing' | 'stable';
+  }>;
+  evaluation_metrics?: {
+    mae?: number;
+    rmse?: number;
+  };
+}
+
 interface AnalyticsData {
   patient_demographics: PatientDemographics | null;
   illness_prediction: IllnessPrediction | null;
   health_trends: HealthTrends | null;
+  volume_prediction: VolumePrediction | null;
   surge_prediction: SurgePrediction | null;
+  monthly_illness_forecast: MonthlyIllnessForecast | null;
 }
 
 // Analytics data
@@ -627,8 +742,83 @@ const analyticsData = ref<AnalyticsData>({
   patient_demographics: null,
   illness_prediction: null,
   health_trends: null,
+  volume_prediction: null,
   surge_prediction: null,
+  monthly_illness_forecast: null,
 });
+
+
+const surgeRiskFactors = computed(() => analyticsData.value.surge_prediction?.risk_factors ?? []);
+
+// Latest predicted and actual volume (for display under chart)
+const latestVolumeOutput = computed(() => {
+  const vp = analyticsData.value.volume_prediction?.forecasted_data;
+  if (vp && vp.length > 0) {
+    const last = vp[vp.length - 1]!;
+    return {
+      label: last.date,
+      predicted: last.predicted_volume,
+      actual: last.actual_volume,
+    };
+  }
+  const sp = analyticsData.value.surge_prediction?.forecasted_monthly_cases;
+  if (sp && sp.length > 0) {
+    const last = sp[sp.length - 1]!;
+    const pred = last.total_cases;
+    const act = Math.floor(pred * 0.95);
+    return {
+      label: last.date,
+      predicted: pred,
+      actual: act,
+    };
+  }
+  return { label: null, predicted: null, actual: null };
+});
+
+// Total predicted cases across surge forecast
+const surgeTotalCases = computed(() => {
+  const sp = analyticsData.value.surge_prediction?.forecasted_monthly_cases || [];
+  return sp.reduce((sum: number, item: { total_cases?: number | string }) => sum + Number(item.total_cases || 0), 0);
+});
+
+// Emerging illness based on highest predicted cases from monthly forecast
+const emergingIllnessSummary = computed(() => {
+  const mif = analyticsData.value.monthly_illness_forecast?.monthly_illness_forecast || [];
+  if (!mif.length) {
+    const inc = analyticsData.value.health_trends?.trend_analysis?.increasing_conditions || [];
+    return inc.length ? { illness: inc[0], predictedTotal: null, riskLevel: null } : { illness: null, predictedTotal: null, riskLevel: null };
+  }
+  const perIllness = new Map<string, { total: number; riskLevel?: string | null }>();
+  const rank = (r: string | null | undefined) => (r === 'high' ? 3 : r === 'medium' ? 2 : r === 'low' ? 1 : 0);
+  for (const x of mif) {
+    const ill = x.illness;
+    const current = perIllness.get(ill);
+    const newTotal = (current?.total || 0) + Number(x.predicted_cases || 0);
+    let risk = current?.riskLevel || null;
+    if (rank(x.risk_level) > rank(risk)) risk = x.risk_level || null;
+    perIllness.set(ill, { total: newTotal, riskLevel: risk });
+  }
+  let bestIllness: string | null = null;
+  let bestTotal = -Infinity;
+  let bestRisk: string | null = null;
+  for (const [ill, { total, riskLevel }] of perIllness.entries()) {
+    if (total > bestTotal) {
+      bestTotal = total;
+      bestIllness = ill;
+      bestRisk = riskLevel || null;
+    }
+  }
+  return { illness: bestIllness, predictedTotal: bestTotal > -Infinity ? bestTotal : null, riskLevel: bestRisk };
+});
+
+// Format numbers for readability (e.g., 12,345)
+const formatNumber = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+
+watch(() => analyticsData.value, async () => {
+  await nextTick();
+  await createAllCharts();
+}, { deep: true });
+
 
 // Zoom functionality
 const zoomedData = ref<{
@@ -659,20 +849,7 @@ interface Notification {
   created_at: string;
 }
 
-// User profile data
-const userProfile = ref<{
-  full_name: string;
-  specialization?: string;
-  role: string;
-  profile_picture: string | null;
-  verification_status: string;
-}>({
-  full_name: 'Loading...',
-  specialization: 'Loading specialization...',
-  role: 'doctor',
-  profile_picture: null,
-  verification_status: 'not_submitted',
-});
+// User profile data removed (not needed for greeting)
 
 const currentDate = computed(() => {
   const now = new Date();
@@ -1047,7 +1224,20 @@ const createSurgeChart = () => {
   const ctx = surgeChart.value.getContext('2d');
   if (!ctx) return;
 
-  const data = analyticsData.value.surge_prediction.forecasted_monthly_cases;
+  const raw = analyticsData.value.surge_prediction.forecasted_monthly_cases || [];
+  const parseMonth = (m: string): number => {
+    const d = new Date(m);
+    if (!isNaN(d.getTime())) return d.getTime();
+    const match = m.match(/^(\d{4})-(\d{1,2})/);
+    if (match) {
+      const y = Number(match[1]);
+      const mm = Number(match[2]) - 1;
+      return new Date(y, mm, 1).getTime();
+    }
+    return Number.MAX_SAFE_INTEGER;
+  };
+  const sorted = [...raw].sort((a: { date: string }, b: { date: string }) => parseMonth(a.date) - parseMonth(b.date));
+  const data = sorted.slice(0, 3);
 
   surgeChartInstance = new Chart(ctx, {
     type: 'line',
@@ -1055,7 +1245,7 @@ const createSurgeChart = () => {
       labels: data.map((item) => item.date),
       datasets: [
         {
-          label: 'Forecasted Cases',
+          label: 'Total Predicted Cases',
           data: data.map((item) => item.total_cases),
           borderColor: 'rgba(255, 99, 132, 1)',
           backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -1071,28 +1261,246 @@ const createSurgeChart = () => {
       plugins: {
         title: {
           display: true,
-          text: 'Surge Prediction Forecast',
+          text: '3-Month Forecast: Total Cases',
+        },
+        legend: {
+          position: 'bottom',
         },
       },
       scales: {
         y: {
           beginAtZero: true,
+          title: { display: true, text: 'Cases' },
+        },
+        x: {
+          title: { display: true, text: 'Month' },
         },
       },
     },
   });
 };
 
-/**
- * Creates volume comparison chart (predicted vs actual)
- * @returns {void}
- *
- * How it works:
- * 1. Gets the canvas element for volume comparison chart
- * 2. Destroys existing chart if it exists
- * 3. Creates new Chart.js line chart comparing predicted and actual patient volumes
- * 4. Uses responsive design and proper styling
- */
+// Create stacked bar monthly illness forecast chart (3-month)
+const createMonthlyIllnessChart = () => {
+  const mif = analyticsData.value.monthly_illness_forecast?.monthly_illness_forecast;
+  if (!monthlyIllnessChart.value || !Array.isArray(mif) || mif.length === 0) return;
+
+  if (monthlyIllnessChartInstance) {
+    monthlyIllnessChartInstance.destroy();
+  }
+
+  const ctx = monthlyIllnessChart.value.getContext('2d');
+  if (!ctx) return;
+
+  // Normalize months and build labels
+  const parseMonth = (m: string): number => {
+    const d = new Date(m);
+    if (!isNaN(d.getTime())) return d.getTime();
+    const match = m.match(/^(\d{4})-(\d{1,2})$/);
+    if (match) {
+      const y = Number(match[1]);
+      const mm = Number(match[2]) - 1;
+      return new Date(y, mm, 1).getTime();
+    }
+    return Number.MAX_SAFE_INTEGER; // push unknown format to end
+  };
+
+  const monthSet = new Set<string>();
+  mif.forEach((x) => monthSet.add(x.month));
+  let months = Array.from(monthSet).sort((a, b) => parseMonth(a) - parseMonth(b));
+  // Limit to the next three months in the forecast
+  months = months.slice(0, 3);
+
+  // Group values by illness and month
+  const illnessMap = new Map<string, Map<string, number>>();
+  mif.forEach((x) => {
+    const ill = x.illness;
+    const month = x.month;
+    const val = Number(x.predicted_cases || 0);
+    if (!illnessMap.has(ill)) illnessMap.set(ill, new Map<string, number>());
+    illnessMap.get(ill)!.set(month, val);
+  });
+
+  const COLORS = [
+    'rgba(33, 150, 243, 1)',
+    'rgba(76, 175, 80, 1)',
+    'rgba(255, 193, 7, 1)',
+    'rgba(244, 67, 54, 1)',
+    'rgba(156, 39, 176, 1)',
+    'rgba(0, 188, 212, 1)',
+    'rgba(121, 85, 72, 1)',
+    'rgba(63, 81, 181, 1)'
+  ];
+
+  const datasets: ChartDataset<'bar', number[]>[] = Array.from(illnessMap.entries()).map(([illness, monthVals], idx) => {
+    const color = COLORS[idx % COLORS.length] || 'rgba(100, 100, 100, 1)';
+    return {
+      label: illness,
+      data: months.map((m) => monthVals.get(m) ?? 0),
+      backgroundColor: color.replace('1)', '0.6)'),
+      borderColor: color,
+      borderWidth: 1,
+      type: 'bar',
+      stack: 'cases',
+    };
+  });
+
+  monthlyIllnessChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets,
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,
+          text: '3-Month Forecast: Cases by Illness',
+        },
+        legend: {
+          position: 'bottom',
+        },
+        tooltip: {
+          callbacks: {
+            footer: (items: TooltipItem<'bar'>[]) => {
+              try {
+                const monthLabel = String(items[0]?.label || '');
+                 if (!monthLabel) return '';
+                 const idx = months.indexOf(monthLabel);
+                const total = datasets.reduce((sum, ds) => {
+                  const val = Array.isArray(ds.data) ? Number(ds.data[idx] || 0) : 0;
+                  return sum + (isNaN(val) ? 0 : val);
+                }, 0);
+                return `Total: ${formatNumber(total)} cases`;
+              } catch {
+                return '';
+              }
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          title: { display: true, text: 'Month' },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          title: { display: true, text: 'Predicted Cases' },
+        },
+      },
+    },
+  });
+};
+
+// AI summary below disclaimer: concise synthesis of available analytics
+const aiSummaryText = computed(() => {
+  const d = analyticsData.value;
+  const sections: string[] = [];
+
+  // Surge Forecast (concise, human-readable)
+  {
+    const sp = d?.surge_prediction?.forecasted_monthly_cases || [];
+    if (sp.length) {
+      const totals = sp.map((m: { total_cases?: string | number }) => Number(m.total_cases || 0));
+      const totalSum = totals.reduce((sum, n) => sum + n, 0);
+      const first = totals[0] ?? null;
+      const last = totals[totals.length - 1] ?? null;
+      const min = Math.min(...totals);
+      const max = Math.max(...totals);
+      const trend = first != null && last != null ? (last > first ? 'increasing' : last < first ? 'decreasing' : 'stable') : null;
+      
+      const riskFactors = (d?.surge_prediction?.risk_factors || []).slice(0, 3).join(', ');
+
+      const lines: string[] = [];
+      lines.push(`• Trend: ${trend || 'stable'}; monthly range ${formatNumber(min)}–${formatNumber(max)}.`);
+      lines.push(`• Total forecasted cases (${sp.length} months): ${formatNumber(totalSum)}.`);
+      if (riskFactors) lines.push(`• Key risks: ${riskFactors}.`);
+      sections.push(['Surge Forecast', ...lines].join('\n'));
+    }
+  }
+
+  // Patient Volume (concise)
+  {
+    const vp = d?.volume_prediction?.forecasted_data || [];
+    if (vp.length) {
+      const predicted = vp.map((x: { predicted_volume?: number | string }) => Number(x.predicted_volume || 0));
+      const actuals = vp
+        .map((x) => (typeof x.actual_volume === 'number' ? Number(x.actual_volume) : NaN))
+        .filter((n) => !Number.isNaN(n));
+      const pAvg = Math.round(predicted.reduce((s, n) => s + n, 0) / predicted.length);
+      const aAvg = actuals.length ? Math.round(actuals.reduce((s, n) => s + n, 0) / actuals.length) : null;
+      const pFirst = predicted[0] ?? null;
+      const pLast = predicted[predicted.length - 1] ?? null;
+      const vTrend = pFirst != null && pLast != null ? (pLast > pFirst ? 'increasing' : pLast < pFirst ? 'decreasing' : 'stable') : null;
+      const latest = vp[vp.length - 1]!;
+      
+      const lines: string[] = [];
+      lines.push(`• Trend: ${vTrend || 'stable'}; avg predicted ${formatNumber(pAvg)}${aAvg != null ? `, avg actual ${formatNumber(aAvg)}` : ''}.`);
+      lines.push(`• Latest (${latest.date}): predicted ${formatNumber(Number(latest.predicted_volume))}${typeof latest.actual_volume === 'number' ? `, actual ${formatNumber(Number(latest.actual_volume))}` : ''}.`);
+      
+      sections.push(['Patient Volume', ...lines].join('\n'));
+    }
+  }
+
+  // Illness Forecast (top conditions + risk mix)
+  {
+    const mif = d?.monthly_illness_forecast?.monthly_illness_forecast || [];
+    if (mif.length) {
+      const sorted = [...mif].sort((a: { predicted_cases?: number }, b: { predicted_cases?: number }) => Number(b.predicted_cases || 0) - Number(a.predicted_cases || 0));
+      const top = sorted.slice(0, 3).map((x: { illness: string; month: string; predicted_cases: number; trend?: string }) => `${x.illness} (${x.month}: ${formatNumber(Number(x.predicted_cases))}${x.trend ? `; ${x.trend}` : ''})`).join(', ');
+      const high = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'high').length;
+      const med = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'medium').length;
+      const low = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'low').length;
+      
+      const lines: string[] = [];
+      lines.push(`• Top conditions: ${top}.`);
+      lines.push(`• Risk mix: High ${high}, Medium ${med}, Low ${low}.`);
+      
+      sections.push(['Illness Forecast', ...lines].join('\n'));
+    }
+  }
+
+  // Health Trends (increasing + weekly top)
+  {
+    const inc = d?.health_trends?.trend_analysis?.increasing_conditions || [];
+    const weeklyTop = d?.health_trends?.top_illnesses_by_week || [];
+    const lines: string[] = [];
+    if (Array.isArray(inc) && inc.length) lines.push(`• Rising risks: ${inc.slice(0, 3).join(', ')}.`);
+    if (Array.isArray(weeklyTop) && weeklyTop.length) {
+      const topTriplet = weeklyTop.slice(0, 3).map((it: { medical_condition: string; count: number }) => `${it.medical_condition} (${formatNumber(it.count)})`).join(', ');
+      lines.push(`• Top this week: ${topTriplet}.`);
+    }
+    if (lines.length) sections.push(['Health Trends', ...lines].join('\n'));
+  }
+
+  // Associations & Factors
+  {
+    const ia = d?.illness_prediction;
+    if (ia) {
+      const assoc = ia.association_result;
+      const factorsArr = ia.significant_factors || [];
+      const cleanFactorsArr = Array.isArray(factorsArr)
+        ? factorsArr
+            .map((s: string) => s.replace(/\s*\(p\s*<[^)]*\)\s*/gi, '').trim())
+            .filter(Boolean)
+        : [];
+      const factors = cleanFactorsArr.length ? cleanFactorsArr.slice(0, 3).join(', ') : null;
+
+      const lines: string[] = [];
+      if (assoc) lines.push(`• Summary: ${assoc}.`);
+      if (factors) lines.push(`• Contributing factors: ${factors}.`);
+      sections.push(['Associations', ...lines].join('\n'));
+    }
+  }
+
+  if (!sections.length) return 'Analytics results are not available yet.';
+  return sections.join('\n\n');
+});
+
 const createVolumeComparisonChart = () => {
   if (!volumeComparisonChart.value) return;
 
@@ -1108,8 +1516,76 @@ const createVolumeComparisonChart = () => {
   const predictedVolume = [45, 52, 48, 55, 60, 58];
   const actualVolume = [42, 50, 46, 52, 58, 56];
 
-  // If we have surge prediction data, use it
-  if (analyticsData.value.surge_prediction?.forecasted_monthly_cases) {
+  // Prefer volume prediction data when available
+  if (
+    analyticsData.value.volume_prediction?.forecasted_data &&
+    Array.isArray(analyticsData.value.volume_prediction.forecasted_data)
+  ) {
+    const forecast = analyticsData.value.volume_prediction.forecasted_data;
+    const labels = forecast.map((item) => item.date);
+    const predicted = forecast.map((item) => item.predicted_volume);
+    const actual = forecast.map((item) => (item.actual_volume !== undefined ? item.actual_volume : null));
+
+    volumeComparisonChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Predicted Volume',
+            data: predicted,
+            borderColor: 'rgba(33, 150, 243, 1)',
+            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: 'rgba(33, 150, 243, 1)',
+          },
+          {
+            label: 'Actual Volume',
+            data: actual,
+            borderColor: 'rgba(76, 175, 80, 1)',
+            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: 'rgba(76, 175, 80, 1)',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: 'Predicted vs Actual Patient Volume',
+          },
+          legend: {
+            display: true,
+            position: 'bottom',
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Number of Patients',
+            },
+          },
+          x: {
+            title: {
+              display: true,
+              text: 'Time Period',
+            },
+          },
+        },
+      },
+    });
+  } else if (analyticsData.value.surge_prediction?.forecasted_monthly_cases) {
     const forecastData = analyticsData.value.surge_prediction.forecasted_monthly_cases;
     const labels = forecastData.map((item) => item.date);
     const predicted = forecastData.map((item) => item.total_cases);
@@ -1240,6 +1716,104 @@ const createVolumeComparisonChart = () => {
   }
 };
 
+/**
+ * Creates model accuracy doughnut chart
+ * @returns {void}
+ *
+ * How it works:
+ * 1. Gets the canvas element for model accuracy chart
+ * 2. Destroys existing chart if it exists
+ * 3. Creates new Chart.js doughnut chart showing accuracy vs remaining
+ */
+const createModelAccuracyChart = () => {
+  const accuracy = analyticsData.value.surge_prediction?.model_accuracy;
+  if (!modelAccuracyChart.value || accuracy === undefined || accuracy === null) return;
+
+  if (modelAccuracyChartInstance) {
+    modelAccuracyChartInstance.destroy();
+  }
+
+  const ctx = modelAccuracyChart.value.getContext('2d');
+  if (!ctx) return;
+
+  const accValue = Math.max(0, Math.min(100, Number(accuracy)));
+  const remaining = 100 - accValue;
+
+  modelAccuracyChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Accuracy', 'Remaining'],
+      datasets: [
+        {
+          data: [accValue, remaining],
+          backgroundColor: ['rgba(76, 175, 80, 0.85)', 'rgba(200, 200, 200, 0.35)'],
+          borderColor: ['rgba(76, 175, 80, 1)', 'rgba(200, 200, 200, 0.8)'],
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Model Accuracy',
+        },
+        legend: {
+          position: 'bottom',
+        },
+      },
+      cutout: '60%',
+    },
+  });
+};
+
+
+const createConfidenceLevelChart = () => {
+  const confidence = analyticsData.value.illness_prediction?.confidence_level;
+  if (!confidenceLevelChart.value || confidence === undefined || confidence === null) return;
+
+  if (confidenceLevelChartInstance) {
+    confidenceLevelChartInstance.destroy();
+  }
+
+  const ctx = confidenceLevelChart.value.getContext('2d');
+  if (!ctx) return;
+
+  const confValue = Math.max(0, Math.min(100, Number(confidence)));
+  const remaining = 100 - confValue;
+
+  confidenceLevelChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Confidence', 'Remaining'],
+      datasets: [
+        {
+          data: [confValue, remaining],
+          backgroundColor: ['rgba(33, 150, 243, 0.85)', 'rgba(200, 200, 200, 0.35)'],
+          borderColor: ['rgba(33, 150, 243, 1)', 'rgba(200, 200, 200, 0.8)'],
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Prediction Confidence',
+        },
+        legend: {
+          position: 'bottom',
+        },
+      },
+      cutout: '60%',
+    },
+  });
+};
+
 const createAllCharts = async () => {
   await nextTick();
 
@@ -1248,7 +1822,10 @@ const createAllCharts = async () => {
     createGenderChart();
     createTrendsChart();
     createSurgeChart();
+    createMonthlyIllnessChart();
     createVolumeComparisonChart();
+    createModelAccuracyChart();
+    createConfidenceLevelChart();
   } catch (error) {
     console.error('Error creating charts:', error);
   }
@@ -1351,9 +1928,20 @@ const getSeverityLevel = (index: number): string => {
   return levels[index % levels.length] || 'Monitor';
 };
 
+const riskLevelColor = (level?: string): string => {
+  const l = (level || '').toLowerCase();
+  if (l === 'high') return 'negative';
+  if (l === 'medium') return 'warning';
+  if (l === 'low') return 'positive';
+  return 'primary';
+};
+
 onMounted(() => {
   // Load notifications
   void loadNotifications();
+
+  // Fetch analytics data
+  void fetchDoctorAnalytics();
 
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
@@ -1785,8 +2373,9 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .greeting-card::before {
@@ -2053,8 +2642,9 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .analytics-header {
@@ -2095,6 +2685,110 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   margin-top: 20px;
+}
+
+/* Structured Grid Layout for Analytics Panels */
+.structured-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'surge volume'
+    'trends trends'
+    'demographics gender';
+  gap: 20px;
+}
+
+/* Map panels to grid areas */
+.surge-panel { grid-area: surge; }
+.prediction-panel { grid-area: volume; }
+.trends-panel { grid-area: trends; }
+.demographics-panel { grid-area: demographics; }
+ .gender-panel { grid-area: gender; }
+ 
+ /* Analytics content layout to place sidebar inside card */
+ .analytics-content {
+   display: grid;
+   grid-template-columns: 2fr 1fr;
+   gap: 20px;
+   align-items: stretch;
+ }
+ .analytics-sidebar-panel { align-self: stretch; display: flex; flex-direction: column; height: 100%; }
+ 
+ /* Fixed Right Sidebar Styles */
+.fixed-right-sidebar {
+  position: fixed;
+  top: 96px;
+  right: 16px;
+  width: 320px;
+  z-index: 1100;
+}
+.sidebar-card { 
+  border-radius: 12px; 
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+ }
+.sidebar-actions { 
+  display: flex; 
+  gap: 12px; 
+  margin-top: 8px; 
+}
+.sidebar-btn { 
+  flex: 1; 
+}
+.ai-summary-header { 
+  font-weight: 700; 
+  color: #1f3d3a; 
+  margin-bottom: 8px; 
+  font-size: 16px; 
+  letter-spacing: 0.2px; 
+}
+.ai-summary-content { 
+  color: #143b38; 
+  font-size: 15px; 
+}
+
+/* Summary card layout */
+.ai-summary-card { 
+  border-radius: 14px; 
+  box-shadow: 0 3px 12px rgba(0,0,0,0.08); 
+  padding: 16px; 
+  min-height: 220px; 
+  margin-top: 20px; 
+}
+.actions-row { 
+  display: flex; 
+  gap: 12px; 
+  margin-bottom: 6px; 
+}
+.ai-summary-disclaimer { 
+  color: #546E7A; 
+  font-size: 14px; 
+  margin-bottom: 12px; 
+  line-height: 1.5; 
+}
+.ai-summary-text { color: #143b38; font-size: 15px; line-height: 1.6; white-space: pre-wrap; } 
+
+/* Responsive adjustments for grid and sidebar */
+@media (max-width: 1200px) {
+  .structured-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'surge volume'
+      'trends trends'
+      'demographics gender';
+  }
+}
+
+@media (max-width: 768px) {
+  .structured-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'surge'
+      'volume'
+      'trends'
+      'demographics'
+      'gender';
+  }
+  .analytics-content { grid-template-columns: 1fr; }
 }
 
 .analytics-panel {
@@ -2239,31 +2933,35 @@ onUnmounted(() => {
 
 .summary-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  margin-top: 16px;
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   text-align: center;
 }
 
-.stat-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 5px;
+/* Improve readability specifically for summary stats */
+.summary-stats .stat-label {
+  font-size: 14px;
+  color: #374151;
+  margin-bottom: 6px;
+  font-weight: 600;
 }
 
-.stat-value {
-  font-size: 18px;
-  font-weight: bold;
-  color: #286660;
+.summary-stats .stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
 }
 
 .trend-analysis {
@@ -2837,4 +3535,9 @@ onUnmounted(() => {
     display: none;
   }
 }
+
+
+/* Forecast answer text */
+.forecast-answer { margin-top: 8px; color: #546E7A; font-size: 14px; }
+
 </style>

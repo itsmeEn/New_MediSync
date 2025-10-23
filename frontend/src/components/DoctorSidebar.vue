@@ -28,26 +28,12 @@
             @click="navigateToProfile"
             v-ripple
           >
+            <!-- Use profile picture when available; fallback to initials -->
             <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
             <div v-else class="profile-placeholder">
               {{ userInitials }}
             </div>
           </q-avatar>
-          <q-btn
-            round
-            color="primary"
-            icon="camera_alt"
-            size="sm"
-            class="upload-btn"
-            @click="triggerFileUpload"
-          />
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/*"
-            style="display: none"
-            @change="handleProfilePictureUpload"
-          />
           <q-icon
             :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
             :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
@@ -156,6 +142,8 @@ import { ref, computed, onMounted, defineProps, defineEmits } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
+import { performLogout } from 'src/utils/logout';
+import { showVerificationToastOnce } from 'src/utils/verificationToast';
 
 // Props
 interface Props {
@@ -170,7 +158,6 @@ const props = withDefaults(defineProps<Props>(), {
 // Emits
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  profilePictureUpdated: [url: string];
 }>();
 
 // Types
@@ -187,7 +174,6 @@ const router = useRouter();
 const $q = useQuasar();
 
 // Reactive data
-const fileInput = ref<HTMLInputElement | null>(null);
 const userProfile = ref<UserProfile>({
   id: 0,
   full_name: '',
@@ -270,14 +256,9 @@ const logout = () => {
     cancel: true,
     persistent: true,
   }).onOk(() => {
-    // Clear all authentication data
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    
     // Close the drawer
     drawerOpen.value = false;
-    
+
     // Show logout notification
     $q.notify({
       type: 'positive',
@@ -285,70 +266,15 @@ const logout = () => {
       position: 'top',
       timeout: 2000,
     });
-    
-    // Redirect to login page (void to ignore Promise)
-    void router.push('/login');
+
+    // Perform centralized logout and redirect
+    void performLogout(router);
   });
 };
 
 const navigateToProfile = () => {
   void router.push('/doctor-settings');
   emit('update:modelValue', false); // Close the sidebar on mobile
-};
-
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  
-  if (!file) return;
-
-  // Validate file type
-  if (!file.type.startsWith('image/')) {
-    $q.notify({
-      type: 'negative',
-      message: 'Please select a valid image file',
-    });
-    return;
-  }
-
-  // Validate file size (max 5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    $q.notify({
-      type: 'negative',
-      message: 'File size must be less than 5MB',
-    });
-    return;
-  }
-
-  try {
-    const formData = new FormData();
-    formData.append('profile_picture', file);
-
-    const response = await api.post('/users/profile/update/picture/', formData);
-
-    userProfile.value.profile_picture = response.data.user.profile_picture;
-    emit('profilePictureUpdated', response.data.user.profile_picture);
-
-    // Store the updated profile picture in localStorage for cross-page sync
-    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-    currentUser.profile_picture = response.data.user.profile_picture;
-    localStorage.setItem('user', JSON.stringify(currentUser));
-
-    $q.notify({
-      type: 'positive',
-      message: 'Profile picture updated successfully',
-    });
-  } catch (error) {
-    console.error('Error uploading profile picture:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to update profile picture',
-    });
-  }
 };
 
 const loadUserProfile = async () => {
@@ -370,13 +296,7 @@ const loadUserProfile = async () => {
 
     // Show notification if verification status changed to approved
     if (previousStatus !== newStatus && newStatus === 'approved') {
-      $q.notify({
-        type: 'positive',
-        message: '🎉 Your account has been verified!',
-        position: 'top',
-        timeout: 5000,
-        actions: [{ label: 'Dismiss', color: 'white' }],
-      });
+      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
     }
   } catch (error) {
     console.error('Error loading user profile:', error);
@@ -452,17 +372,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  padding: 0 !important;
-}
 
 .verified-badge {
   position: absolute;
@@ -494,12 +403,6 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(30, 118, 104, 0.3);
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
 
 .profile-placeholder {
   width: 100%;

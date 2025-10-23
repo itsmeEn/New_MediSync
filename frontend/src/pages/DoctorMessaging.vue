@@ -17,40 +17,39 @@
                 <h4 class="greeting-title">Messages</h4>
                 <p class="greeting-subtitle">Secure communication with your team</p>
               </div>
-              <div class="greeting-icon">
-                <q-icon name="message" size="3rem" />
-              </div>
+              <!-- Removed greeting icon for a cleaner header -->
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- Verification Warning Card -->
-        <div v-if="userProfile.verification_status !== 'approved'" class="verification-section">
-          <q-card class="verification-card">
-            <q-card-section class="verification-content">
-              <q-icon name="warning" size="64px" color="orange" />
-              <h4 class="verification-title">Account Verification Required</h4>
-              <p class="verification-message">
-                Your account needs to be verified before you can access messaging functionality.
-                Please upload your verification document to complete the process.
-              </p>
-              <q-chip color="negative" text-color="white" size="lg" icon="cancel">
-                Not Verified
-              </q-chip>
-              <q-btn
-                color="primary"
-                label="Upload Verification Document"
-                icon="upload_file"
-                @click="$router.push('/verification')"
-                class="q-mt-md"
-                unelevated
-              />
-            </q-card-section>
-          </q-card>
-        </div>
+        <!-- Verification Overlay (replicates NurseMessaging overlay) -->
+        <!-- Moved into main section to overlay content while preserving layout -->
 
         <!-- Main Messaging Card -->
         <div class="main-messaging-section">
+          <div v-if="userProfile.verification_status !== 'approved'" class="verification-overlay">
+            <q-card class="verification-card">
+              <q-card-section class="verification-content">
+                <q-icon name="warning" size="64px" color="orange" />
+                <h4 class="verification-title">Account Verification Required</h4>
+                <p class="verification-message">
+                  Your account needs to be verified before you can access messaging functionality.
+                  Please upload your verification document to complete the process.
+                </p>
+                <q-chip color="negative" text-color="white" size="lg" icon="cancel">
+                  Not Verified
+                </q-chip>
+                <q-btn
+                  color="primary"
+                  label="Upload Verification Document"
+                  icon="upload_file"
+                  @click="$router.push('/verification')"
+                  class="q-mt-md"
+                  unelevated
+                />
+              </q-card-section>
+            </q-card>
+          </div>
           <q-card
             class="glassmorphism-card main-messaging-card"
             :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }"
@@ -78,86 +77,57 @@
                 <p class="empty-text">No users available</p>
               </div>
 
-              <div v-else class="users-carousel">
-                <q-carousel
-                  v-model="currentSlide"
-                  swipeable
-                  animated
-                  infinite
-                  autoplay
-                  :autoplay-interval="4000"
-                  arrows
-                  navigation
-                  class="users-slider"
-                >
-                  <q-carousel-slide
-                    v-for="(userGroup, index) in userGroups"
-                    :key="index"
-                    :name="`slide-${index}`"
-                    class="slide-content"
-                  >
-                    <div class="users-row">
-                      <div
-                        v-for="user in userGroup"
-                        :key="user.id"
-                        class="user-item-wrapper"
-                      >
-                        <!-- User Card -->
-                        <div class="user-item" @click="startConversation(user)">
-                          <div class="avatar-container">
-                            <q-avatar size="80px" class="user-avatar">
-                              <img
-                                v-if="user.profile_picture"
-                                :src="getMediaUrl(user.profile_picture)"
-                                :alt="user.full_name"
-                              />
-                              <q-icon
-                                v-else
-                                :name="user.role === 'doctor' ? 'medical_services' : 'local_hospital'"
-                                size="40px"
-                                color="white"
-                              />
-                            </q-avatar>
-                          </div>
-
-                          <div class="avatar-info">
-                            <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
-                            <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
-                          </div>
-                        </div>
-
-                        <!-- Icons outside of the card -->
-                        <div class="user-icons">
-                          <q-btn
-                            round
-                            size="sm"
-                            color="primary"
-                            icon="chat"
-                            class="outside-icon chat-outside"
-                            @click="startConversation(user)"
+              <div v-else class="users-scroll">
+                <div class="scroll-actions">
+                  <q-btn round dense icon="chevron_left" @click="scrollUsers('left')" aria-label="Scroll left" />
+                  <q-btn round dense icon="chevron_right" @click="scrollUsers('right')" aria-label="Scroll right" />
+                </div>
+                <div class="users-scroll-viewport" ref="usersScrollEl">
+                  <div class="users-row">
+                    <div
+                      v-for="user in availableUsers"
+                      :key="user.id"
+                      class="user-item"
+                      @click="startConversation(user)"
+                    >
+                      <div class="avatar-container">
+                        <q-avatar size="80px" class="user-avatar">
+                          <img
+                            v-if="user.profile_picture"
+                            :src="getMediaUrl(user.profile_picture)"
+                            :alt="user.full_name"
                           />
-                          <q-badge
-                            v-if="user.verification_status === 'approved'"
-                            color="positive"
-                            class="outside-verification-badge"
-                          >
-                            <q-icon name="verified" size="16px" />
-                          </q-badge>
-                          <q-chip
-                            v-if="user.verification_status === 'approved'"
-                            color="positive"
-                            text-color="white"
-                            size="xs"
-                            icon="verified_user"
-                            class="outside-verification-chip"
-                          >
-                            Verified
-                          </q-chip>
-                        </div>
+                          <div v-else class="avatar-initials">{{ getInitials(user?.full_name || '') }}</div>
+                        </q-avatar>
+                        <q-badge
+                          v-if="user.verification_status === 'approved'"
+                          floating
+                          color="positive"
+                          class="verification-badge"
+                        >
+                          <q-icon name="verified" size="16px" />
+                        </q-badge>
                       </div>
+
+                      <div class="avatar-info">
+                        <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
+                        <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
+                        <q-chip
+                          v-if="user.verification_status === 'approved'"
+                          color="positive"
+                          text-color="white"
+                          size="xs"
+                          icon="verified_user"
+                          class="verification-chip"
+                        >
+                          Verified
+                        </q-chip>
+                      </div>
+
+                      <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
                     </div>
-                  </q-carousel-slide>
-                </q-carousel>
+                  </div>
+                </div>
               </div>
             </q-card-section>
 
@@ -169,6 +139,7 @@
                   color="positive"
                   text-color="white"
                   unelevated
+                  :disable="userProfile.verification_status !== 'approved'"
                   @click="openNewConversationDialog"
                 >
                   <q-icon name="add" class="btn-icon" />
@@ -300,14 +271,7 @@
                       :src="getMediaUrl(message.sender.profile_picture)"
                       :alt="message.sender.full_name"
                     />
-                    <q-icon
-                      v-else
-                      :name="
-                        message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'
-                      "
-                      size="16px"
-                      color="white"
-                    />
+                    <div v-else class="avatar-initials">{{ getInitials(message.sender.full_name) }}</div>
                   </q-avatar>
                   <span class="message-sender text-white-7">
                     {{ message.sender.full_name }}
@@ -405,7 +369,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
@@ -465,7 +429,8 @@ const selectedConversation = ref<Conversation | null>(null);
 const showChatModal = ref(false);
 const showNewConversationDialog = ref(false);
 const newMessage = ref('');
-const currentSlide = ref(0);
+// Horizontal scroll ref for available users list
+const usersScrollEl = ref<HTMLElement | null>(null);
 
 // User profile
 const userProfile = ref<{
@@ -482,18 +447,23 @@ const userProfile = ref<{
   verification_status: 'not_submitted',
 });
 
-// Computed
+// Smooth horizontal scrolling controls for users list
+const scrollUsers = (dir: 'left' | 'right'): void => {
+  const el = usersScrollEl.value;
+  if (!el) return;
+  const amount = Math.round(el.clientWidth * 0.8);
+  el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+};
 
-const userGroups = computed(() => {
-  const groups = [];
-  const usersPerSlide = 6; // Show 6 users per slide
-
-  for (let i = 0; i < availableUsers.value.length; i += usersPerSlide) {
-    groups.push(availableUsers.value.slice(i, i + usersPerSlide));
-  }
-
-  return groups;
-});
+// Helper: derive initials from a full name
+const getInitials = (name: string): string => {
+  const safe = (name || '').trim();
+  if (!safe) return 'U';
+  const parts = safe.split(/\s+/);
+  const initials = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  // Use charAt to avoid undefined when string is empty; final fallback 'U'
+  return initials || (safe ? safe.charAt(0).toUpperCase() : 'U');
+};
 
 // Methods
 const getCurrentUser = (): void => {
@@ -820,39 +790,55 @@ onMounted(() => {
 <style scoped>
 /* Import the same styles as DoctorDashboard */
 /* Verification Styles */
-.verification-section {
-  margin-bottom: 20px;
+/* Overlay verification to match NurseMessaging */
+.verification-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
 }
 
 .verification-card {
-  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-  border: 2px solid #f39c12;
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(243, 156, 18, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  margin: 20px;
 }
 
 .verification-content {
   text-align: center;
-  padding: 30px;
+  padding: 40px 30px;
 }
 
 .verification-title {
-  color: #d68910;
-  margin: 20px 0 15px 0;
+  font-size: 1.5rem;
   font-weight: 600;
+  color: #333;
+  margin: 20px 0 16px 0;
 }
 
 .verification-message {
-  color: #8e6a00;
-  margin-bottom: 20px;
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 1rem;
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 24px;
 }
 
 .disabled-content {
-  opacity: 0.5;
+  opacity: 0.3;
   pointer-events: none;
-  filter: grayscale(50%);
+  filter: blur(2px);
 }
 
 /* Prototype Header Styles */
@@ -1149,6 +1135,7 @@ onMounted(() => {
 
 /* Main Messaging Section */
 .main-messaging-section {
+  position: relative;
   margin-bottom: 24px;
 }
 
@@ -1734,16 +1721,6 @@ onMounted(() => {
   align-items: center;
 }
 
-.search-container {
-  width: 100%;
-  max-width: 500px;
-}
-
-.search-input {
-  background: white;
-  border-radius: 8px;
-}
-
 .header-right {
   display: flex;
   align-items: center;
@@ -1807,43 +1784,37 @@ onMounted(() => {
   color: white;
 }
 
-/* Carousel Styles */
-.users-carousel {
+/* Horizontal Users Scroll Styles */
+.users-scroll {
   margin: 20px 0;
+  position: relative;
 }
 
-.users-slider {
-  height: 240px;
+.scroll-actions {
+  position: absolute;
+  right: 10px;
+  top: -8px;
+  display: flex;
+  gap: 8px;
+}
+
+.users-scroll-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
   border-radius: 16px;
-  overflow: visible;
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.35);
   box-shadow: 0 8px 24px rgba(40, 102, 96, 0.12);
-}
-
-.slide-content {
-  padding: 20px;
-  height: 100%;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  padding: 16px;
 }
 
 .users-row {
   display: flex;
   gap: 20px;
-  justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-.user-item-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  width: max-content;
 }
 
 .user-item {
@@ -2175,6 +2146,20 @@ onMounted(() => {
   position: relative;
 }
 
+/* Initials fallback for avatars */
+.avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #286660;
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 50%;
+}
+
 /* Messaging Aesthetic Enhancements Overrides */
 .glassmorphism-conversation-card {
   border: 1px solid rgba(40, 102, 96, 0.12);
@@ -2202,5 +2187,13 @@ onMounted(() => {
 .conversation-avatar :deep(.q-avatar) {
   border: 2px solid rgba(40, 102, 96, 0.15);
   box-shadow: 0 4px 12px rgba(40, 102, 96, 0.12);
+}
+/* Override card to match NurseMessaging glassmorphism */
+.glassmorphism-card {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 </style>

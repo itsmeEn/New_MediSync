@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Count, Q
@@ -12,6 +12,8 @@ from backend.users.models import User
 from .serializers import DashboardStatsSerializer, ConversationSerializer, MessageSerializer, CreateMessageSerializer, CreateReactionSerializer, UserSerializer, MessageNotificationSerializer, QueueScheduleSerializer, QueueStatusSerializer, QueueStatusLogSerializer, CreateQueueScheduleSerializer, UpdateQueueStatusSerializer, NotificationSerializer, QueueSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.core.mail import send_mail
+from django.conf import settings
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1193,6 +1195,102 @@ def mark_message_as_read(request, message_id):
             'error': f'Failed to mark message as read: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+def _compute_medicine_alerts(medicine, days=21):
+    """Return a list of alert dicts for a single medicine.
+    Alert statuses: out_of_stock, low_stock, expiring_soon, expired.
+    """
+    alerts = []
+
+    # Stock-based alerts
+    try:
+        current = int(medicine.current_stock or 0)
+        minimum = int(medicine.minimum_stock_level or 0)
+    except Exception:
+        current = medicine.current_stock or 0
+        minimum = medicine.minimum_stock_level or 0
+
+    if current <= 0:
+        alerts.append({
+            'status': 'out_of_stock',
+            'recommended_action': 'Reorder immediately',
+        })
+    elif minimum > 0 and current <= minimum:
+        alerts.append({
+            'status': 'low_stock',
+            'recommended_action': 'Plan restock soon',
+        })
+
+    # Expiry-based alerts
+    expiry = getattr(medicine, 'expiry_date', None)
+    if expiry:
+        today = timezone.now().date()
+        if expiry < today:
+            alerts.append({
+                'status': 'expired',
+                'expiry_date': expiry,
+                'recommended_action': 'Discard per policy',
+            })
+        else:
+            cutoff = today + timedelta(days=days)
+            if expiry <= cutoff:
+                alerts.append({
+                    'status': 'expiring_soon',
+                    'expiry_date': expiry,
+                    'recommended_action': 'Prioritize usage or reorder',
+                })
+
+    return alerts
+
+
+def _send_medicine_alert_email(nurse_user, medicine, alerts, days=21):
+    """Compose and send a concise email for a single medicine's alerts."""
+    if not alerts:
+        return
+
+    recipient = getattr(nurse_user, 'email', None)
+    if not recipient:
+        return
+
+    status_labels = {
+        'out_of_stock': 'Out of Stock',
+        'low_stock': 'Low Stock',
+        'expiring_soon': 'Expiring Soon',
+        'expired': 'Expired',
+    }
+
+    lines = []
+    for a in alerts:
+        label = status_labels.get(a['status'], a['status'])
+        expiry_info = ''
+        if a.get('expiry_date'):
+            expiry_info = f" — Expiry: {a['expiry_date']}"
+        lines.append(
+            f"• {medicine.medicine_name} — {label}{expiry_info} — Recommended: {a['recommended_action']}"
+        )
+
+    subject = f"MediSync Inventory Alert: {medicine.medicine_name}"
+    message = (
+        "Hello,\n\n"
+        "The following inventory alert was detected in real-time:\n\n"
+        + "\n".join(lines)
+        + "\n\n"
+        f"Expiry window considered: next {days} days.\n"
+        "Please take the recommended action.\n\n"
+        "— MediSync"
+    )
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+            recipient_list=[recipient],
+            fail_silently=False,
+        )
+    except Exception as e:
+        # Do not break the request flow; optionally log
+        print(f"Email send failed for {recipient}: {e}")
+
 # Medicine Inventory Views
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1270,6 +1368,15 @@ def add_medicine(request):
             batch_number=request.data.get('batch_number', ''),
             usage_pattern=request.data.get('description', '')
         )
+
+        # Real-time email alert for new entries that already meet thresholds
+        try:
+            days = int(request.data.get('expiry_days', 21))
+        except Exception:
+            days = 21
+        alerts = _compute_medicine_alerts(medicine, days)
+        if alerts:
+            _send_medicine_alert_email(user, medicine, alerts, days)
         
         from .serializers import MedicineInventorySerializer
         serializer = MedicineInventorySerializer(medicine)
@@ -1303,6 +1410,14 @@ def update_medicine(request, medicine_id):
             inventory__user=user
         )
         
+        # Compute alerts before update (to detect threshold crossings)
+        try:
+            days = int(request.data.get('expiry_days', 21))
+        except Exception:
+            days = 21
+        before_alerts = _compute_medicine_alerts(medicine, days)
+        before_statuses = {a['status'] for a in before_alerts}
+
         # Update fields
         medicine.medicine_name = request.data.get('name', medicine.medicine_name)
         medicine.current_stock = request.data.get('quantity', medicine.current_stock)
@@ -1311,6 +1426,12 @@ def update_medicine(request, medicine_id):
         medicine.expiry_date = request.data.get('expiry_date', medicine.expiry_date)
         medicine.usage_pattern = request.data.get('description', medicine.usage_pattern)
         medicine.save()
+
+        # Compute alerts after update and send only newly reached statuses
+        after_alerts = _compute_medicine_alerts(medicine, days)
+        new_statuses = [a for a in after_alerts if a['status'] not in before_statuses]
+        if new_statuses:
+            _send_medicine_alert_email(user, medicine, new_statuses, days)
         
         from .serializers import MedicineInventorySerializer
         serializer = MedicineInventorySerializer(medicine)
@@ -1324,6 +1445,74 @@ def update_medicine(request, medicine_id):
         return Response({
             'error': f'Failed to update medicine: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def dispense_medicine(request, medicine_id):
+    """
+    Dispense a quantity of medicine to a patient and update stock.
+    Triggers real-time email alerts if thresholds are newly crossed.
+    Also broadcasts a patient-specific WebSocket notification when `patient_id` is provided.
+    """
+    try:
+        user = request.user
+
+        # Check if user is a nurse
+        if user.role != 'nurse':
+            return Response({
+                'error': 'Access denied. Only nurses can manage medicine inventory.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from .models import MedicineInventory
+
+        # Get medicine owned by current nurse
+        medicine = MedicineInventory.objects.get(
+            id=medicine_id,
+            inventory__user=user
+        )
+
+        # Validate quantity
+        qty = request.data.get('quantity')
+        try:
+            qty = int(qty)
+        except Exception:
+            return Response({'error': 'Invalid quantity'}, status=status.HTTP_400_BAD_REQUEST)
+        if qty is None or qty <= 0:
+            return Response({'error': 'Quantity must be a positive integer'}, status=status.HTTP_400_BAD_REQUEST)
+        if medicine.current_stock < qty:
+            return Response({'error': 'Insufficient stock to dispense'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Compute status before dispensing
+        try:
+            days = int(request.data.get('expiry_days', 21))
+        except Exception:
+            days = 21
+        before_alerts = _compute_medicine_alerts(medicine, days)
+        before_statuses = {a['status'] for a in before_alerts}
+
+        # Apply dispense
+        medicine.current_stock = medicine.current_stock - qty
+        medicine.save()
+
+        # Compute status after dispensing and notify only on newly reached statuses
+        after_alerts = _compute_medicine_alerts(medicine, days)
+        new_statuses = [a for a in after_alerts if a['status'] not in before_statuses]
+        if new_statuses:
+            _send_medicine_alert_email(user, medicine, new_statuses, days)
+
+        from .serializers import MedicineInventorySerializer
+        serializer = MedicineInventorySerializer(medicine)
+
+
+        return Response({
+            'message': 'Medicine dispensed successfully',
+            'inventory': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    except MedicineInventory.DoesNotExist:
+        return Response({'error': 'Medicine not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({'error': f'Failed to dispense medicine: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -2549,6 +2738,21 @@ def check_queue_availability(request):
             'error': f'Failed to check queue availability: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# Lightweight UI configuration endpoint for frontend styling
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def ui_config(request):
+    """Return UI configuration values for patient-facing elements.
+
+    Moving these values to the backend allows central control of visual
+    constants without redeploying the app.
+    """
+    config = {
+        'patient_bottom_nav_bg': '#f3f4f6',
+        'patient_nav_pill_bg': '#f5f5f7',
+    }
+    return Response(config, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

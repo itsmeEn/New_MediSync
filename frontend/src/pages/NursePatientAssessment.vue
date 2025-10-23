@@ -1,1406 +1,955 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <NurseHeader
-      :search-text="searchText"
-      :search-results="searchResults"
-      :unread-notifications-count="unreadNotificationsCount"
-      :current-time="currentTime"
-      :weather-data="weatherData"
-      :weather-loading="weatherLoading"
-      :weather-error="weatherError"
-      :location-data="locationData"
-      :location-loading="locationLoading"
-      @toggle-drawer="toggleRightDrawer"
-      @search-input="onSearchInput"
-      @clear-search="clearSearch"
-      @select-search-result="selectSearchResult"
-      @show-notifications="showNotifications = true"
-    />
+    <!-- Standardized Header Component -->
+    <NurseHeader @toggle-drawer="rightDrawerOpen = !rightDrawerOpen" />
 
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials || 'NU' }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="profileFileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">Nurse</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('nurse-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('patient-assessment')"
-            class="nav-item active"
-          >
-            <q-item-section avatar>
-              <q-icon name="assignment" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('nurse-medicine-inventory')"
-            class="nav-item"
-          >
-            <q-item-section avatar>
-              <q-icon name="medication" />
-            </q-item-section>
-            <q-item-section>Medicine Inventory</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+    <!-- Standardized Sidebar Component -->
+    <NurseSidebar v-model="rightDrawerOpen" active-route="patients" />
 
     <q-page-container class="page-container-with-fixed-header">
-      <!-- Greeting Section -->
-      <div class="greeting-section">
-        <q-card class="greeting-card">
-          <q-card-section class="greeting-content">
-            <h2 class="greeting-text">
-              Good {{ getTimeOfDay() }},
-              {{
-                userProfile.role
-                  ? userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)
-                  : 'Nurse'
-              }}
-              {{ userProfile.full_name || 'User' }}
-            </h2>
-            <p class="greeting-subtitle">
-              Patient assessment and doctor assignment - {{ currentDate }}
-            </p>
-          </q-card-section>
-        </q-card>
-      </div>
-
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="header-content">
-          <div class="header-left">
-            <h4 class="page-title">Patient Management</h4>
-          </div>
-        </div>
-      </div>
-
-      <div class="page-content">
-        <!-- Patient Management temporarily disabled -->
-        <div class="content-placeholder">
-          <q-banner class="bg-blue-1 text-blue-8" rounded>
-            <template v-slot:avatar>
-              <q-icon name="assignment" color="blue" />
-            </template>
-            Nurse Patient Management has been temporarily reverted.
-            Existing assessment and assignment features are disabled for now.
-          </q-banner>
-        </div>
-
-        <!-- Assessment Form (Hidden for now) -->
-        <div v-if="false" class="assessment-form">
-          <!-- Patient Info Card -->
-          <q-card class="patient-info-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Patient Information</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-6">
-                  <q-input v-model="assessment.patientName" label="Full Name" readonly outlined />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input v-model="assessment.patientAge" label="Age" readonly outlined />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input v-model="assessment.patientGender" label="Gender" readonly outlined />
-                </div>
+      <!-- Main Content -->
+      <div class="patient-management-content">
+        <!-- Header Section -->
+        <div class="greeting-section">
+          <q-card class="greeting-card">
+            <q-card-section class="greeting-content">
+              <div class="greeting-text">
+                <h4 class="greeting-title">Patient Management</h4>
+                <p class="greeting-subtitle">Manage your patients and their medical records</p>
               </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Vital Signs -->
-          <q-card class="vital-signs-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Vital Signs</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.bloodPressure"
-                    label="Blood Pressure (mmHg)"
-                    type="text"
-                    placeholder="120/80"
-                    outlined
-                    :rules="[(val) => !!val || 'Blood pressure is required']"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.heartRate"
-                    label="Heart Rate (bpm)"
-                    type="number"
-                    outlined
-                    :rules="[(val) => !!val || 'Heart rate is required']"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.temperature"
-                    label="Temperature (°C)"
-                    type="number"
-                    step="0.1"
-                    outlined
-                    :rules="[(val) => !!val || 'Temperature is required']"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.respiratoryRate"
-                    label="Respiratory Rate (breaths/min)"
-                    type="number"
-                    outlined
-                    :rules="[(val) => !!val || 'Respiratory rate is required']"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.oxygenSaturation"
-                    label="Oxygen Saturation (%)"
-                    type="number"
-                    outlined
-                    :rules="[(val) => !!val || 'Oxygen saturation is required']"
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.weight"
-                    label="Weight (kg)"
-                    type="number"
-                    step="0.1"
-                    outlined
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input
-                    v-model.number="assessment.vitals.height"
-                    label="Height (cm)"
-                    type="number"
-                    outlined
-                  />
-                </div>
-                <div class="col-12 col-md-3">
-                  <q-input v-model="assessment.vitals.bmi" label="BMI" readonly outlined />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Pain Assessment -->
-          <q-card class="pain-assessment-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Pain Assessment</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-4">
-                  <q-select
-                    v-model="assessment.pain.level"
-                    :options="painLevels"
-                    label="Pain Level (0-10)"
-                    outlined
-                    emit-value
-                    map-options
-                  />
-                </div>
-                <div class="col-12 col-md-4">
-                  <q-select
-                    v-model="assessment.pain.location"
-                    :options="painLocations"
-                    label="Pain Location"
-                    outlined
-                    multiple
-                    use-chips
-                  />
-                </div>
-                <div class="col-12 col-md-4">
-                  <q-select
-                    v-model="assessment.pain.type"
-                    :options="painTypes"
-                    label="Pain Type"
-                    outlined
-                    multiple
-                    use-chips
-                  />
-                </div>
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.pain.description"
-                    label="Pain Description"
-                    type="textarea"
-                    outlined
-                    rows="3"
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Physical Examination -->
-          <q-card class="physical-exam-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Physical Examination</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.generalAppearance"
-                    label="General Appearance"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.skinCondition"
-                    label="Skin Condition"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.cardiovascular"
-                    label="Cardiovascular"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.respiratory"
-                    label="Respiratory"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.gastrointestinal"
-                    label="Gastrointestinal"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-input
-                    v-model="assessment.physicalExam.neurological"
-                    label="Neurological"
-                    type="textarea"
-                    outlined
-                    rows="2"
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Assessment Notes -->
-          <q-card class="assessment-notes-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Assessment Notes</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.notes.subjective"
-                    label="Subjective Assessment"
-                    type="textarea"
-                    outlined
-                    rows="4"
-                    placeholder="Patient's chief complaint and history..."
-                  />
-                </div>
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.notes.objective"
-                    label="Objective Assessment"
-                    type="textarea"
-                    outlined
-                    rows="4"
-                    placeholder="Observations and findings..."
-                  />
-                </div>
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.notes.assessment"
-                    label="Clinical Assessment"
-                    type="textarea"
-                    outlined
-                    rows="4"
-                    placeholder="Diagnosis and clinical impression..."
-                  />
-                </div>
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.notes.plan"
-                    label="Plan of Care"
-                    type="textarea"
-                    outlined
-                    rows="4"
-                    placeholder="Treatment plan and recommendations..."
-                  />
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-
-          <!-- Emergency Assessment -->
-          <q-card class="emergency-assessment-card">
-            <q-card-section>
-              <h6 class="text-h6 q-mb-md">Emergency Assessment</h6>
-              <div class="row q-gutter-md">
-                <div class="col-12 col-md-6">
-                  <q-select
-                    v-model="assessment.emergency.priority"
-                    :options="priorityLevels"
-                    label="Priority Level"
-                    outlined
-                    emit-value
-                    map-options
-                  />
-                </div>
-                <div class="col-12 col-md-6">
-                  <q-select
-                    v-model="assessment.emergency.requiresImmediate"
-                    :options="[
-                      { label: 'No', value: false },
-                      { label: 'Yes', value: true },
-                    ]"
-                    label="Requires Immediate Attention"
-                    outlined
-                    emit-value
-                    map-options
-                  />
-                </div>
-                <div class="col-12">
-                  <q-input
-                    v-model="assessment.emergency.notes"
-                    label="Emergency Notes"
-                    type="textarea"
-                    outlined
-                    rows="3"
-                    placeholder="Any urgent concerns or immediate actions needed..."
-                  />
-                </div>
+              <div class="greeting-icon">
+                <q-icon name="people" size="3rem" />
               </div>
             </q-card-section>
           </q-card>
         </div>
 
-        <!-- No Patient Selected Message -->
-        <div v-else class="no-patient-message">
-          <q-card class="text-center">
-            <q-card-section>
-              <q-icon name="person_search" size="4rem" color="grey-5" />
-              <h6 class="text-h6 q-mt-md">Select a Patient</h6>
-              <p class="text-body2 text-grey-6">
-                Please select a patient from the dropdown above to begin the assessment.
-              </p>
+        <!-- Patient Management Cards -->
+        <div class="management-cards-grid">
+          <!-- Patient List Card -->
+          <q-card class="glassmorphism-card patient-list-card">
+            <q-card-section class="card-header">
+              <h5 class="card-title">Patient List</h5>
+              <q-btn
+                color="primary"
+                icon="refresh"
+                size="sm"
+                @click="loadPatients"
+                :loading="loading"
+              />
+            </q-card-section>
+
+            <q-card-section class="card-content">
+              <div v-if="loading" class="loading-section">
+                <q-spinner color="primary" size="2em" />
+                <p class="loading-text">Loading patients...</p>
+              </div>
+
+              <div v-else-if="patients.length === 0" class="empty-section">
+                <q-icon name="people" size="48px" color="grey-5" />
+                <p class="empty-text">No patients found</p>
+              </div>
+
+              <div v-else class="patients-list">
+                <div
+                  v-for="patient in filteredPatients"
+                  :key="patient.id"
+                  class="patient-card"
+                  @click="selectPatient(patient)"
+                >
+                  <div class="patient-avatar">
+                    <q-avatar size="50px">
+                      <img
+                        v-if="patient.profile_picture"
+                        :src="
+                          patient.profile_picture.startsWith('http')
+                            ? patient.profile_picture
+                            : `http://localhost:8000${patient.profile_picture}`
+                        "
+                        :alt="patient.full_name"
+                      />
+                      <q-icon v-else name="person" size="25px" color="white" />
+                    </q-avatar>
+                  </div>
+
+                  <div class="patient-info">
+                    <h6 class="patient-name">{{ patient.full_name }}</h6>
+                    <p class="patient-details">
+                      Age: {{ patient.age || 'N/A' }} | {{ patient.gender || 'N/A' }} |
+                      {{ patient.blood_type || 'N/A' }}
+                    </p>
+                    <p class="patient-condition">
+                      {{ patient.medical_condition || 'No condition specified' }}
+                    </p>
+                    <div class="patient-status">
+                      <q-chip color="primary" text-color="white" size="sm"> Patient </q-chip>
+                    </div>
+                  </div>
+
+                  <div class="patient-actions">
+                    <q-btn
+                      flat
+                      round
+                      icon="visibility"
+                      color="primary"
+                      size="sm"
+                      @click.stop="viewPatientDetails(patient)"
+                    />
+                    <q-btn
+                      flat
+                      round
+                      icon="edit"
+                      color="secondary"
+                      size="sm"
+                      @click.stop="editPatient(patient)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </q-card-section>
+          </q-card>
+
+          <!-- Patient Statistics Card -->
+          <q-card class="glassmorphism-card statistics-card">
+            <q-card-section class="card-header">
+              <h5 class="card-title">Patient Statistics</h5>
+            </q-card-section>
+
+            <q-card-section class="card-content">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <div class="stat-number">{{ patients.length }}</div>
+                  <div class="stat-label">Total Patients</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-number">{{ activePatientsCount }}</div>
+                  <div class="stat-label">Active</div>
+                </div>
+              </div>
             </q-card-section>
           </q-card>
         </div>
       </div>
     </q-page-container>
+
+    <!-- Notifications Modal -->
+    <q-dialog v-model="showNotifications" persistent>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="notifications.length === 0" class="text-center text-grey-6 q-py-lg">
+            No notifications yet
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item
+                v-for="notification in notifications"
+                :key="notification.id"
+                clickable
+                @click="handleNotificationClick(notification)"
+                :class="{ unread: !notification.is_read }"
+              >
+                <q-item-section avatar>
+                  <q-icon name="info" color="primary" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ notification.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{
+                    formatTime(notification.created_at)
+                  }}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="!notification.is_read">
+                  <q-badge color="red" rounded />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="notifications.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllNotificationsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, computed } from 'vue';
 import { useQuasar } from 'quasar';
-import { api } from 'src/boot/axios';
-import NurseHeader from 'src/components/NurseHeader.vue';
+import { api } from 'boot/axios';
+import NurseHeader from '../components/NurseHeader.vue';
+import NurseSidebar from '../components/NurseSidebar.vue';
 
-const router = useRouter();
+// Types
+interface Patient {
+  id: number;
+  user_id: number;
+  full_name: string;
+  email: string;
+  age: number | null;
+  gender: string;
+  blood_type: string;
+  medical_condition: string;
+  hospital: string;
+  insurance_provider: string;
+  billing_amount: number | null;
+  room_number: string;
+  admission_type: string;
+  date_of_admission: string;
+  discharge_date: string;
+  medication: string;
+  test_results: string;
+  assigned_doctor: string | null;
+  profile_picture?: string | null;
+  // Provided by backend to identify analytics dummy records
+  is_dummy?: boolean;
+}
+
+// Reactive data
 const $q = useQuasar();
-
-// Sidebar and navigation
 const rightDrawerOpen = ref(false);
-
-// Search functionality
+const loading = ref(false);
 const searchText = ref('');
-const searchResults = ref<
+const patients = ref<Patient[]>([]);
+const selectedPatient = ref<Patient | null>(null);
+const showNotifications = ref(false);
+
+// User profile data
+const userProfile = ref<{
+  full_name: string;
+  specialization?: string;
+  role: string;
+  profile_picture: string | null;
+  verification_status: string;
+}>({
+  full_name: '',
+  specialization: '',
+  role: '',
+  profile_picture: null,
+  verification_status: '',
+});
+
+// Notification system
+const notifications = ref<
   {
-    id: string;
-    type: string;
-    title: string;
-    subtitle: string;
-    data: Record<string, string | number>;
+    id: number;
+    message: string;
+    is_read: boolean;
+    created_at: string;
   }[]
 >([]);
 
-// Notifications
-const showNotifications = ref(false);
-const unreadNotificationsCount = ref(0);
-
-// Location data
-const locationData = ref<{
-  city: string;
-  region: string;
-  country: string;
-} | null>(null);
-const locationLoading = ref(false);
-const locationError = ref(false);
-
-// Time and weather
-const currentTime = ref('');
-const currentDate = computed(() => {
-  const now = new Date();
-  return now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-});
-const weatherData = ref<{
-  temperature: number;
-  condition: string;
-  location: string;
-} | null>(null);
-const weatherLoading = ref(false);
-const weatherError = ref(false);
-let timeInterval: NodeJS.Timeout | null = null;
-
-// Get time of day for greeting
-const getTimeOfDay = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Morning';
-  if (hour < 17) return 'Afternoon';
-  return 'Evening';
-};
-
-// Profile picture
-const profileFileInput = ref<HTMLInputElement | null>(null);
-
-// User profile
-const userProfile = ref<{
-  id?: number;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string;
-  role?: string;
-  verification_status?: string;
-  profile_picture?: string | null;
-  email?: string;
-}>({});
-
-// Computed properties for profile picture
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // If it's a relative path, construct the full URL
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`;
-  }
-
-  // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`;
-});
-
-const userInitials = computed(() => {
-  if (!userProfile.value.first_name || !userProfile.value.last_name) {
-    return 'NU';
-  }
-  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
-});
-
-// Type definitions
-interface Patient {
+// Notification interface
+interface Notification {
   id: number;
-  name: string;
-  queueNumber: string;
-  department: string;
-  status: string;
-  position: number;
-  enqueueTime: string;
-  priority: string;
-  priorityLevel?: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 }
 
-interface Doctor {
-  id: number;
-  name: string;
-  specialization: string;
-  department: string;
-  isAvailable: boolean;
-  currentPatients: number;
-}
+// Computed properties
+const filteredPatients = computed(() => {
+  if (!searchText.value) return patients.value;
 
-// Patient selection
-const selectedPatient = ref<Patient | null>(null);
-const saving = ref(false);
-const loading = ref(false);
-
-// Patient options (from queue)
-const patients = ref<Patient[]>([]);
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const patientOptions = computed(() => patients.value);
-
-// Doctor selection
-const selectedDoctor = ref<Doctor | null>(null);
-const availableDoctors = ref<Doctor[]>([]);
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const doctorSpecializations = ref([
-  'General Medicine',
-  'Cardiology',
-  'Neurology',
-  'Pediatrics',
-  'Orthopedics',
-  'Dermatology',
-  'Psychiatry',
-  'Emergency Medicine',
-  'Internal Medicine',
-  'Surgery',
-]);
-const selectedSpecialization = ref('');
-
-// Assessment data
-const assessment = ref({
-  patientName: '',
-  patientAge: '',
-  patientGender: '',
-  vitals: {
-    bloodPressure: '',
-    heartRate: null,
-    temperature: null,
-    respiratoryRate: null,
-    oxygenSaturation: null,
-    weight: null,
-    height: null,
-    bmi: '',
-  },
-  pain: {
-    level: null,
-    location: [],
-    type: [],
-    description: '',
-  },
-  physicalExam: {
-    generalAppearance: '',
-    skinCondition: '',
-    cardiovascular: '',
-    respiratory: '',
-    gastrointestinal: '',
-    neurological: '',
-  },
-  notes: {
-    subjective: '',
-    objective: '',
-    assessment: '',
-    plan: '',
-  },
-  emergency: {
-    priority: 'normal',
-    requiresImmediate: false,
-    notes: '',
-  },
+  const search = searchText.value.toLowerCase();
+  return patients.value.filter(
+    (patient) =>
+      patient.full_name.toLowerCase().includes(search) ||
+      patient.medical_condition.toLowerCase().includes(search) ||
+      patient.hospital.toLowerCase().includes(search),
+  );
 });
 
-// Options for dropdowns
-const painLevels = [
-  { label: '0 - No Pain', value: 0 },
-  { label: '1-3 - Mild Pain', value: 1 },
-  { label: '4-6 - Moderate Pain', value: 4 },
-  { label: '7-9 - Severe Pain', value: 7 },
-  { label: '10 - Worst Pain', value: 10 },
-];
-
-const painLocations = ['Head', 'Neck', 'Chest', 'Back', 'Abdomen', 'Arms', 'Legs', 'Joints'];
-
-const painTypes = ['Sharp', 'Dull', 'Throbbing', 'Burning', 'Cramping', 'Aching', 'Stabbing'];
-
-const priorityLevels = [
-  { label: 'Normal', value: 'normal' },
-  { label: 'Low Priority', value: 'low' },
-  { label: 'Medium Priority', value: 'medium' },
-  { label: 'High Priority', value: 'high' },
-  { label: 'Emergency', value: 'emergency' },
-];
-
-// Watch for patient selection changes
-watch(selectedPatient, (newPatient) => {
-  if (newPatient) {
-    // Patient is already selected, no need to find it again
-    assessment.value.patientName = newPatient.name;
-    assessment.value.patientAge = 'N/A'; // Age not available in queue data
-    assessment.value.patientGender = 'N/A'; // Gender not available in queue data
-  } else {
-    // Reset form when no patient is selected
-    assessment.value = {
-      patientName: '',
-      patientAge: '',
-      patientGender: '',
-      vitals: {
-        bloodPressure: '',
-        heartRate: null,
-        temperature: null,
-        respiratoryRate: null,
-        oxygenSaturation: null,
-        weight: null,
-        height: null,
-        bmi: '',
-      },
-      pain: {
-        level: null,
-        location: [],
-        type: [],
-        description: '',
-      },
-      physicalExam: {
-        generalAppearance: '',
-        skinCondition: '',
-        cardiovascular: '',
-        respiratory: '',
-        gastrointestinal: '',
-        neurological: '',
-      },
-      notes: {
-        subjective: '',
-        objective: '',
-        assessment: '',
-        plan: '',
-      },
-      emergency: {
-        priority: 'normal',
-        requiresImmediate: false,
-        notes: '',
-      },
-    };
-  }
-});
-
-// Calculate BMI when weight or height changes
-watch(
-  [() => assessment.value.vitals.weight, () => assessment.value.vitals.height],
-  ([weight, height]) => {
-    if (weight && height) {
-      const heightInMeters = height / 100;
-      const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1);
-      assessment.value.vitals.bmi = bmi;
-    } else {
-      assessment.value.vitals.bmi = '';
-    }
-  },
+const activePatientsCount = computed(
+  () => patients.value.filter((p) => p.discharge_date === null || p.discharge_date === '').length,
 );
 
-// Sidebar and navigation functions
-const toggleRightDrawer = () => {
-  rightDrawerOpen.value = !rightDrawerOpen.value;
-};
-
-const navigateTo = (route: string) => {
-  // Close drawer first
-  rightDrawerOpen.value = false;
-
-  // Navigate to different sections
-  switch (route) {
-    case 'nurse-dashboard':
-      void router.push('/nurse-dashboard');
-      break;
-    case 'patient-assessment':
-      // Already on patient assessment page
-      break;
-    case 'nurse-messaging':
-      void router.push('/nurse-messaging');
-      break;
-    case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory');
-      break;
-    case 'nurse-analytics':
-      void router.push('/nurse-analytics');
-      break;
-    case 'nurse-settings':
-      void router.push('/nurse-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
-  }
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
-
-// Search functionality methods
-const onSearchInput = (value: string | number | null) => {
-  const stringValue = String(value || '');
-  searchText.value = stringValue;
-  if (stringValue.trim()) {
-    // Simulate search results this would call an API
-    searchResults.value = [
-      {
-        id: '1',
-        type: 'patient',
-        title: 'Search Patient',
-        subtitle: `Search for "${stringValue}" in patient records`,
-        data: { query: stringValue, type: 'patient' },
-      },
-      {
-        id: '2',
-        type: 'assessment',
-        title: 'Search Assessment',
-        subtitle: `Find assessments related to "${stringValue}"`,
-        data: { query: stringValue, type: 'assessment' },
-      },
-      {
-        id: '3',
-        type: 'symptoms',
-        title: 'Search Symptoms',
-        subtitle: `Look for symptoms matching "${stringValue}"`,
-        data: { query: stringValue, type: 'symptoms' },
-      },
-    ];
-  } else {
-    searchResults.value = [];
-  }
-};
-
-const clearSearch = () => {
-  searchText.value = '';
-  searchResults.value = [];
-};
-
-const selectSearchResult = (result: {
-  id: string;
-  type: string;
-  title: string;
-  subtitle: string;
-  data: Record<string, string | number>;
-}) => {
-  // Handle search result selection
-  console.log('Selected search result:', result);
-  clearSearch();
-};
-
-// Location functionality
-const fetchLocation = async () => {
-  locationLoading.value = true;
-  locationError.value = false;
-
+// Methods
+const loadPatients = async () => {
+  loading.value = true;
   try {
-    // Simulate API call for location data
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    locationData.value = {
-      city: 'Manila',
-      region: 'Metro Manila',
-      country: 'Philippines',
-    };
-  } catch (error) {
-    console.error('Error fetching location:', error);
-    locationError.value = true;
-  } finally {
-    locationLoading.value = false;
-  }
-};
-
-// Profile picture functions
-const triggerFileUpload = () => {
-  profileFileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture);
-
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response: { data: { message?: string } } };
-        errorMessage = axiosError.response.data.message || errorMessage;
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 3000,
-      });
-    }
-  }
-};
-
-// Time and weather functions
-const updateTime = () => {
-  const now = new Date();
-
-  // Convert to 12-hour format with AM/PM beside the time
-  const hour = now.getHours();
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour % 12 || 12;
-  const minute = now.getMinutes().toString().padStart(2, '0');
-  const second = now.getSeconds().toString().padStart(2, '0');
-
-  currentTime.value = `${hour12}:${minute}:${second} ${ampm}`;
-};
-
-const fetchWeather = async () => {
-  weatherLoading.value = true;
-  weatherError.value = false;
-
-  try {
-    // Mock weather data for now
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    weatherData.value = {
-      temperature: 22,
-      condition: 'clear',
-      location: 'Manila, PH',
-    };
-  } catch (error) {
-    console.error('Weather fetch failed:', error);
-    weatherError.value = true;
-  } finally {
-    weatherLoading.value = false;
-  }
-};
-
-// Fetch user profile
-const fetchUserProfile = async () => {
-  try {
-    const response = await api.get('/users/profile/');
-    const userData = response.data.user;
-
-    // Check for verification status change
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
-
-    userProfile.value = {
-      first_name: userData.first_name,
-      last_name: userData.last_name,
-      full_name: userData.full_name,
-      verification_status: userData.verification_status,
-      profile_picture: userData.profile_picture || localStorage.getItem('profile_picture'),
-      email: userData.email,
-    };
-
-    // Show notification if verification status changed to approved
-    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      $q.notify({
-        type: 'positive',
-        message: '🎉 Congratulations! Your account has been verified and approved.',
-        position: 'top',
-        timeout: 5000,
-        actions: [
-          {
-            label: 'Dismiss',
-            color: 'white',
-            handler: () => {
-              // Notification will auto-dismiss
-            }
-          }
-        ]
-      });
-    }
-
-    // Store profile picture in localStorage if available
-    if (userData.profile_picture) {
-      localStorage.setItem('profile_picture', userData.profile_picture);
+    const response = await api.get('/users/nurse/patients/');
+    if (response.data.success) {
+      // Exclude any dummy patients used for analytics/demo data
+      patients.value = (response.data.patients || []).filter(
+        (p: Patient | Record<string, unknown>) => !(p as Patient).is_dummy,
+      ) as Patient[];
+      console.log('Patients loaded:', patients.value.length);
     }
   } catch (error) {
-    console.error('Failed to fetch user profile:', error);
-  }
-};
-
-// Removed: saveAssessment (functionality reverted, eliminating unused variable errors)
-
-// Load patients from queue
-const loadQueuePatients = async () => {
-  try {
-    loading.value = true;
-    const response = await api.get('/operations/nurse/queue/patients/');
-
-    // Transform queue data to patient format
-    const normalPatients = response.data.normal_queue.map(
-      (queueItem: {
-        patient_id?: number;
-        id: number;
-        patient_name: string;
-        queue_number: string;
-        department: string;
-        status: string;
-        position_in_queue: number;
-        enqueue_time: string;
-      }) => ({
-        id: queueItem.patient_id || queueItem.id,
-        name: queueItem.patient_name,
-        queueNumber: queueItem.queue_number,
-        department: queueItem.department,
-        status: queueItem.status,
-        position: queueItem.position_in_queue,
-        enqueueTime: queueItem.enqueue_time,
-        priority: 'normal',
-      }),
-    );
-
-    const priorityPatients = response.data.priority_queue.map(
-      (queueItem: {
-        patient_id?: number;
-        id: number;
-        patient_name: string;
-        queue_number: string;
-        department: string;
-        priority_level: string;
-        priority_position: number;
-      }) => ({
-        id: queueItem.patient_id || queueItem.id,
-        name: queueItem.patient_name,
-        queueNumber: queueItem.queue_number,
-        department: queueItem.department,
-        priorityLevel: queueItem.priority_level,
-        position: queueItem.priority_position,
-        priority: 'high',
-      }),
-    );
-
-    // Combine all patients
-    patients.value = [...normalPatients, ...priorityPatients];
-  } catch (error) {
-    console.error('Failed to load queue patients:', error);
+    console.error('Failed to load patients:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to load patient queue',
+      message: 'Failed to load patients',
       position: 'top',
-      timeout: 3000,
     });
   } finally {
     loading.value = false;
   }
 };
 
-// Load available doctors by specialization
-const loadAvailableDoctors = async (specialization: string) => {
-  try {
-    const response = await api.get('/operations/available-doctors/', {
-      params: { specialization },
-    });
+const selectPatient = (patient: Patient) => {
+  selectedPatient.value = patient;
+  console.log('Selected patient:', patient);
+};
 
-    availableDoctors.value = response.data.map(
-      (doctor: {
-        id: number;
-        full_name: string;
-        specialization: string;
-        department: string;
-        is_available: boolean;
-        current_patients: number;
-        profile_picture?: string;
-      }) => ({
-        id: doctor.id,
-        name: doctor.full_name,
-        specialization: doctor.specialization,
-        department: doctor.department,
-        isAvailable: doctor.is_available,
-        currentPatients: doctor.current_patients || 0,
-      }),
-    );
+const viewPatientDetails = (patient: Patient) => {
+  $q.notify({
+    type: 'info',
+    message: `Viewing details for ${patient.full_name}`,
+    position: 'top',
+  });
+};
+
+const editPatient = (patient: Patient) => {
+  $q.notify({
+    type: 'info',
+    message: `Editing ${patient.full_name}`,
+    position: 'top',
+  });
+};
+
+const fetchUserProfile = async () => {
+  try {
+    const response = await api.get('/users/profile/');
+    const userData = response.data.user;
+
+    userProfile.value = {
+      full_name: userData.full_name,
+      specialization: userData.nurse_profile?.specialization,
+      role: userData.role,
+      profile_picture: userData.profile_picture || null,
+      verification_status: userData.verification_status,
+    };
   } catch (error) {
-    console.error('Failed to load available doctors:', error);
+    console.error('Failed to fetch user profile:', error);
+  }
+};
+
+// Navigation and logout functionality handled by NurseSidebar component
+
+// Notification functions
+const loadNotifications = async (): Promise<void> => {
+  try {
+    console.log('📬 Loading nurse notifications...');
+
+    const response = await api.get('/operations/notifications/');
+    notifications.value = response.data || [];
+
+    console.log('✅ Nurse notifications loaded:', notifications.value.length);
+  } catch (error: unknown) {
+    console.error('❌ Error loading notifications:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to load available doctors',
-      position: 'top',
-      timeout: 3000,
+      message: 'Failed to load notifications',
     });
   }
 };
 
-// Handle specialization selection
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const onSpecializationChange = (specialization: string) => {
-  selectedSpecialization.value = specialization;
-  selectedDoctor.value = null;
-  if (specialization) {
-    void loadAvailableDoctors(specialization);
-  } else {
-    availableDoctors.value = [];
-  }
+const handleNotificationClick = (notification: Notification): void => {
+  notification.is_read = true;
+  void markNotificationAsRead(notification.id);
 };
 
-// Assign patient to doctor
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const assignPatientToDoctor = async () => {
-  if (!selectedPatient.value || !selectedDoctor.value) {
-    $q.notify({
-      type: 'warning',
-      message: 'Please select both patient and doctor',
-      position: 'top',
-      timeout: 3000,
-    });
-    return;
-  }
-
+const markNotificationAsRead = async (notificationId: number): Promise<void> => {
   try {
-    saving.value = true;
+    await api.patch(`/operations/notifications/${notificationId}/mark-read/`);
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+  }
+};
 
-    await api.post('/operations/assign-patient/', {
-      patient_id: selectedPatient.value?.id,
-      doctor_id: selectedDoctor.value?.id,
-      specialization: selectedSpecialization.value,
-      reason: `Patient assessment - ${selectedPatient.value?.name}`,
-      priority: selectedPatient.value?.priority === 'high' ? 'high' : 'medium',
+const markAllNotificationsRead = async (): Promise<void> => {
+  try {
+    notifications.value.forEach((notification) => {
+      notification.is_read = true;
     });
+
+    await api.post('/operations/notifications/mark-all-read/');
 
     $q.notify({
       type: 'positive',
-      message: `Patient ${selectedPatient.value?.name} assigned to Dr. ${selectedDoctor.value?.name}`,
-      position: 'top',
-      timeout: 3000,
+      message: 'All notifications marked as read',
     });
-
-    // Reset selections
-    selectedPatient.value = null;
-    selectedDoctor.value = null;
-    selectedSpecialization.value = '';
-    availableDoctors.value = [];
-
-    // Reload patients to update queue
-    void loadQueuePatients();
   } catch (error) {
-    console.error('Failed to assign patient:', error);
+    console.error('Error marking notifications as read:', error);
     $q.notify({
       type: 'negative',
-      message: 'Failed to assign patient to doctor',
-      position: 'top',
-      timeout: 3000,
+      message: 'Failed to mark notifications as read',
     });
-  } finally {
-    saving.value = false;
   }
+};
+
+const formatTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 };
 
 onMounted(() => {
-  // Load user profile first
+  console.log('🚀 NursePatientAssessment component mounted');
   void fetchUserProfile();
+  void loadNotifications();
+  void loadPatients();
 
-  // Initialize real-time features
-  updateTime(); // Set initial time
-  timeInterval = setInterval(updateTime, 1000); // Update every second
-
-  // Fetch weather data
-  void fetchWeather();
-
-  // Fetch location data
-  void fetchLocation();
-
-  // Load patients from queue
-  void loadQueuePatients();
-
-  // Refresh user profile every 30 seconds to check for verification status updates
-  setInterval(() => {
-    void fetchUserProfile();
-  }, 30000);
-
-  // More frequent verification status check (every 10 seconds)
-  setInterval(() => {
-    void fetchUserProfile();
-  }, 10000);
-});
-
-// Storage event handler for profile picture sync
-const handleStorageChange = (e: StorageEvent) => {
-  if (e.key === 'profile_picture' && e.newValue) {
-    userProfile.value.profile_picture = e.newValue;
-    console.log('Profile picture updated from storage event:', e.newValue);
-  }
-};
-
-// Listen for storage changes to sync profile picture across components
-window.addEventListener('storage', handleStorageChange);
-
-onUnmounted(() => {
-  if (timeInterval) {
-    clearInterval(timeInterval);
-  }
-
-  // Clean up storage event listener
-  window.removeEventListener('storage', handleStorageChange);
+  // Refresh notifications every 30 seconds
+  setInterval(() => void loadNotifications(), 30000);
 });
 </script>
 
 <style scoped>
-/* Page Container with Background */
-.page-container-with-fixed-header {
-  background: #f5f5f5;
-  min-height: 100vh;
-  padding-top: 64px; /* Account for fixed header */
+/* Safe Area Support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
 }
 
-/* Greeting Section */
-.greeting-section {
-  padding: 24px;
-  background: transparent;
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-.greeting-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+/* Mobile Header Layout */
+.mobile-header-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  min-height: 48px;
+}
+
+.header-bottom-row {
+  padding: 0 16px 8px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Prototype Header Styles */
+.prototype-header {
+  background: #286660;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-toolbar {
+  padding: 0 24px;
+  min-height: 64px;
+}
+
+.menu-toggle-btn {
+  color: white;
+  margin-right: 16px;
+}
+
+.header-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.search-container {
+  width: 100%;
+  max-width: 500px;
+}
+
+.search-input {
+  background: white;
+  border-radius: 8px;
+}
+
+.notification-btn {
+  color: white;
+}
+
+.time-display,
+.weather-display,
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+}
+
+.time-text,
+.weather-text,
+.weather-location {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Drawer Styles */
+.drawer-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.user-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  margin-bottom: 20px;
   position: relative;
-  overflow: hidden;
 }
 
-.greeting-card::before {
+.user-avatar-container {
+  position: relative;
+}
+
+.user-avatar {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.verified-badge {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: white;
+  border-radius: 50%;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 4px 0;
+}
+
+.user-role {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 12px 0;
+}
+
+.navigation-menu {
+  flex: 1;
+  padding: 16px 0;
+}
+
+.nav-item {
+  margin: 4px 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-item.active {
+  background: #286660;
+  color: white;
+}
+
+.nav-item.active .q-icon {
+  color: white;
+}
+
+.nav-item:hover:not(.active) {
+  background: #f5f5f5;
+}
+
+/* Sidebar Content */
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f8f9fa;
+  position: relative;
+  padding-bottom: 80px; /* Space for footer */
+}
+
+/* Logo Section */
+.logo-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.logo-avatar {
+  margin-right: 12px;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #286660;
+}
+
+.menu-btn-right {
+  color: #666;
+  margin-left: auto;
+}
+
+/* Centered User Profile Section */
+.sidebar-user-profile {
+  padding: 24px 20px;
+  border-bottom: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+/* Logout Section */
+.logout-section {
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.logout-btn {
+  width: 100%;
+  border-radius: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Page Container */
+.page-container-with-fixed-header {
+  background: #f8f9fa;
+  background-size: cover;
+  min-height: 100vh;
+  position: relative;
+}
+
+.page-container-with-fixed-header::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  z-index: 0;
+}
+
+.patient-management-content {
+  position: relative;
+  z-index: 1;
+  padding: 20px;
+}
+
+/* Greeting Section */
+.greeting-section {
+  margin-bottom: 30px;
+}
+
+.greeting-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .greeting-content {
-  position: relative;
-  z-index: 1;
-  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px;
 }
 
 .greeting-text {
-  font-size: 28px;
+  flex: 1;
+}
+
+.greeting-title {
+  font-size: 2.5rem;
   font-weight: 700;
   color: #333;
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
+  background: linear-gradient(135deg, #286660, #4a7c59);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .greeting-subtitle {
-  font-size: 16px;
+  font-size: 1.1rem;
   color: #666;
+  margin: 0;
+  font-weight: 500;
+}
+
+.greeting-icon {
+  color: #286660;
+  opacity: 0.8;
+}
+
+/* Management Cards */
+.management-cards-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+.glassmorphism-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
   margin: 0;
 }
 
-.page-header {
-  background: white;
-  color: #333;
+.card-content {
   padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
+/* Patient List */
+.patients-list {
+  max-height: 500px;
+  overflow-y: auto;
 }
 
-.button-group {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.header-left {
+.patient-card {
   display: flex;
   align-items: center;
   gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.back-btn {
-  color: #333;
+.patient-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.page-title {
-  margin: 0;
-  font-size: 24px;
+.patient-avatar {
+  flex-shrink: 0;
+}
+
+.patient-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.patient-name {
+  font-size: 16px;
   font-weight: 600;
+  color: #333;
+  margin: 0 0 5px 0;
 }
 
-.page-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+.patient-details {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 5px 0;
 }
 
-.patient-selection-card,
-.patient-info-card,
-.vital-signs-card,
-.pain-assessment-card,
-.physical-exam-card,
-.assessment-notes-card,
-.emergency-assessment-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.patient-condition {
+  font-size: 13px;
+  color: #555;
+  margin: 0 0 8px 0;
+  font-style: italic;
 }
 
-.patient-select {
-  max-width: 400px;
+.patient-status {
+  margin-top: 5px;
 }
 
-.assessment-form {
+.patient-actions {
   display: flex;
-  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Statistics */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 
-.no-patient-message {
+.stat-item {
+  text-align: center;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #286660;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Loading and Empty States */
+.loading-section,
+.empty-section {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 400px;
+  justify-content: center;
+  padding: 40px;
+  color: #666;
 }
 
-.no-patient-message .q-card {
-  max-width: 400px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.loading-text,
+.empty-text {
+  margin-top: 15px;
+  font-size: 14px;
 }
 
-/* Responsive adjustments */
+/* Time and Weather Display Styles */
+.time-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.weather-loading,
+.weather-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: white;
+  font-size: 12px;
+}
+
+.time-text,
+.weather-text {
+  font-weight: 500;
+}
+
+.weather-location {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .page-content {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 8px);
+  }
+
+  .header-toolbar {
+    padding: 0 16px;
+    min-height: 56px;
+    padding-top: max(env(safe-area-inset-top), 4px);
+  }
+
+  /* Mobile Header Layout */
+  .header-top-row {
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  .header-bottom-row {
+    padding: 0 12px 6px;
+  }
+
+  .header-info {
+    gap: 8px;
+  }
+
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 11px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 11px;
+  }
+
+  .weather-location {
+    font-size: 9px;
+  }
+
+  /* Hide time display on mobile to save space */
+  .time-display {
+    display: none;
+  }
+
+  /* Make weather display more compact */
+  .weather-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
+  }
+
+  .q-page-container {
     padding: 8px;
   }
 
@@ -1413,28 +962,69 @@ onUnmounted(() => {
     padding: 16px;
   }
 
-  .header-content {
-    flex-direction: column;
+  .management-cards-grid {
+    grid-template-columns: 1fr;
     gap: 12px;
-    align-items: flex-start;
+  }
+
+  .greeting-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
     padding: 16px;
   }
 
-  .header-right {
-    align-self: flex-end;
+  .greeting-title {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
   }
 
-  .assessment-form {
-    gap: 16px;
+  .greeting-subtitle {
+    font-size: 13px;
   }
 
-  .assessment-card {
-    margin-bottom: 16px;
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
-  .assessment-card h6 {
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+  }
+
+  .patient-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
+  }
+
+  .patient-info h6 {
     font-size: 16px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
+  }
+
+  .patient-info .text-caption {
+    font-size: 12px;
+  }
+
+  .patient-actions {
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .q-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+    border-radius: 6px;
   }
 
   .q-field {
@@ -1447,29 +1037,6 @@ onUnmounted(() => {
 
   .q-field__control {
     font-size: 14px;
-  }
-
-  .q-btn {
-    padding: 10px 16px;
-    font-size: 14px;
-    border-radius: 6px;
-  }
-
-  .q-select {
-    margin-bottom: 12px;
-  }
-
-  .q-input {
-    margin-bottom: 12px;
-  }
-
-  .row {
-    margin: 0 -8px;
-  }
-
-  .col-12,
-  .col-md-6 {
-    padding: 0 8px;
   }
 }
 
@@ -1487,61 +1054,17 @@ onUnmounted(() => {
   object-fit: cover !important;
 }
 
-/* Sidebar Styles */
-.prototype-sidebar {
-  background: white;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-}
-
-.sidebar-content {
-  padding: 20px;
+.profile-placeholder {
+  width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column;
-}
-
-/* Logo Section */
-.logo-section {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eee;
-}
-
-.logo-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo-avatar {
-  border: 2px solid #286660;
-}
-
-.logo-text {
-  font-size: 18px;
-  font-weight: 700;
-  color: #286660;
-}
-
-.menu-btn {
-  color: #666;
-}
-
-/* User Profile Section */
-.sidebar-user-profile {
-  text-align: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #eee;
-}
-
-.profile-picture-container {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 16px;
+  justify-content: center;
+  background: #1e7668;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  border-radius: 50%;
 }
 
 .upload-btn {
@@ -1570,110 +1093,62 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-.profile-avatar {
-  border: 3px solid #1e7668 !important;
-  border-radius: 50% !important;
-  overflow: hidden !important;
+/* Notification styles */
+.unread {
+  background-color: rgba(25, 118, 210, 0.05);
+  border-left: 3px solid #1976d2;
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #286660;
-  color: white;
+.unread .q-item-label {
   font-weight: 600;
-  font-size: 1.5rem;
-  border-radius: 50%;
 }
 
-.user-info {
-  text-align: center;
-}
-
-.user-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 4px 0;
-}
-
-.user-role {
-  font-size: 14px;
-  color: #666;
-  margin: 0 0 12px 0;
-}
-
-/* Navigation Menu */
-.navigation-menu {
-  flex: 1;
-  padding: 16px 0;
-}
-
-.nav-item {
-  margin: 4px 16px;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.nav-item.active {
-  background: #286660;
-  color: white;
-}
-
-.nav-item.active .q-icon {
-  color: white;
-}
-
-.nav-item:hover:not(.active) {
-  background: #f5f5f5;
-}
-
-/* Logout Section */
-.logout-section {
-  padding: 20px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.logout-btn {
-  width: 100%;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .sidebar-content {
-    padding: 16px;
+@media (max-width: 480px) {
+  .prototype-header {
+    padding-top: max(env(safe-area-inset-top), 12px);
   }
 
-  .logo-section {
-    margin-bottom: 20px;
-    padding-bottom: 16px;
+  .header-toolbar {
+    padding: 0 12px;
+    min-height: 52px;
+    padding-top: max(env(safe-area-inset-top), 6px);
   }
 
-  .sidebar-user-profile {
-    margin-bottom: 20px;
-    padding-bottom: 16px;
+  /* Mobile Header Layout - Extra Small */
+  .header-top-row {
+    padding: 2px 8px;
+    min-height: 40px;
   }
 
-  .profile-picture-container {
-    margin-bottom: 12px;
+  .header-bottom-row {
+    padding: 0 8px 4px;
   }
 
-  .navigation-menu {
-    padding: 12px 0;
+  .header-info {
+    gap: 6px;
   }
 
-  .logout-section {
-    padding: 16px;
+  .time-display,
+  .weather-display,
+  .weather-loading,
+  .weather-error {
+    font-size: 10px;
+  }
+
+  .time-text,
+  .weather-text {
+    font-size: 10px;
+  }
+
+  /* Make weather even more compact */
+  .weather-display {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .weather-location {
+    display: none;
   }
 }
 </style>

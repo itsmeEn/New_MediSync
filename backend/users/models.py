@@ -4,7 +4,6 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
 
 from .managers import CustomUserManager
-from .image_utils import get_upload_path, validate_profile_picture
 
 class User(AbstractUser):
     """
@@ -20,12 +19,12 @@ class User(AbstractUser):
         DOCTOR = "doctor", "Doctor"
         PATIENT = "patient", "Patient"
         
-    profile_picture = models.ImageField(
-        upload_to=get_upload_path,
+    # Keep a simple string field for optional URL or identifier.
+    profile_picture = models.CharField(
+        max_length=255,
         blank=True,
         null=True,
-        validators=[validate_profile_picture],
-        help_text="Upload a profile picture (JPG, PNG, or WebP, max 5MB)"
+        help_text="Deprecated: optional URL or identifier for profile picture"
     )
     verification_document = models.FileField(
         upload_to='verification_documents/%Y/%m/%d/',

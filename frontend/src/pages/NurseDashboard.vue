@@ -3,6 +3,7 @@
     <NurseHeader
       @toggle-drawer="toggleRightDrawer"
       @show-notifications="showNotifications = true"
+      @show-stock-alerts="showStockAlerts = true"
       :unread-notifications-count="unreadNotificationsCount"
       :search-text="text"
       @search-input="onSearchInput"
@@ -14,131 +15,7 @@
       :get-search-result-subtitle="getSearchResultSubtitle"
     />
 
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
-
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar 
-              size="80px" 
-              class="profile-avatar clickable-avatar" 
-              @click="navigateToProfile"
-              v-ripple
-            >
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials || 'NU' }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name clickable-name" @click="navigateToProfile">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">Nurse</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('nurse-dashboard')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patient-assessment')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="assignment" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('nurse-medicine-inventory')"
-            class="nav-item"
-          >
-            <q-item-section avatar>
-              <q-icon name="medication" />
-            </q-item-section>
-            <q-item-section>Medicine Inventory</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
+    <NurseSidebar v-model="rightDrawerOpen" :activeRoute="'nurse-dashboard'" />
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Greeting Section -->
@@ -649,6 +526,46 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Stock Alerts Modal -->
+    <q-dialog v-model="showStockAlerts" persistent>
+      <q-card style="width: 700px; max-width: 95vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Stock Alerts & Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="stockAlerts.length === 0" class="text-center text-grey-6 q-py-lg">
+            No stock alerts at the moment
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item v-for="alert in stockAlerts" :key="alert.id" clickable>
+                <q-item-section avatar>
+                  <q-icon :name="getStockAlertIcon(alert.severity)" :color="alert.color" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ alert.title }}</q-item-label>
+                  <q-item-label caption>{{ alert.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{ formatTime(alert.created_at) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn dense flat icon="done" v-if="!alert.isRead" @click="markStockAlertRead(alert.id)" />
+                  <q-icon v-else name="check_circle" class="text-positive" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="stockAlerts.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllStockAlertsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -658,24 +575,12 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
-
-// Type definitions for error handling
-interface ApiErrorResponse {
-  profile_picture?: string[];
-  detail?: string;
-}
-
-interface ApiError {
-  response?: {
-    data?: ApiErrorResponse;
-  };
-}
-
+import NurseSidebar from 'src/components/NurseSidebar.vue';
+import { showVerificationToastOnce } from 'src/utils/verificationToast';
 const router = useRouter();
 const $q = useQuasar();
 const rightDrawerOpen = ref(false);
 const text = ref('');
-const fileInput = ref<HTMLInputElement>();
 
 // Type definitions for search
 interface DoctorData {
@@ -694,6 +599,8 @@ interface MedicineData {
   current_stock: number;
   unit_price?: number;
   minimum_stock_level?: number;
+  stock_quantity?: number;
+  minimum_stock?: number;
   expiry_date?: string;
   batch_number?: string;
   usage_pattern?: string;
@@ -754,6 +661,7 @@ const showPatientsDialog = ref(false);
 const showVitalsDialog = ref(false);
 const showMedicationsDialog = ref(false);
 const showNotifications = ref(false);
+const showStockAlerts = ref(false);
 const showQueueScheduleDialog = ref(false);
 const savingSchedule = ref(false);
 const currentSchedule = ref<{
@@ -798,12 +706,6 @@ interface RawNotification {
   created_at: string;
 }
 
-// Medicine data interface
-interface MedicineData {
-  stock_quantity: number;
-  minimum_stock: number;
-  name?: string;
-}
 
 // Queue data
 const normalQueue = ref<PatientData[]>([]);
@@ -1125,14 +1027,6 @@ const userProfile = ref<{
   email: '',
 });
 
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'N';
-  return userProfile.value.full_name
-    .split(' ')
-    .map((name) => name.charAt(0))
-    .join('')
-    .toUpperCase();
-});
 
 const getTimeOfDay = () => {
   const hour = new Date().getHours();
@@ -1151,25 +1045,6 @@ const currentDate = computed(() => {
   });
 });
 
-// Format profile picture URL
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // If it's a relative path, construct the full URL
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`;
-  }
-
-  // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`;
-});
 
 // Update current time
 const updateTime = () => {
@@ -1248,123 +1123,6 @@ const toggleRightDrawer = () => {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 };
 
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture);
-
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as ApiError;
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
-
-const navigateTo = (route: string) => {
-  // Close drawer first
-  rightDrawerOpen.value = false;
-
-  // Navigate to different sections
-  switch (route) {
-    case 'nurse-dashboard':
-      // Already on dashboard
-      break;
-    case 'patient-assessment':
-      void router.push('/nurse-patient-assessment');
-      break;
-    case 'nurse-messaging':
-      void router.push('/nurse-messaging');
-      break;
-    case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory');
-      break;
-    case 'nurse-analytics':
-      void router.push('/nurse-analytics');
-      break;
-    case 'nurse-settings':
-      void router.push('/nurse-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
-  }
-};
-
-const navigateToProfile = () => {
-  void router.push('/nurse-settings');
-  rightDrawerOpen.value = false; // Close the sidebar on mobile
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
@@ -1389,21 +1147,7 @@ const fetchUserProfile = async () => {
 
     // Show notification if verification status changed to approved
     if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      $q.notify({
-        type: 'positive',
-        message: '🎉 Congratulations! Your account has been verified and approved.',
-        position: 'top',
-        timeout: 5000,
-        actions: [
-          {
-            label: 'Dismiss',
-            color: 'white',
-            handler: () => {
-              // Notification will auto-dismiss
-            }
-          }
-        ]
-      });
+      showVerificationToastOnce(newStatus);
     }
 
     // Store profile picture in localStorage if available
@@ -2029,10 +1773,10 @@ const loadSystemNotifications = async (): Promise<Notification[]> => {
   try {
     // Check for low medicine stock
     const medicineResponse = await api.get('/operations/medicine-inventory/');
-    const medicines = medicineResponse.data || [];
+    const medicines = (medicineResponse.data || []) as Array<{ stock_quantity?: number; minimum_stock?: number }>;
 
     const lowStockMedicines = medicines.filter(
-      (med: MedicineData) => med.stock_quantity <= med.minimum_stock,
+      (med) => Number(med.stock_quantity ?? 0) <= Number(med.minimum_stock ?? 0),
     );
 
     if (lowStockMedicines.length > 0) {
@@ -2050,6 +1794,141 @@ const loadSystemNotifications = async (): Promise<Notification[]> => {
   }
 
   return systemNotifications;
+};
+
+// Stock Alerts types and state
+ type StockSeverity = 'low' | 'critical' | 'expiry';
+ interface StockAlert {
+   id: string | number;
+   title: string;
+   message: string;
+   severity: StockSeverity;
+   color: string;
+   created_at: string;
+   isRead: boolean;
+ }
+
+ const stockAlerts = ref<StockAlert[]>([]);
+ const READ_STOCK_KEY = 'read_stock_alert_ids';
+ const loadReadStockAlertIds = (): Set<string> => {
+   try {
+     const raw = localStorage.getItem(READ_STOCK_KEY);
+     const arr = raw ? (JSON.parse(raw) as string[]) : [];
+     return new Set(Array.isArray(arr) ? arr : []);
+   } catch {
+     return new Set<string>();
+   }
+ };
+ const persistReadStockAlertIds = (ids: Set<string>) => {
+   try {
+     localStorage.setItem(READ_STOCK_KEY, JSON.stringify(Array.from(ids)));
+   } catch {
+     // ignore
+   }
+ };
+ const readStockAlertIds = ref<Set<string>>(loadReadStockAlertIds());
+
+ const getStockAlertIcon = (severity: StockSeverity) => {
+   if (severity === 'critical') return 'error';
+   if (severity === 'low') return 'warning_amber';
+   return 'schedule';
+ };
+
+ const loadStockAlerts = async (): Promise<void> => {
+   try {
+     const res = await api.get('/operations/medicine-inventory/');
+     const list = Array.isArray(res.data?.results) ? res.data.results : res.data;
+     const medicines: MedicineData[] = Array.isArray(list) ? list : [] as unknown as MedicineData[];
+
+     const alerts: StockAlert[] = [];
+     const now = new Date();
+     const soonThresholdDays = 30;
+
+     for (const med of medicines) {
+       const name = med.medicine_name ?? 'Unknown Medicine';
+       const current = Number(med.current_stock ?? med.stock_quantity ?? 0);
+       const minLevel = Number(med.minimum_stock_level ?? med.minimum_stock ?? 0);
+       const expiryStr = med.expiry_date ?? undefined;
+
+       if (current === 0) {
+         const id = `out-${med.id}`;
+         alerts.push({
+           id,
+           title: `${name} is out of stock`,
+           message: 'Please restock immediately.',
+           severity: 'critical',
+           color: 'negative',
+           created_at: new Date().toISOString(),
+           isRead: readStockAlertIds.value.has(String(id)),
+         });
+         continue;
+       }
+ 
+       if (!Number.isNaN(minLevel) && current <= minLevel) {
+         const id = `low-${med.id}`;
+         alerts.push({
+           id,
+           title: `${name} is running low on stock`,
+           message: `Current quantity: ${current} units`,
+           severity: 'low',
+           color: 'warning',
+           created_at: new Date().toISOString(),
+           isRead: readStockAlertIds.value.has(String(id)),
+         });
+       }
+ 
+       if (expiryStr) {
+         const expiry = new Date(expiryStr);
+         const diffDays = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+         if (diffDays >= 0 && diffDays <= soonThresholdDays && current > 0) {
+           const id = `exp-${med.id}`;
+           alerts.push({
+             id,
+             title: `${name} will expire in ${diffDays} days`,
+             message: `Current quantity: ${current} units`,
+             severity: 'expiry',
+             color: 'orange',
+             created_at: new Date().toISOString(),
+             isRead: readStockAlertIds.value.has(String(id)),
+           });
+         }
+       }
+     }
+
+     stockAlerts.value = alerts.sort(
+       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+     );
+   } catch (error) {
+     console.error('Failed to load stock alerts:', error);
+     stockAlerts.value = [];
+     $q.notify({ type: 'negative', message: 'Failed to load stock alerts' });
+   }
+ };
+
+ watch(showStockAlerts, (val) => {
+  if (val) {
+    void loadStockAlerts();
+  }
+});
+
+// Mark stock alerts as read
+const markStockAlertRead = (id: string | number): void => {
+  const key = String(id);
+  if (!readStockAlertIds.value.has(key)) {
+    readStockAlertIds.value.add(key);
+    persistReadStockAlertIds(readStockAlertIds.value);
+  }
+  stockAlerts.value = stockAlerts.value.map((a) => (
+    a.id === id ? { ...a, isRead: true } : a
+  ));
+};
+
+const markAllStockAlertsRead = (): void => {
+  for (const a of stockAlerts.value) {
+    readStockAlertIds.value.add(String(a.id));
+  }
+  persistReadStockAlertIds(readStockAlertIds.value);
+  stockAlerts.value = stockAlerts.value.map((a) => ({ ...a, isRead: true }));
 };
 
 const handleNotificationClick = (notification: Notification): void => {
@@ -2241,30 +2120,12 @@ onMounted(() => {
   }, 10000);
 });
 
-// Storage event handler for profile picture sync
-const handleStorageChange = (e: StorageEvent) => {
-  if (e.key === 'profile_picture' && e.newValue) {
-    userProfile.value.profile_picture = e.newValue;
-    console.log('Profile picture updated from storage event:', e.newValue);
-  }
-};
-
-// Listen for storage changes to sync profile picture across components
-window.addEventListener('storage', handleStorageChange);
+// Removed profile picture storage sync: initials-only avatar
 
 // Cleanup on component unmount
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
-  }
-
-  // Clean up storage event listener
-  window.removeEventListener('storage', handleStorageChange);
-
-  // Close queue WebSocket
-  if (queueWebSocket.value) {
-    try { queueWebSocket.value.close() } catch (err) { console.debug('Ignoring WebSocket close error', err) }
-    queueWebSocket.value = null
   }
 });
 </script>
@@ -2631,12 +2492,6 @@ onUnmounted(() => {
   box-shadow: 0 4px 12px rgba(30, 118, 104, 0.3);
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
 
 .profile-placeholder {
   width: 100%;
@@ -2653,26 +2508,6 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-  border: 2px solid white !important;
-  transition: all 0.3s ease !important;
-}
-
-.upload-btn:hover {
-  background: #286660 !important;
-  transform: scale(1.1) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
 
 .user-info {
   margin-top: 10px;
@@ -2974,12 +2809,6 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  transform: translate(10%, 10%);
-}
 
 .verified-badge {
   position: absolute;

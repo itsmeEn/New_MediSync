@@ -38,6 +38,7 @@ urlpatterns = [
     path('medicine-inventory/', views.get_medicine_inventory, name='get_medicine_inventory'),
     path('medicine-inventory/add/', views.add_medicine, name='add_medicine'),
     path('medicine-inventory/<int:medicine_id>/update/', views.update_medicine, name='update_medicine'),
+    path('medicine-inventory/<int:medicine_id>/dispense/', views.dispense_medicine, name='dispense_medicine'),
     path('medicine-inventory/<int:medicine_id>/delete/', views.delete_medicine, name='delete_medicine'),
     
     # Nurse queue endpoints
