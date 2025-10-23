@@ -249,23 +249,52 @@ class QueueStatusConsumer(AsyncWebsocketConsumer):
             is_active=True,
             start_date__lte=timezone.now().date(),
             end_date__gte=timezone.now().date()
-        ).order_by('start_time')
+        ).order_by('start_time')[:10]
         
         return QueueScheduleSerializer(schedules, many=True).data
 
     async def send_current_queue_status(self):
-        """Send current queue status to WebSocket"""
-        status = await self.get_current_queue_status()
-        if status:
-            await self.send(text_data=json.dumps({
-                'type': 'queue_status',
-                'status': status
-            }))
+        status_data = await self.get_current_queue_status()
+        await self.send(text_data=json.dumps({
+            'type': 'queue_status_update',
+            'status': status_data
+        }))
 
     async def send_current_queue_schedule(self):
-        """Send current queue schedule to WebSocket"""
-        schedules = await self.get_current_queue_schedule()
+        schedule_data = await self.get_current_queue_schedule()
         await self.send(text_data=json.dumps({
-            'type': 'queue_schedule',
-            'schedules': schedules
+            'type': 'queue_schedule_update',
+            'schedule': schedule_data
+        }))
+
+
+class MedicationConsumer(AsyncWebsocketConsumer):
+    """WebSocket consumer for real-time medication dispense notifications to patients"""
+
+    async def connect(self):
+        self.patient_id = self.scope['url_route']['kwargs'].get('patient_id')
+        self.group_name = f'medication_{self.patient_id}'
+
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def receive(self, text_data):
+        # Currently, we don't need to process incoming messages from clients
+        try:
+            data = json.loads(text_data)
+            if data.get('type') == 'ping':
+                await self.send(text_data=json.dumps({'type': 'pong'}))
+        except Exception:
+            # Ignore malformed messages
+            pass
+
+    async def medication_notification(self, event):
+        """Send medication notification to patient WebSocket"""
+        payload = event.get('notification', {})
+        await self.send(text_data=json.dumps({
+            'type': 'medication_notification',
+            'notification': payload
         }))

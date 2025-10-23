@@ -285,7 +285,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import logoUrl from 'src/assets/logo.png'
@@ -315,6 +315,9 @@ interface Notification {
 type FilterValue = 'all' | 'unread' | 'read' | 'appointments' | 'queue' | 'medical' | 'archived'
 
 const notifications = ref<Notification[]>([])
+
+// WebSocket for real-time medication notifications on this page
+let medicationWS: WebSocket | null = null
 
 const userName = computed(() => {
   try {
@@ -358,6 +361,57 @@ interface WindowWithLucide extends Window {
   }
 }
 
+const setupMedicationWS = (): void => {
+  try {
+    const userStr = localStorage.getItem('user') || '{}'
+    const userObj = JSON.parse(userStr)
+    const patientId: number | undefined = userObj?.patient_profile?.id
+    if (!patientId) return
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
+    const backendHost = base.hostname
+    const backendPort = base.port || '8000'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/medication/${patientId}/`
+
+    const ws = new WebSocket(wsUrl)
+    medicationWS = ws
+    ws.onmessage = async (evt: MessageEvent) => {
+      try {
+        const data = JSON.parse(evt.data)
+        if (data?.type === 'medication_notification') {
+          const payload = data.notification || {}
+          // Create a readable notification entry locally
+          const title = 'Medication Dispensed'
+          const message = `${payload?.medicine?.name || 'Medicine'} | Qty: ${payload?.quantity ?? ''}`
+          const createdAt = payload?.dispensed_at || new Date().toISOString()
+          const newItem: Notification = {
+            id: Date.now(), // temporary id for UI; real id will come from REST
+            title,
+            message,
+            type: 'medical',
+            read: false,
+            archived: false,
+            createdAt
+          }
+          notifications.value = [newItem, ...notifications.value]
+          // Sync with backend to get persisted notification and badge alignment
+          await fetchNotifications()
+        }
+      } catch {
+        // ignore
+      }
+    }
+    ws.onclose = () => {
+      setTimeout(() => {
+        try { setupMedicationWS() } catch { /* ignore */ }
+      }, 5000)
+    }
+  } catch {
+    // ignore
+  }
+}
+
 onMounted(async () => {
   await fetchNotifications()
   try { (window as WindowWithLucide).lucide?.createIcons() } catch (e) { console.warn('lucide icons init failed', e) }
@@ -368,6 +422,12 @@ onMounted(async () => {
     console.warn('unread count fetch failed', e)
     unreadCount.value = 0
   }
+  setupMedicationWS()
+})
+
+onUnmounted(() => {
+  try { if (medicationWS) medicationWS.close() } catch { /* ignore */ }
+  medicationWS = null
 })
 
 const fetchNotifications = async () => {

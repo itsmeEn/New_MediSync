@@ -103,48 +103,61 @@
         <!-- Inventory Statistics -->
         <div class="stats-section">
           <div class="stats-grid">
-            <q-card class="stat-card total-medicines">
-              <q-card-section class="text-center">
-                <div class="stat-icon">
-                  <q-icon name="medication" size="2rem" />
+            <q-card class="stat-card total-medicines" clickable>
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Total Medicines</div>
+                  <div class="card-description">All medicines in inventory</div>
+                  <div class="card-value">{{ inventoryStats.totalMedicines }}</div>
                 </div>
-                <div class="stat-number">{{ inventoryStats.totalMedicines }}</div>
-                <div class="stat-label">Total Medicines</div>
+                <div class="card-icon">
+                  <q-icon name="medication" size="2.5rem" />
+                </div>
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card low-stock">
-              <q-card-section class="text-center">
-                <div class="stat-icon">
-                  <q-icon name="warning" size="2rem" />
+            <q-card class="stat-card low-stock" clickable>
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Low Stock Items</div>
+                  <div class="card-description">Below minimum stock</div>
+                  <div class="card-value">{{ inventoryStats.lowStock }}</div>
                 </div>
-                <div class="stat-number">{{ inventoryStats.lowStock }}</div>
-                <div class="stat-label">Low Stock Items</div>
+                <div class="card-icon">
+                  <q-icon name="warning" size="2.5rem" />
+                </div>
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card out-of-stock">
-              <q-card-section class="text-center">
-                <div class="stat-icon">
-                  <q-icon name="error" size="2rem" />
+            <q-card class="stat-card out-of-stock" clickable>
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Out of Stock</div>
+                  <div class="card-description">Currently unavailable</div>
+                  <div class="card-value">{{ inventoryStats.outOfStock }}</div>
                 </div>
-                <div class="stat-number">{{ inventoryStats.outOfStock }}</div>
-                <div class="stat-label">Out of Stock</div>
+                <div class="card-icon">
+                  <q-icon name="error" size="2.5rem" />
+                </div>
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card expiring-soon">
-              <q-card-section class="text-center">
-                <div class="stat-icon">
-                  <q-icon name="schedule" size="2rem" />
+            <q-card class="stat-card expiring-soon" clickable>
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Expiring Soon</div>
+                  <div class="card-description">Near expiry</div>
+                  <div class="card-value">{{ inventoryStats.expiringSoon }}</div>
                 </div>
-                <div class="stat-number">{{ inventoryStats.expiringSoon }}</div>
-                <div class="stat-label">Expiring Soon</div>
+                <div class="card-icon">
+                  <q-icon name="schedule" size="2.5rem" />
+                </div>
               </q-card-section>
             </q-card>
           </div>
         </div>
 
+        <!-- Medicine Inventory Table -->
         <!-- Medicine Inventory Table -->
         <q-card class="inventory-table-card">
           <q-card-section>
@@ -234,7 +247,7 @@
         </q-card>
 
         <!-- Notifications Panel -->
-        <q-card class="notifications-card q-mt-lg" v-if="notifications.length > 0">
+        <q-card class="notifications-card" v-if="notifications.length > 0">
           <q-card-section>
             <div class="row items-center q-mb-md">
               <h6 class="text-h6 q-mb-none">Stock Alerts & Notifications</h6>
@@ -449,38 +462,60 @@
 
       <!-- Dispense Medicine Dialog -->
       <q-dialog v-model="showDispenseDialog" persistent>
-        <q-card style="min-width: 400px">
-          <q-card-section>
-            <div class="text-h6">Dispense Medicine</div>
+        <q-card class="dispense-modal-card">
+          <q-card-section class="dispense-header row items-center">
+            <div class="col">
+              <div class="dispense-title">Dispense Medicine</div>
+              <div class="med-info">
+                <q-icon name="medication" color="primary" class="med-icon" />
+                <div class="med-texts">
+                  <div class="med-name">{{ selectedMedicine?.name || 'Unknown Medicine' }}</div>
+                  <div class="med-meta">
+                    <span>Strength: {{ selectedMedicine?.strength || 'N/A' }}</span>
+                    <span>Stock: {{ selectedMedicine?.quantity || 0 }}</span>
+                    <span>Expiry: {{ selectedMedicine?.expiryDate || 'N/A' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup class="close-btn" />
           </q-card-section>
 
-          <q-card-section>
-            <div class="row q-gutter-md">
+          <q-card-section class="form-grid">
+            <div class="row q-col-gutter-md">
               <div class="col-12">
                 <q-input
                   v-model="dispenseForm.patientName"
                   label="Patient Name"
                   outlined
+                  dense
                   :rules="[(val) => !!val || 'Patient name is required']"
                 />
               </div>
-              <div class="col-12 col-md-6">
+
+              <div class="col-12 col-sm-6">
                 <q-input
                   v-model.number="dispenseForm.quantity"
                   label="Quantity to Dispense"
                   type="number"
                   outlined
+                  dense
+                  :min="1"
+                  :max="selectedMedicine?.quantity || 0"
                   :rules="[
                     (val) => !!val || 'Quantity is required',
-                    (val) => val <= (selectedMedicine?.quantity || 0) || 'Insufficient stock',
+                    (val) => Number(val) > 0 || 'Enter a quantity greater than 0',
+                    (val) => Number(val) <= (selectedMedicine?.quantity || 0) || 'Insufficient stock',
                   ]"
                 />
               </div>
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-sm-6">
                 <q-input
                   v-model="dispenseForm.dosage"
                   label="Dosage Instructions"
                   outlined
+                  dense
                   placeholder="e.g., 1 tablet twice daily"
                 />
               </div>
@@ -490,19 +525,30 @@
                   label="Notes"
                   type="textarea"
                   outlined
+                  dense
                   rows="3"
                 />
               </div>
             </div>
+
+            <q-banner class="stock-banner" rounded>
+              <q-icon name="inventory_2" color="primary" />
+              <div>
+                Available stock: <strong>{{ selectedMedicine?.quantity || 0 }}</strong>
+                <span class="divider">•</span>
+                Minimum stock level guidance applies to alerts
+              </div>
+            </q-banner>
           </q-card-section>
 
-          <q-card-actions align="right">
-            <q-btn flat label="Cancel" color="primary" @click="cancelDispense" />
+          <q-card-actions class="actions-responsive" align="right">
+            <q-btn flat label="Cancel" color="grey-7" @click="cancelDispense" class="cancel-btn" />
             <q-btn
               label="Dispense"
               color="primary"
               @click="confirmDispense"
               :loading="dispensing"
+              class="save-btn"
             />
           </q-card-actions>
         </q-card>
@@ -510,13 +556,31 @@
 
       <!-- Restock Medicine Dialog -->
       <q-dialog v-model="showRestockDialog" persistent>
-        <q-card style="min-width: 400px">
-          <q-card-section>
-            <div class="text-h6">Restock Medicine</div>
+        <q-card class="restock-modal" style="min-width: 560px">
+          <!-- Header with medication details and stock banner -->
+          <q-card-section class="restock-header">
+            <div class="restock-title-row">
+              <div class="med-head">
+                <div class="med-name">{{ selectedMedicine?.name }}</div>
+                <div class="med-subtitle">
+                  {{ selectedMedicine?.genericName }} • {{ selectedMedicine?.dosage }} {{ selectedMedicine?.strength }} {{ selectedMedicine?.unit }} • {{ selectedMedicine?.category }}
+                </div>
+              </div>
+              <div
+                class="stock-banner restock-stock-banner"
+                :class="selectedMedicine?.stockLevel === 'out_of_stock' ? 'stock-out' : (selectedMedicine?.stockLevel === 'low_stock' ? 'stock-low' : 'stock-ok')"
+              >
+                <div class="stock-row">
+                  <span class="stock-current">Current: {{ selectedMedicine?.quantity }}</span>
+                  <span class="stock-min">Min: {{ selectedMedicine?.minStockLevel }}</span>
+                </div>
+              </div>
+            </div>
           </q-card-section>
 
-          <q-card-section>
-            <div class="row q-gutter-md">
+          <!-- Inputs in a clean two-column layout -->
+          <q-card-section class="restock-inputs">
+            <div class="row q-col-gutter-md">
               <div class="col-12 col-md-6">
                 <q-input
                   v-model.number="restockForm.quantity"
@@ -524,6 +588,7 @@
                   type="number"
                   outlined
                   :rules="[(val) => val > 0 || 'Quantity must be positive']"
+                  hint="Enter units to add"
                 />
               </div>
               <div class="col-12 col-md-6">
@@ -535,24 +600,19 @@
                   :rules="[(val) => !!val || 'Expiry date is required']"
                 />
               </div>
-              <div class="col-12">
+              <div class="col-12 col-md-6">
                 <q-input v-model="restockForm.supplier" label="Supplier" outlined />
               </div>
-              <div class="col-12">
-                <q-input
-                  v-model="restockForm.notes"
-                  label="Notes"
-                  type="textarea"
-                  outlined
-                  rows="3"
-                />
+              <div class="col-12 col-md-6">
+                <q-input v-model="restockForm.notes" label="Notes" type="textarea" outlined rows="3" />
               </div>
             </div>
           </q-card-section>
 
-          <q-card-actions align="right">
-            <q-btn flat label="Cancel" color="primary" @click="cancelRestock" />
-            <q-btn label="Restock" color="primary" @click="confirmRestock" :loading="restocking" />
+          <!-- Actions -->
+          <q-card-actions class="actions-responsive" align="right">
+            <q-btn flat label="Cancel" color="grey-7" @click="cancelRestock" class="cancel-btn" />
+            <q-btn label="Restock" color="primary" @click="confirmRestock" :loading="restocking" class="save-btn" />
           </q-card-actions>
         </q-card>
       </q-dialog>
@@ -615,6 +675,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
+import axios from 'axios';
 import NurseHeader from 'src/components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
 import { showVerificationToastOnce } from 'src/utils/verificationToast';
@@ -751,10 +812,13 @@ const medicineForm = ref({
 
 const dispenseForm = ref({
   patientName: '',
+  patientId: '',
   quantity: 0,
   dosage: '',
   notes: '',
+  time: '',
 });
+
 
 const restockForm = ref({
   quantity: 0,
@@ -1007,12 +1071,15 @@ const dispenseMedicine = (medicine: Medicine) => {
   selectedMedicine.value = medicine;
   dispenseForm.value = {
     patientName: '',
+    patientId: '',
     quantity: 0,
     dosage: '',
     notes: '',
+    time: new Date().toISOString(),
   };
   showDispenseDialog.value = true;
 };
+
 
 const restockMedicine = (medicine: Medicine) => {
   selectedMedicine.value = medicine;
@@ -1210,42 +1277,62 @@ const cancelDispense = () => {
   showDispenseDialog.value = false;
 };
 
-const confirmDispense = () => {
+const confirmDispense = async () => {
   dispensing.value = true;
 
   try {
-    // Update medicine quantity
-    const medicine = medicines.value.find((m) => m.id === selectedMedicine.value?.id);
-    if (medicine && selectedMedicine.value) {
-      medicine.quantity -= dispenseForm.value.quantity;
+    if (!selectedMedicine.value) {
+      throw new Error('No medicine selected for dispensing');
+    }
 
-      // Update stock level
-      if (medicine.quantity <= 0) {
-        medicine.stockLevel = 'out_of_stock';
-      } else if (medicine.quantity <= medicine.minStockLevel) {
-        medicine.stockLevel = 'low_stock';
-      } else {
-        medicine.stockLevel = 'in_stock';
+    const id = selectedMedicine.value.id;
+    const qty = Number(dispenseForm.value.quantity || 0);
+
+    if (!qty || qty <= 0) {
+      $q.notify({ type: 'warning', message: 'Enter a valid quantity', position: 'top' });
+      return;
+    }
+
+    const payload = {
+      quantity: qty,
+      expiry_days: 21,
+    };
+    const response = await api.post(`/operations/medicine-inventory/${id}/dispense/`, payload);
+
+    // Update local inventory with backend response
+    const updated = response.data?.inventory;
+    if (updated) {
+      const idx = medicines.value.findIndex((m) => m.id === id);
+      if (idx !== -1) {
+        const current = medicines.value[idx];
+        if (current) {
+          current.quantity = Number(updated.current_stock ?? current.quantity);
+          current.expiryDate = String(updated.expiry_date ?? current.expiryDate);
+          current.minStockLevel = Number(updated.minimum_stock_level ?? current.minStockLevel);
+          current.description = String(updated.usage_pattern ?? current.description);
+          current.stockLevel = String(updated.stock_level ?? current.stockLevel);
+          if (updated.unit_price !== undefined) current.unitPrice = Number(updated.unit_price);
+          if (updated.batch_number !== undefined) current.batchNumber = String(updated.batch_number);
+        }
       }
     }
 
     // Check stock levels after dispensing
     checkStockLevels();
 
-    $q.notify({
-      type: 'positive',
-      message: 'Medicine dispensed successfully!',
-      position: 'top',
-    });
-
+    $q.notify({ type: 'positive', message: 'Medicine dispensed successfully!', position: 'top' });
     cancelDispense();
   } catch (error) {
     console.error('Error dispensing medicine:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to dispense medicine. Please try again.',
-      position: 'top',
-    });
+
+    let msg = 'Failed to dispense medicine. Please try again.';
+    if (axios.isAxiosError(error)) {
+      const data = error.response?.data as { error?: string; message?: string } | undefined;
+      const backendMessage = data?.error || data?.message;
+      if (backendMessage) msg = backendMessage;
+    }
+
+    $q.notify({ type: 'negative', message: msg, position: 'top' });
   } finally {
     dispensing.value = false;
   }
@@ -1256,26 +1343,46 @@ const cancelRestock = () => {
   showRestockDialog.value = false;
 };
 
-const confirmRestock = () => {
+const confirmRestock = async () => {
   restocking.value = true;
 
   try {
-    // Update medicine quantity
     const medicine = medicines.value.find((m) => m.id === selectedMedicine.value?.id);
-    if (medicine && selectedMedicine.value) {
-      medicine.quantity += restockForm.value.quantity;
+    if (!medicine || !selectedMedicine.value) {
+      throw new Error('No medicine selected for restock');
+    }
 
-      // Update expiry date if provided
-      if (restockForm.value.expiryDate) {
-        medicine.expiryDate = restockForm.value.expiryDate;
-      }
+    const id = selectedMedicine.value.id;
+    const addQty = Number(restockForm.value.quantity || 0);
+    if (!addQty || addQty <= 0) {
+      $q.notify({ type: 'warning', message: 'Enter a valid restock quantity', position: 'top' });
+      return;
+    }
 
-      // Update stock level
-      if (medicine.quantity > medicine.minStockLevel) {
-        medicine.stockLevel = 'in_stock';
-      } else if (medicine.quantity > 0) {
-        medicine.stockLevel = 'low_stock';
-      }
+    const currentQty = Number(medicine.quantity || 0);
+    const newQty = currentQty + addQty;
+    const newExpiry = restockForm.value.expiryDate || medicine.expiryDate;
+
+    // Persist restock via backend update endpoint
+    const response = await api.put(`/operations/medicine-inventory/${id}/update/`, {
+      quantity: newQty,
+      expiry_date: newExpiry,
+    });
+
+    // Sync local state with backend response
+    const updated = response.data;
+    if (updated) {
+      medicine.quantity = Number(updated.current_stock ?? newQty);
+      medicine.expiryDate = String(updated.expiry_date ?? newExpiry);
+      medicine.minStockLevel = Number(updated.minimum_stock_level ?? medicine.minStockLevel);
+      medicine.description = String(updated.usage_pattern ?? medicine.description);
+      medicine.stockLevel = String(updated.stock_level ?? medicine.stockLevel);
+      if (updated.unit_price !== undefined) medicine.unitPrice = Number(updated.unit_price);
+      if (updated.batch_number !== undefined) medicine.batchNumber = String(updated.batch_number);
+    } else {
+      // Fallback local update if response is missing
+      medicine.quantity = newQty;
+      medicine.expiryDate = newExpiry;
     }
 
     // Check stock levels after restocking
@@ -1290,9 +1397,17 @@ const confirmRestock = () => {
     cancelRestock();
   } catch (error) {
     console.error('Error restocking medicine:', error);
+
+    let msg = 'Failed to restock medicine. Please try again.';
+    if (axios.isAxiosError(error)) {
+      const data = error.response?.data as { error?: string; message?: string } | undefined;
+      const backendMessage = data?.error || data?.message;
+      if (backendMessage) msg = backendMessage;
+    }
+
     $q.notify({
       type: 'negative',
-      message: 'Failed to restock medicine. Please try again.',
+      message: msg,
       position: 'top',
     });
   } finally {
@@ -1669,27 +1784,64 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Page Container with Background */
+/* Page Container with Clean White Background */
 .page-container-with-fixed-header {
-  background: #f5f5f5;
+  background: #ffffff;
   min-height: 100vh;
+  position: relative;
   padding-top: 64px; /* Account for fixed header */
 }
 
-/* Greeting Section */
+.page-container-with-fixed-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(248, 250, 252, 0.8) 0%,
+    rgba(241, 245, 249, 0.6) 50%,
+    rgba(248, 250, 252, 0.4) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+.page-container-with-fixed-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Enhanced Greeting Section */
 .greeting-section {
-  padding: 24px;
+  padding: 32px 40px 24px 40px;
   background: transparent;
+  max-width: 1800px;
+  margin: 0 auto;
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  position: relative;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.1);
+  box-shadow: 
+    0 10px 25px rgba(40, 102, 96, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+  position: relative;
+  width: 100%;
+  min-height: 160px;
+  margin-bottom: 28px;
 }
 
 .greeting-card::before {
@@ -1698,28 +1850,45 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-  pointer-events: none;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
+}
+
+.greeting-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 
+    0 20px 40px rgba(40, 102, 96, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.2);
 }
 
 .greeting-content {
-  position: relative;
-  z-index: 1;
   padding: 24px;
 }
 
 .greeting-text {
   font-size: 28px;
   font-weight: 700;
-  color: #333;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #286660 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin: 0 0 8px 0;
+  line-height: 1.2;
 }
 
 .greeting-subtitle {
   font-size: 16px;
-  color: #666;
+  color: #64748b;
   margin: 0;
+  font-weight: 500;
 }
 
 .page-header {
@@ -1733,7 +1902,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -1755,78 +1924,449 @@ onUnmounted(() => {
 }
 
 .page-content {
-  max-width: 1200px;
+  max-width: 1800px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 24px 40px;
 }
 
 .search-filters-card,
 .inventory-table-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  margin-bottom: 32px;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(40, 102, 96, 0.08);
+  box-shadow: 
+    0 8px 20px rgba(40, 102, 96, 0.06),
+    0 3px 8px rgba(0, 0, 0, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.search-filters-card::before,
+.inventory-table-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
+}
+
+.search-filters-card:hover,
+.inventory-table-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 28px rgba(40, 102, 96, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.12);
 }
 
 .stats-section {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px;
+}
+
+@media (min-width: 1280px) {
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Enhanced Responsive Design - Mobile First Approach */
+@media (max-width: 1400px) {
+  .greeting-section,
+  .page-content {
+    max-width: 1200px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+  
+  .stats-grid {
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  
+  .stat-card {
+    min-height: 140px;
+  }
+  
+  .card-content {
+    padding: 24px 20px;
+  }
+  
+  .card-value {
+    font-size: 32px;
+  }
+  
+  .card-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+@media (max-width: 768px) {
+  .greeting-section {
+    padding: 24px 20px;
+  }
+  
+  .page-content {
+    padding: 20px 20px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .stat-card {
+    min-height: 120px;
+  }
+  
+  .card-content {
+    padding: 20px 18px;
+  }
+  
+  .card-value {
+    font-size: 28px;
+  }
+  
+  .card-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+  }
+  
+  .search-filters-card,
+  .inventory-table-card,
+  .greeting-card,
+  .notifications-card {
+    margin-bottom: 24px;
+  }
+  
+  .stats-section {
+    margin-bottom: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .greeting-section {
+    padding: 20px 16px;
+  }
+  
+  .page-content {
+    padding: 16px;
+  }
+  
+  .greeting-text {
+    font-size: 24px;
+  }
+  
+  .greeting-subtitle {
+    font-size: 14px;
+  }
+  
+  .card-title {
+    font-size: 12px;
+  }
+  
+  .card-value {
+    font-size: 24px;
+  }
+  
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
 }
 
 .stat-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.08);
+  box-shadow: 
+    0 8px 20px rgba(40, 102, 96, 0.06),
+    0 3px 8px rgba(0, 0, 0, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  height: 170px;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 20px 20px 0 0;
+  transition: all 0.3s ease;
+}
+
+.stat-card.total-medicines::before {
+  background: linear-gradient(90deg, rgba(102, 126, 234, 0.35) 0%, rgba(118, 75, 162, 0.35) 100%);
+}
+
+.stat-card.low-stock::before {
+  background: linear-gradient(90deg, rgba(240, 147, 251, 0.35) 0%, rgba(245, 87, 108, 0.35) 100%);
+}
+
+.stat-card.out-of-stock::before {
+  background: linear-gradient(90deg, rgba(79, 172, 254, 0.35) 0%, rgba(0, 242, 254, 0.35) 100%);
+}
+
+.stat-card.expiring-soon::before {
+  background: linear-gradient(90deg, rgba(255, 213, 79, 0.35) 0%, rgba(255, 179, 0, 0.35) 100%);
+}
+
+/* Subtle tinted overlays for each card (match sample design) */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.stat-card.total-medicines::after {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.08) 100%);
+}
+.stat-card.low-stock::after {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.12) 0%, rgba(245, 87, 108, 0.08) 100%);
+}
+.stat-card.out-of-stock::after {
+  background: linear-gradient(135deg, rgba(79, 172, 254, 0.12) 0%, rgba(0, 242, 254, 0.08) 100%);
+}
+.stat-card.expiring-soon::after {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.12) 0%, rgba(255, 152, 0, 0.08) 100%);
+}
+
+/* Subtle accent only (glassmorphism) — remove full-card color fills */
+.stat-card.total-medicines,
+.stat-card.low-stock,
+.stat-card.out-of-stock,
+.stat-card.expiring-soon {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  color: inherit;
+}
+
+/* Text colors use defaults for glassmorphism cards */
+.total-medicines .card-title,
+.low-stock .card-title,
+.out-of-stock .card-title,
+.expiring-soon .card-title {
+  color: inherit;
+}
+.total-medicines .card-description,
+.low-stock .card-description,
+.out-of-stock .card-description,
+.expiring-soon .card-description {
+  color: inherit;
+}
+.total-medicines .card-value,
+.low-stock .card-value,
+.out-of-stock .card-value,
+.expiring-soon .card-value {
+  -webkit-text-fill-color: unset;
+  color: inherit;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 20px 40px rgba(40, 102, 96, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.15);
 }
 
-.stat-icon {
-  margin-bottom: 10px;
+.stat-card:hover::before {
+  height: 4px;
 }
 
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  margin-bottom: 5px;
+.card-content {
+  padding: 28px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
-.stat-label {
-  font-size: 0.9rem;
-  color: #666;
+.card-text { 
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
-/* Card-specific colors */
-.total-medicines .stat-icon {
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  line-height: 1.2;
+}
+
+.card-description {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.3;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.card-value {
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #286660 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+  margin-top: 8px;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover .card-value {
+  transform: scale(1.05);
+}
+
+.card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover .card-icon {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Card-specific icon chips — toned down to match sample */
+.total-medicines .card-icon {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.25) 0%, rgba(118, 75, 162, 0.25) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.25);
+  color: #3f51b5;
+}
+
+.low-stock .card-icon {
+  background: linear-gradient(135deg, rgba(240, 147, 251, 0.25) 0%, rgba(245, 87, 108, 0.25) 100%);
+  border: 1px solid rgba(240, 147, 251, 0.25);
+  color: #d54b8c;
+}
+
+.out-of-stock .card-icon {
+  background: linear-gradient(135deg, rgba(79, 172, 254, 0.25) 0%, rgba(0, 242, 254, 0.25) 100%);
+  border: 1px solid rgba(79, 172, 254, 0.25);
   color: #2196f3;
 }
 
-.low-stock .stat-icon {
+.expiring-soon .card-icon {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.25) 0%, rgba(255, 152, 0, 0.25) 100%);
+  border: 1px solid rgba(255, 193, 7, 0.25);
   color: #ff9800;
-}
-
-.out-of-stock .stat-icon {
-  color: #f44336;
-}
-
-.expiring-soon .stat-icon {
-  color: #e91e63;
 }
 
 .inventory-table {
   border-radius: 8px;
 }
 
-/* Notifications Styles */
+/* Enhanced Notifications Styles */
 .notifications-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  margin-bottom: 32px;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(40, 102, 96, 0.08);
+  box-shadow: 
+    0 8px 20px rgba(40, 102, 96, 0.06),
+    0 3px 8px rgba(0, 0, 0, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.notifications-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
+}
+
+.notifications-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 12px 28px rgba(40, 102, 96, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.12);
 }
 
 .notifications-list {
@@ -2510,6 +3050,85 @@ onUnmounted(() => {
   padding: 12px 16px;
 }
 
+/* Dispense Modal Styles */
+.dispense-modal-card {
+  min-width: 480px;
+  max-width: 920px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.dispense-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.dispense-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.med-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.med-icon {
+  font-size: 24px;
+}
+
+.med-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.med-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.med-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.form-grid {
+  padding: 16px 20px;
+}
+
+.stock-banner {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.actions-responsive {
+  padding: 16px 20px;
+  background: #f8f9fa;
+  border-top: 1px solid #eee;
+}
+
+@media (max-width: 768px) {
+  .dispense-modal-card {
+    min-width: 100%;
+    width: 100%;
+  }
+  .actions-responsive {
+    justify-content: stretch;
+  }
+  .actions-responsive .q-btn + .q-btn {
+    margin-left: 8px;
+  }
+}
+
 /* Enhanced Header Styles */
 .search-results-dropdown {
   position: absolute;
@@ -2628,6 +3247,84 @@ onUnmounted(() => {
 
   .search-container {
     min-width: 200px;
+  }
+}
+
+/* Restock Modal UI */
+.restock-modal {
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.restock-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.restock-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.med-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.med-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.med-subtitle {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.restock-stock-banner {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.stock-row {
+  display: flex;
+  gap: 12px;
+}
+
+.stock-ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.stock-low {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.stock-out {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
+.restock-inputs {
+  padding: 16px 20px;
+}
+
+@media (max-width: 768px) {
+  .restock-modal {
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .restock-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 }
 </style>

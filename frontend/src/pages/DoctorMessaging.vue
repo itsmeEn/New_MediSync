@@ -17,9 +17,7 @@
                 <h4 class="greeting-title">Messages</h4>
                 <p class="greeting-subtitle">Secure communication with your team</p>
               </div>
-              <div class="greeting-icon">
-                <q-icon name="message" size="3rem" />
-              </div>
+              <!-- Removed greeting icon for a cleaner header -->
             </q-card-section>
           </q-card>
         </div>
@@ -1721,16 +1719,6 @@ onMounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
-}
-
-.search-container {
-  width: 100%;
-  max-width: 500px;
-}
-
-.search-input {
-  background: white;
-  border-radius: 8px;
 }
 
 .header-right {

@@ -9,13 +9,11 @@
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Greeting Section -->
-      <div class="greeting-section" v-if="false">
+      <div class="greeting-section">
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <h2 class="greeting-text">
-              Predictive Analytics Dashboard,
-              {{ userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) }}
-              {{ userProfile.full_name }}
+              Predictive Analytics Dashboard
             </h2>
             <p class="greeting-subtitle">
               AI-powered insights for clinical decision making - {{ currentDate }}
@@ -851,20 +849,7 @@ interface Notification {
   created_at: string;
 }
 
-// User profile data
-const userProfile = ref<{
-  full_name: string;
-  specialization?: string;
-  role: string;
-  profile_picture: string | null;
-  verification_status: string;
-}>({
-  full_name: 'Loading...',
-  specialization: 'Loading specialization...',
-  role: 'doctor',
-  profile_picture: null,
-  verification_status: 'not_submitted',
-});
+// User profile data removed (not needed for greeting)
 
 const currentDate = computed(() => {
   const now = new Date();
@@ -1416,116 +1401,100 @@ const aiSummaryText = computed(() => {
   const d = analyticsData.value;
   const sections: string[] = [];
 
-  // Surge prediction overview
-  const sp = d?.surge_prediction?.forecasted_monthly_cases || [];
-  if (sp.length) {
-    const totals = sp.map((m: { total_cases?: string | number }) => Number(m.total_cases || 0));
-    const totalSum = totals.reduce((sum, n) => sum + n, 0);
-    const first = totals[0] ?? null;
-    const last = totals[totals.length - 1] ?? null;
-    const min = Math.min(...totals);
-    const max = Math.max(...totals);
-    const trend = first != null && last != null ? (last > first ? 'increasing' : last < first ? 'decreasing' : 'stable') : null;
-    const acc = d?.surge_prediction?.model_accuracy;
-    const riskFactors = (d?.surge_prediction?.risk_factors || []).slice(0, 3).join(', ');
+  // Surge Forecast (concise, human-readable)
+  {
+    const sp = d?.surge_prediction?.forecasted_monthly_cases || [];
+    if (sp.length) {
+      const totals = sp.map((m: { total_cases?: string | number }) => Number(m.total_cases || 0));
+      const totalSum = totals.reduce((sum, n) => sum + n, 0);
+      const first = totals[0] ?? null;
+      const last = totals[totals.length - 1] ?? null;
+      const min = Math.min(...totals);
+      const max = Math.max(...totals);
+      const trend = first != null && last != null ? (last > first ? 'increasing' : last < first ? 'decreasing' : 'stable') : null;
+      
+      const riskFactors = (d?.surge_prediction?.risk_factors || []).slice(0, 3).join(', ');
 
-    const surgeSentences: string[] = [];
-    surgeSentences.push(`Over the next ${sp.length} months, projected cases total ${formatNumber(totalSum)} (${formatNumber(min)}–${formatNumber(max)} per month).`);
-    if (trend) surgeSentences.push(`Overall trend: ${trend}.`);
-    if (typeof acc === 'number') surgeSentences.push(`Model accuracy: ${acc}%.`);
-    if (riskFactors) surgeSentences.push(`Key risks: ${riskFactors}.`);
-
-    sections.push(surgeSentences.join(' '));
-  }
-
-  // Patient volume prediction overview
-  const vp = d?.volume_prediction?.forecasted_data || [];
-  if (vp.length) {
-    const predicted = vp.map((x: { predicted_volume?: number | string }) => Number(x.predicted_volume || 0));
-    const actuals = vp
-      .filter((x): x is { date: string; predicted_volume: number; actual_volume: number } =>
-        typeof x.actual_volume === 'number'
-      )
-      .map((x) => Number(x.actual_volume));
-    const pAvg = Math.round(predicted.reduce((s, n) => s + n, 0) / predicted.length);
-    const aAvg = actuals.length ? Math.round(actuals.reduce((s, n) => s + n, 0) / actuals.length) : null;
-    const pFirst = predicted[0] ?? null;
-    const pLast = predicted[predicted.length - 1] ?? null;
-    const vTrend = pFirst != null && pLast != null ? (pLast > pFirst ? 'increasing' : pLast < pFirst ? 'decreasing' : 'stable') : null;
-    const latest = vp[vp.length - 1]!;
-
-    const mae = d?.volume_prediction?.evaluation_metrics?.mae;
-    const rmse = d?.volume_prediction?.evaluation_metrics?.rmse;
-
-    const volSentences: string[] = [];
-    volSentences.push(`Patient volume shows a ${vTrend || 'stable'} trend.`);
-    volSentences.push(`Average predicted volume: ${formatNumber(pAvg)}${aAvg != null ? `; average actual: ${formatNumber(aAvg)}` : ''}.`);
-    volSentences.push(`Latest period (${latest.date}): predicted ${formatNumber(latest.predicted_volume)}${typeof latest.actual_volume === 'number' ? `, actual ${formatNumber(latest.actual_volume)}` : ''}.`);
-    if (typeof mae === 'number' || typeof rmse === 'number') {
-      volSentences.push(`Model performance — MAE: ${mae ?? 'N/A'}, RMSE: ${rmse ?? 'N/A'}.`);
+      const lines: string[] = [];
+      lines.push(`• Trend: ${trend || 'stable'}; monthly range ${formatNumber(min)}–${formatNumber(max)}.`);
+      lines.push(`• Total forecasted cases (${sp.length} months): ${formatNumber(totalSum)}.`);
+      if (riskFactors) lines.push(`• Key risks: ${riskFactors}.`);
+      sections.push(['Surge Forecast', ...lines].join('\n'));
     }
-
-    sections.push(volSentences.join(' '));
   }
 
-  // Monthly illness forecast (SARIMA)
-  const mif = d?.monthly_illness_forecast?.monthly_illness_forecast || [];
-  if (mif.length) {
-    const sorted = [...mif].sort((a: { predicted_cases?: number }, b: { predicted_cases?: number }) => Number(b.predicted_cases || 0) - Number(a.predicted_cases || 0));
-    const top = sorted
-      .slice(0, 3)
-      .map((x: { illness: string; month: string; predicted_cases: number; trend?: string }) => `${x.illness} (${x.month}: ${formatNumber(Number(x.predicted_cases))}${x.trend ? `; ${x.trend}` : ''})`)
-      .join(', ');
-    const high = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'high').length;
-    const med = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'medium').length;
-    const low = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'low').length;
-    const mae = d?.monthly_illness_forecast?.evaluation_metrics?.mae;
-    const rmse = d?.monthly_illness_forecast?.evaluation_metrics?.rmse;
-
-    const mifSentences: string[] = [];
-    mifSentences.push(`Monthly illness forecast highlights: ${top}.`);
-    mifSentences.push(`Risk distribution — High: ${high}, Medium: ${med}, Low: ${low}.`);
-    if (typeof mae === 'number' || typeof rmse === 'number') {
-      mifSentences.push(`Model performance — MAE: ${mae ?? 'N/A'}, RMSE: ${rmse ?? 'N/A'}.`);
+  // Patient Volume (concise)
+  {
+    const vp = d?.volume_prediction?.forecasted_data || [];
+    if (vp.length) {
+      const predicted = vp.map((x: { predicted_volume?: number | string }) => Number(x.predicted_volume || 0));
+      const actuals = vp
+        .map((x) => (typeof x.actual_volume === 'number' ? Number(x.actual_volume) : NaN))
+        .filter((n) => !Number.isNaN(n));
+      const pAvg = Math.round(predicted.reduce((s, n) => s + n, 0) / predicted.length);
+      const aAvg = actuals.length ? Math.round(actuals.reduce((s, n) => s + n, 0) / actuals.length) : null;
+      const pFirst = predicted[0] ?? null;
+      const pLast = predicted[predicted.length - 1] ?? null;
+      const vTrend = pFirst != null && pLast != null ? (pLast > pFirst ? 'increasing' : pLast < pFirst ? 'decreasing' : 'stable') : null;
+      const latest = vp[vp.length - 1]!;
+      
+      const lines: string[] = [];
+      lines.push(`• Trend: ${vTrend || 'stable'}; avg predicted ${formatNumber(pAvg)}${aAvg != null ? `, avg actual ${formatNumber(aAvg)}` : ''}.`);
+      lines.push(`• Latest (${latest.date}): predicted ${formatNumber(Number(latest.predicted_volume))}${typeof latest.actual_volume === 'number' ? `, actual ${formatNumber(Number(latest.actual_volume))}` : ''}.`);
+      
+      sections.push(['Patient Volume', ...lines].join('\n'));
     }
-    sections.push(mifSentences.join(' '));
   }
 
-  // Health trends overview
-  const inc = d?.health_trends?.trend_analysis?.increasing_conditions || [];
-  if (Array.isArray(inc) && inc.length) {
-    sections.push(`Increasing outbreak risks: ${inc.slice(0, 3).join(', ')}.`);
+  // Illness Forecast (top conditions + risk mix)
+  {
+    const mif = d?.monthly_illness_forecast?.monthly_illness_forecast || [];
+    if (mif.length) {
+      const sorted = [...mif].sort((a: { predicted_cases?: number }, b: { predicted_cases?: number }) => Number(b.predicted_cases || 0) - Number(a.predicted_cases || 0));
+      const top = sorted.slice(0, 3).map((x: { illness: string; month: string; predicted_cases: number; trend?: string }) => `${x.illness} (${x.month}: ${formatNumber(Number(x.predicted_cases))}${x.trend ? `; ${x.trend}` : ''})`).join(', ');
+      const high = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'high').length;
+      const med = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'medium').length;
+      const low = mif.filter((x: { risk_level?: string }) => (x.risk_level || '').toLowerCase() === 'low').length;
+      
+      const lines: string[] = [];
+      lines.push(`• Top conditions: ${top}.`);
+      lines.push(`• Risk mix: High ${high}, Medium ${med}, Low ${low}.`);
+      
+      sections.push(['Illness Forecast', ...lines].join('\n'));
+    }
   }
-  const weeklyTop = d?.health_trends?.top_illnesses_by_week || [];
-  if (Array.isArray(weeklyTop) && weeklyTop.length) {
-    const topTriplet = weeklyTop
-      .slice(0, 3)
-      .map((it: { medical_condition: string; count: number }) => `${it.medical_condition} (${formatNumber(it.count)})`)
-      .join(', ');
-    sections.push(`Top illnesses this week: ${topTriplet}.`);
+
+  // Health Trends (increasing + weekly top)
+  {
+    const inc = d?.health_trends?.trend_analysis?.increasing_conditions || [];
+    const weeklyTop = d?.health_trends?.top_illnesses_by_week || [];
+    const lines: string[] = [];
+    if (Array.isArray(inc) && inc.length) lines.push(`• Rising risks: ${inc.slice(0, 3).join(', ')}.`);
+    if (Array.isArray(weeklyTop) && weeklyTop.length) {
+      const topTriplet = weeklyTop.slice(0, 3).map((it: { medical_condition: string; count: number }) => `${it.medical_condition} (${formatNumber(it.count)})`).join(', ');
+      lines.push(`• Top this week: ${topTriplet}.`);
+    }
+    if (lines.length) sections.push(['Health Trends', ...lines].join('\n'));
   }
 
-  // Illness association overview
-  const ia = d?.illness_prediction;
-  if (ia) {
-    const conf = ia.confidence_level;
-    const assoc = ia.association_result;
-    const chi = ia.chi_square_statistic;
-    const pv = ia.p_value;
-    const factorsArr = ia.significant_factors || [];
-    const factors = Array.isArray(factorsArr) && factorsArr.length ? factorsArr.slice(0, 3).join(', ') : null;
+  // Associations & Factors
+  {
+    const ia = d?.illness_prediction;
+    if (ia) {
+      const assoc = ia.association_result;
+      const factorsArr = ia.significant_factors || [];
+      const cleanFactorsArr = Array.isArray(factorsArr)
+        ? factorsArr
+            .map((s: string) => s.replace(/\s*\(p\s*<[^)]*\)\s*/gi, '').trim())
+            .filter(Boolean)
+        : [];
+      const factors = cleanFactorsArr.length ? cleanFactorsArr.slice(0, 3).join(', ') : null;
 
-    const assocLines: string[] = [];
-    if (typeof conf === 'number') assocLines.push(`Association analysis confidence: ${conf}%.`);
-    if (assoc) assocLines.push(`Result: ${assoc}.`);
-    const stats = [
-      typeof chi === 'number' ? `chi-square ${chi}` : null,
-      typeof pv === 'number' ? `p-value ${pv}` : null,
-    ].filter(Boolean).join(', ');
-    if (stats) assocLines.push(`Stats: ${stats}.`);
-    sections.push(assocLines.join(' '));
-
-    if (factors) sections.push(`Significant contributing factors: ${factors}.`);
+      const lines: string[] = [];
+      if (assoc) lines.push(`• Summary: ${assoc}.`);
+      if (factors) lines.push(`• Contributing factors: ${factors}.`);
+      sections.push(['Associations', ...lines].join('\n'));
+    }
   }
 
   if (!sections.length) return 'Analytics results are not available yet.';
@@ -2404,8 +2373,9 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .greeting-card::before {

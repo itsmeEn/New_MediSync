@@ -20,13 +20,11 @@
 
     <q-page-container class="page-container-with-fixed-header">
       <!-- Greeting Section -->
-      <div class="greeting-section" v-if="false">
+      <div class="greeting-section">
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <h2 class="greeting-text">
-              Nurse Analytics Dashboard,
-              {{ userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) }}
-              {{ userProfile.full_name }}
+              Nurse Analytics Dashboard
             </h2>
             <p class="greeting-subtitle">
               Data-driven insights for patient care and medication management - {{ currentDate }}
@@ -284,6 +282,7 @@
                 <em>
                   Disclaimer: This is an automated, AI-generated recommendation that interprets the latest analytics findings based on the current data. It is intended to guide immediate resource allocation and strategic planning, not replace expert clinical judgment.
                 </em>
+                <div class="ai-summary-text">{{ nurseSummaryText }}</div>
               </div>
             </div>
 
@@ -303,6 +302,7 @@
                     <em>
                       Disclaimer: This is an automated, AI-generated recommendation that interprets the latest analytics findings based on the current data. It is intended to guide immediate resource allocation and strategic planning, not replace expert clinical judgment.
                     </em>
+                    <div class="ai-summary-text">{{ nurseSummaryText }}</div>
                   </div>
                 </q-card-section>
               </q-card>
@@ -608,6 +608,79 @@ const analyticsData = ref<AnalyticsData>({
   patient_demographics: null,
   health_trends: null,
   volume_prediction: null,
+});
+
+// Human-readable AI summary for Nurse Analytics
+const nurseSummaryText = computed(() => {
+  const d = analyticsData.value;
+  const sections: string[] = [];
+
+  // Medication highlights
+  {
+    const meds = d?.medication_analysis?.medication_pareto_data || [];
+    if (Array.isArray(meds) && meds.length) {
+      const top = [...meds]
+        .sort((a, b) => Number(b.frequency || 0) - Number(a.frequency || 0))
+        .slice(0, 3)
+        .map((m) => `${m.medication} (${m.frequency})`)
+        .join(', ');
+      sections.push(['Medication Highlights', `• Top meds: ${top}.`].join('\n'));
+    }
+  }
+
+  // Patient demographics
+  {
+    const gender = d?.patient_demographics?.gender_proportions || {};
+    const age = d?.patient_demographics?.age_distribution || {};
+    const lines: string[] = [];
+    const genderEntries = Object.entries(gender);
+    if (genderEntries.length) {
+      const gStr = genderEntries.map(([k, v]) => `${k}: ${Number(v)}`).join(', ');
+      lines.push(`• Gender mix: ${gStr}.`);
+    }
+    const ageEntries = Object.entries(age)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .slice(0, 3);
+    if (ageEntries.length) {
+      const aStr = ageEntries.map(([k, v]) => `${k} (${Number(v)})`).join(', ');
+      lines.push(`• Age groups: ${aStr}.`);
+    }
+    if (lines.length) sections.push(['Patient Demographics', ...lines].join('\n'));
+  }
+
+  // Health trends
+  {
+    const weeklyTop = d?.health_trends?.top_illnesses_by_week || [];
+    if (Array.isArray(weeklyTop) && weeklyTop.length) {
+      const topTriplet = weeklyTop
+        .slice(0, 3)
+        .map((it) => `${it.medical_condition} (${Number(it.count)})`)
+        .join(', ');
+      sections.push(['Health Trends', `• Top this week: ${topTriplet}.`].join('\n'));
+    }
+  }
+
+  // Volume prediction
+  {
+    const vp = d?.volume_prediction?.forecasted_data || [];
+    if (vp.length) {
+      const predicted = vp.map((x) => Number(x.predicted_volume || 0));
+      const actuals = vp.filter((x) => typeof x.actual_volume === 'number').map((x) => Number(x.actual_volume));
+      const pAvg = Math.round(predicted.reduce((s, n) => s + n, 0) / predicted.length);
+      const aAvg = actuals.length ? Math.round(actuals.reduce((s, n) => s + n, 0) / actuals.length) : null;
+      const pFirst = predicted[0] ?? null;
+      const pLast = predicted[predicted.length - 1] ?? null;
+      const vTrend = pFirst != null && pLast != null ? (pLast > pFirst ? 'increasing' : pLast < pFirst ? 'decreasing' : 'stable') : null;
+      const latest = vp[vp.length - 1]!;
+      const lines: string[] = [];
+      lines.push(`• Trend: ${vTrend || 'stable'}; avg predicted ${pAvg}${aAvg != null ? `, avg actual ${aAvg}` : ''}.`);
+      lines.push(`• Latest (${latest.date}): predicted ${Number(latest.predicted_volume)}${typeof latest.actual_volume === 'number' ? `, actual ${Number(latest.actual_volume)}` : ''}.`);
+      sections.push(['Patient Volume', ...lines].join('\n'));
+    }
+  }
+
+  if (!sections.length) return 'Analytics results are not available yet.';
+  return sections.join('\n\n');
 });
 
 // Zoom functionality
@@ -1759,16 +1832,17 @@ onUnmounted(() => {
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .greeting-card::before {
@@ -2007,15 +2081,17 @@ onUnmounted(() => {
 }
 
 .ai-summary-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  min-height: 220px;
   margin-top: 20px;
 }
 
 .actions-row {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
+  margin-bottom: 6px;
 }
 
 .analytics-card {
@@ -2133,6 +2209,12 @@ onUnmounted(() => {
 }
 
 /* Analytics content layout to place sidebar inside card */
+.ai-summary-disclaimer { 
+  color: #546E7A; 
+  font-size: 14px; 
+  margin-bottom: 12px; 
+  line-height: 1.5; 
+}
 .analytics-content {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -2142,8 +2224,18 @@ onUnmounted(() => {
 .analytics-sidebar-panel { align-self: stretch; display: flex; flex-direction: column; height: 100%; }
 .sidebar-actions { display: flex; gap: 12px; margin-top: 8px; }
 .sidebar-btn { flex: 1; }
-.ai-summary-header { font-weight: 700; color: #1f3d3a; margin-bottom: 8px; }
-.ai-summary-content { color: #143b38; font-size: 14px; }
+.ai-summary-header { 
+  font-weight: 700; 
+  color: #1f3d3a; 
+  margin-bottom: 8px; 
+  font-size: 16px; 
+  letter-spacing: 0.2px; 
+}
+.ai-summary-content { 
+  color: #143b38; 
+  font-size: 15px; 
+}
+.ai-summary-text { color: #143b38; font-size: 15px; line-height: 1.6; white-space: pre-wrap; }
 /* Ensure panels left, sidebar right regardless of DOM order */
 .analytics-content > .analytics-panels-container { grid-column: 1; }
 .analytics-content > .analytics-sidebar-panel { grid-column: 2; }
@@ -2754,5 +2846,10 @@ onUnmounted(() => {
 
 .weather-error .q-icon {
   color: #ff6b6b;
+}
+.greeting-card {
+  width: calc(100% - 48px);
+  max-width: 1800px;
+  margin: 0 24px;
 }
 </style>
