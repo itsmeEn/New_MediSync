@@ -28,7 +28,9 @@
             @click="navigateToProfile"
             v-ripple
           >
-            <div class="profile-placeholder">
+            <!-- Use profile picture when available; fallback to initials -->
+            <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
+            <div v-else class="profile-placeholder">
               {{ userInitials }}
             </div>
           </q-avatar>
@@ -192,6 +194,29 @@ const userInitials = computed(() => {
     .map((name) => name.charAt(0))
     .join('')
     .toUpperCase();
+});
+
+const profilePictureUrl = computed(() => {
+  if (!userProfile.value.profile_picture) {
+    return null;
+  }
+
+  // If it's already a full URL, return as is
+  if (userProfile.value.profile_picture.startsWith('http')) {
+    return userProfile.value.profile_picture;
+  }
+
+  // Get base URL without /api suffix for media files
+  let baseURL = api.defaults.baseURL || 'http://localhost:8000';
+  baseURL = baseURL.replace(/\/api\/?$/, '');
+
+  // Check if it's a relative path starting with /
+  if (userProfile.value.profile_picture.startsWith('/')) {
+    return `${baseURL}${userProfile.value.profile_picture}`;
+  }
+
+  // If it's a relative path without leading slash, add it
+  return `${baseURL}/${userProfile.value.profile_picture}`;
 });
 
 // Methods

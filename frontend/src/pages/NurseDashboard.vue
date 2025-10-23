@@ -109,6 +109,7 @@
                 icon="volume_up"
                 size="md"
                 @click="callNextPatient"
+                :disable="allPatients.length === 0"
                 class="action-btn"
               />
               <q-btn
@@ -123,34 +124,94 @@
           </q-card-section>
 
           <q-card-section class="queue-panels-section">
-            <!-- Patient Care Panels -->
-            <div class="queue-panels-container">
-              <!-- Normal Queues Panel -->
-              <div class="queue-panel normal-queue-panel">
-                <h4 class="queue-panel-title">Normal Queues</h4>
-                <div class="queue-content">
-                  <div v-if="normalQueue.length === 0" class="empty-queue">
-                    <p>No patients in normal queue</p>
-                  </div>
-                  <div v-else class="queue-list">
-                    <!-- Patient list items will go here -->
-                  </div>
-                </div>
+            <!-- Consolidated Queue View with Filters -->
+            <div class="row items-center q-col-gutter-sm q-mb-md">
+              <div class="col-12 col-md-3">
+                <q-select v-model="selectedDepartment" :options="departmentOptions" emit-value map-options label="Department" dense outlined />
               </div>
-
-              <!-- Priority Queues Panel -->
-              <div class="queue-panel priority-queue-panel">
-                <h4 class="queue-panel-title">Priority Queues</h4>
-                <div class="queue-content">
-                  <div v-if="priorityQueue.length === 0" class="empty-queue">
-                    <p>No patients in priority queue</p>
-                  </div>
-                  <div v-else class="queue-list">
-                    <!-- Patient list items will go here -->
-                  </div>
-                </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="queueTypeFilter" :options="[{ label: 'All', value: 'all' }, { label: 'Normal', value: 'normal' }, { label: 'Priority', value: 'priority' }]" emit-value map-options label="Queue Type" dense outlined />
+              </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="sortBy" :options="[{ label: 'Position', value: 'position' }, { label: 'Enqueue Time', value: 'enqueue_time' }]" emit-value map-options label="Sort By" dense outlined />
+              </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="sortDir" :options="[{ label: 'Ascending', value: 'asc' }, { label: 'Descending', value: 'desc' }]" emit-value map-options label="Order" dense outlined />
               </div>
             </div>
+
+            <q-list bordered class="consolidated-queue-list">
+              <q-item v-for="(patient, idx) in filteredSortedPatients" :key="`${patient.queue_type}-${patient.id}-${patient.queue_number}-${idx}`">
+                <q-item-section avatar>
+                  <q-avatar color="primary" text-color="white">{{ idx + 1 }}</q-avatar>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ patient.patient_name }}</q-item-label>
+                  <q-item-label caption>
+                    <q-chip dense :color="patient.queue_type === 'priority' ? 'red' : 'blue'" text-color="white" class="q-mr-sm">
+                      {{ patient.queue_type === 'priority' ? 'Priority' : 'Normal' }}
+                    </q-chip>
+                    <q-chip dense color="teal" text-color="white" class="q-mr-sm">
+                      Pos #{{ idx + 1 }}
+                    </q-chip>
+                    <span class="text-grey-7">{{ patient.department }}</span>
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round icon="more_vert" />
+                </q-item-section>
+              </q-item>
+              <q-item v-if="filteredSortedPatients.length === 0">
+                <q-item-section class="text-center text-grey-7">No patients in queue</q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <!-- My Queue Schedules -->
+      <div class="queueing-section">
+        <q-card class="queueing-card">
+          <q-card-section class="queueing-header">
+            <h3 class="queueing-title">My Queue Schedules</h3>
+            <div class="queueing-actions">
+              <q-btn
+                color="primary"
+                label="Add Schedule"
+                icon="add"
+                size="md"
+                @click="isEditingSchedule = false; editingScheduleId = null; showQueueScheduleDialog = true; void loadAllSchedules();"
+                class="action-btn"
+              />
+            </div>
+          </q-card-section>
+          <q-card-section>
+            <div v-if="schedulesLoading" class="text-center text-grey-7 q-pa-md">Loading schedules...</div>
+            <div v-else-if="schedules.length === 0" class="text-center text-grey-6 q-pa-md">
+              No schedules yet. Create one to manage queue availability.
+            </div>
+            <q-list v-else>
+              <q-item v-for="s in schedules" :key="s.id">
+                <q-item-section>
+                  <q-item-label>
+                    {{ getDepartmentLabel(s.department) }}
+                    <q-chip dense :color="s.is_active ? 'positive' : 'grey'" text-color="white" class="q-ml-sm">
+                      {{ s.is_active ? 'Active' : 'Inactive' }}
+                    </q-chip>
+                    <q-chip dense :color="s.is_open ? 'positive' : 'negative'" text-color="white" class="q-ml-sm">
+                      {{ s.is_open ? 'Open' : 'Closed' }}
+                    </q-chip>
+                  </q-item-label>
+                  <q-item-label caption>
+                    {{ formatTimeDisplay(s.start_time) }} - {{ formatTimeDisplay(s.end_time) }} · {{ formatDays(s.days_of_week) }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat dense icon="edit" color="primary" @click="editSchedule(s)" />
+                  <q-btn flat dense icon="delete" color="negative" @click="deleteSchedule(s)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
           </q-card-section>
         </q-card>
       </div>
@@ -317,11 +378,14 @@
     <q-dialog v-model="showQueueScheduleDialog" class="centered-dialog">
       <q-card class="dialog-card">
         <q-card-section class="dialog-header">
-          <div class="text-h6">Create Queue Schedule</div>
+          <div class="text-h6">{{ isEditingSchedule ? 'Edit Queue Schedule' : 'Create Queue Schedule' }}</div>
         <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
         </q-card-section>
         <q-card-section class="dialog-body">
           <div class="form-container">
+            <q-banner v-if="!isEditingSchedule && duplicateDeptScheduleExists" class="q-mb-md" rounded dense color="negative" text-color="white">
+              A schedule already exists for {{ getDepartmentLabel(queueForm.department as DepartmentValue) }}. Please edit the existing schedule instead.
+            </q-banner>
             <!-- Current Schedule Display -->
             <div v-if="currentSchedule" class="current-schedule-container">
               <div class="schedule-info">
@@ -403,7 +467,7 @@
         <q-card-actions align="right" class="dialog-actions">
           <q-btn 
             color="positive" 
-            label="Create Schedule" 
+            :label="isEditingSchedule ? 'Save Changes' : 'Create Schedule'" 
             @click="saveQueueSchedule" 
             :loading="savingSchedule"
             class="save-btn"
@@ -647,6 +711,82 @@ interface RawNotification {
 const normalQueue = ref<PatientData[]>([]);
 const priorityQueue = ref<PatientData[]>([]);
 
+// Consolidated queue view state
+type QueueTypeFilter = 'all' | 'normal' | 'priority'
+const selectedDepartment = ref<DepartmentValue>('OPD')
+const queueTypeFilter = ref<QueueTypeFilter>('all')
+const sortBy = ref<'position' | 'enqueue_time'>('position')
+const sortDir = ref<'asc' | 'desc'>('asc')
+
+interface QueueItem extends PatientData {
+  queue_type: 'normal' | 'priority'
+  position?: number
+}
+interface ConsolidatedPatientDTO {
+  id: number
+  queue_number?: number | string
+  patient_name: string
+  department?: string
+  status?: string
+  position?: number
+  enqueue_time?: string
+  queue_type: 'normal' | 'priority'
+  priority_level?: string | number
+}
+const allPatients = ref<QueueItem[]>([])
+
+const parseQueueNumber = (qn: string | number | undefined): number | undefined => {
+  if (qn === undefined || qn === null) return undefined
+  if (typeof qn === 'number' && Number.isFinite(qn)) return qn
+  const m = String(qn).match(/\d+/)
+  return m ? parseInt(m[0], 10) : undefined
+}
+
+const filteredSortedPatients = computed(() => {
+  let list = allPatients.value
+  if (queueTypeFilter.value !== 'all') {
+    list = list.filter(p => p.queue_type === queueTypeFilter.value)
+  }
+  const compare = (a: QueueItem, b: QueueItem) => {
+    // Always prioritize patients from the priority queue over normal
+    const typeRank = (q: QueueItem) => (q.queue_type === 'priority' ? 0 : 1)
+    const tDiff = typeRank(a) - typeRank(b)
+    if (tDiff !== 0) return tDiff
+
+    const field = sortBy.value
+    const toNum = (n: number) => (Number.isFinite(n) ? n : 0)
+    const avRaw = field === 'position' ? (a.position ?? a.position_in_queue ?? a.priority_position ?? 0) : (a.enqueue_time ? Date.parse(a.enqueue_time) : 0)
+    const bvRaw = field === 'position' ? (b.position ?? b.position_in_queue ?? b.priority_position ?? 0) : (b.enqueue_time ? Date.parse(b.enqueue_time) : 0)
+    const av = toNum(avRaw)
+    const bv = toNum(bvRaw)
+    return sortDir.value === 'asc' ? av - bv : bv - av
+  }
+  return [...list].sort(compare)
+})
+
+// Keep selectedDepartment in sync with current schedule when available
+watch(() => currentSchedule.value?.department, (dept) => {
+  if (dept) selectedDepartment.value = dept
+})
+
+// Schedules list and editing state
+const schedules = ref<Array<{
+  id: number;
+  department: DepartmentValue;
+  start_time: string;
+  end_time: string;
+  days_of_week: number[];
+  is_active: boolean;
+  is_open?: boolean;
+}>>([]);
+const schedulesLoading = ref(false);
+const isEditingSchedule = ref(false);
+const editingScheduleId = ref<number | null>(null);
+const duplicateDeptScheduleExists = computed(() => {
+  if (!queueForm.value.department) return false;
+  return schedules.value.some(s => s.department === queueForm.value.department);
+});
+
 // Queue schedule form
 type DepartmentValue = 'OPD' | 'Pharmacy' | 'Appointment'
 
@@ -679,6 +819,28 @@ const queueForm = ref<{
   days_of_week: [0,1,2,3,4], 
   is_active: true 
 })
+
+watch(() => queueForm.value.department, async (dept) => {
+  if (!dept) {
+    currentSchedule.value = null;
+    return;
+  }
+  if (schedules.value.length === 0) {
+    await loadAllSchedules();
+  }
+  const match = schedules.value.find((s) => s.department === dept);
+  currentSchedule.value = match
+    ? {
+        id: match.id,
+        department: match.department,
+        start_time: match.start_time,
+        end_time: match.end_time,
+        days_of_week: match.days_of_week,
+        is_active: match.is_active,
+        is_open: match.is_open || false
+      }
+    : null;
+});
 
 // Medicine data
 const medicines = ref<MedicineData[]>([]);
@@ -1015,11 +1177,126 @@ const fetchUserProfile = async () => {
 // Load queue data
 const loadQueueData = async () => {
   try {
-    const response = await api.get('/operations/nurse/queue/patients/');
+    const dept = selectedDepartment.value || 'OPD'
+    const response = await api.get(`/operations/nurse/queue/patients/?department=${dept}`);
     normalQueue.value = response.data.normal_queue || [];
     priorityQueue.value = response.data.priority_queue || [];
+    const consolidated: ConsolidatedPatientDTO[] = Array.isArray(response.data.all_patients) ? response.data.all_patients : []
+     const filtered = consolidated.filter((item) => !/^\s*jane patient\s*$/i.test(item.patient_name))
+     const mapped = filtered.map((item: ConsolidatedPatientDTO) => {
+        const base: QueueItem = {
+          id: item.id,
+          patient_name: item.patient_name,
+          queue_number: String(item.queue_number ?? ''),
+          queue_type: item.queue_type,
+        }
+        if (item.department !== undefined) base.department = item.department
+        if (item.status !== undefined) base.status = item.status
+        if (item.enqueue_time !== undefined) base.enqueue_time = item.enqueue_time
+        if (item.priority_level !== undefined) base.priority_level = typeof item.priority_level === 'string' ? item.priority_level : String(item.priority_level)
+ 
+        const derivedPosition = parseQueueNumber(item.queue_number) ?? item.position
+        if (derivedPosition !== undefined) {
+          base.position = derivedPosition
+          if (item.queue_type === 'normal') base.position_in_queue = derivedPosition
+          else base.priority_position = derivedPosition
+        }
+ 
+        return base
+      })
+      const unique = new Map<string, QueueItem>()
+      for (const p of mapped) {
+        unique.set(`${p.queue_type}|${p.id}|${p.queue_number}`, p)
+      }
+      allPatients.value = Array.from(unique.values())
+    console.log(`NurseDashboard queues loaded: normal=${normalQueue.value.length}, priority=${priorityQueue.value.length}, all=${allPatients.value.length}`)
   } catch (error) {
     console.error('Failed to load queue data:', error);
+  }
+};
+
+// WebSocket for real-time queue updates
+const queueWebSocket = ref<WebSocket | null>(null)
+const setupQueueWebSocket = (restart = false) => {
+  try {
+    if (restart && queueWebSocket.value) {
+      try { queueWebSocket.value.close() } catch (err) { console.debug('Ignoring WebSocket close error', err) }
+      queueWebSocket.value = null
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
+    const backendHost = base.hostname
+    const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80')
+    const dept = selectedDepartment.value || 'OPD'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${dept}/`
+    const ws = new WebSocket(wsUrl)
+    queueWebSocket.value = ws
+    ws.onopen = () => {
+      console.log('NurseDashboard WebSocket connected')
+    }
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'queue_status' || data.type === 'queue_status_update' || data.type === 'queue_schedule' || data.type === 'queue_schedule_update' || data.type === 'queue_notification') {
+          void loadQueueData()
+          console.log(`NurseDashboard queues refreshed via WebSocket: type=${data.type}, department=${dept}`)
+        }
+      } catch (e) {
+        console.warn('Invalid WS message for NurseDashboard', e)
+      }
+    }
+    ws.onclose = () => {
+      console.log('NurseDashboard WebSocket disconnected')
+      setTimeout(() => setupQueueWebSocket(true), 5000)
+    }
+  } catch (e) {
+    console.warn('Failed to setup NurseDashboard WebSocket', e)
+  }
+}
+
+// Load all queue schedules for current nurse
+const loadAllSchedules = async () => {
+  try {
+    schedulesLoading.value = true;
+    const response = await api.get('/operations/queue/schedules/');
+    schedules.value = response.data || [];
+    
+    // Fetch actual queue status for all departments to get real is_open state
+    try {
+      const statusResponse = await api.get('/operations/queue/status/');
+      const queueStatuses = statusResponse.data || [];
+      
+      // Update schedules with actual queue status
+      schedules.value = schedules.value.map(schedule => {
+        const status = queueStatuses.find((s: { department: string }) => s.department === schedule.department);
+        return {
+          ...schedule,
+          is_open: status ? status.is_open : false
+        };
+      });
+    } catch (statusError) {
+      console.error('Failed to fetch queue statuses:', statusError);
+    }
+    
+    // Update current schedule to selected department match, else first
+    const dept = queueForm.value.department;
+    const match = dept ? schedules.value.find((s) => s.department === dept) : schedules.value[0];
+    currentSchedule.value = match
+      ? {
+          id: match.id,
+          department: match.department,
+          start_time: match.start_time,
+          end_time: match.end_time,
+          days_of_week: match.days_of_week,
+          is_active: match.is_active,
+          is_open: match.is_open || false,
+        }
+      : null;
+  } catch (error) {
+    console.error('Failed to load schedules:', error);
+    schedules.value = [];
+  } finally {
+    schedulesLoading.value = false;
   }
 };
 
@@ -1088,17 +1365,71 @@ const loadCompletedAssessments = () => {
 };
 
 // Queue management methods
-const callNextPatient = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Calling next patient...',
-    position: 'top',
-  });
+const callNextPatient = async () => {
+  try {
+    const dept = selectedDepartment.value || 'OPD'
+    const resp = await api.post('/operations/queue/start-processing/', { department: dept })
+    const data = resp?.data
+    $q.notify({
+      type: 'positive',
+      message: data?.patient ? `Started processing: ${data.patient.name} (#${data.current_serving}).` : 'Started processing next patient.',
+      position: 'top'
+    })
+    await loadQueueData()
+  } catch (error) {
+    console.error('Failed to start queue processing:', error)
+    $q.notify({ type: 'negative', message: 'Failed to start next patient', position: 'top' })
+  }
 };
 
 const manageQueue = async () => {
-  await fetchCurrentSchedule();
+  await loadAllSchedules();
+  isEditingSchedule.value = false;
+  editingScheduleId.value = null;
   showQueueScheduleDialog.value = true;
+};
+
+const convertTo12Hour = (time24: string): string => {
+  const [hours = '00', minutes = '00'] = time24.split(':');
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
+const editSchedule = (s: { id: number; department: DepartmentValue; start_time: string; end_time: string; days_of_week: number[]; is_active: boolean; is_open?: boolean; }) => {
+  isEditingSchedule.value = true;
+  editingScheduleId.value = s.id;
+  queueForm.value = {
+    department: s.department,
+    start_time: convertTo12Hour(s.start_time),
+    end_time: convertTo12Hour(s.end_time),
+    days_of_week: [...s.days_of_week],
+    is_active: s.is_active
+  };
+  currentSchedule.value = {
+    id: s.id,
+    department: s.department,
+    start_time: s.start_time,
+    end_time: s.end_time,
+    days_of_week: s.days_of_week,
+    is_active: s.is_active,
+    is_open: s.is_open || false
+  };
+  showQueueScheduleDialog.value = true;
+};
+
+const deleteSchedule = async (s: { id: number; department: DepartmentValue; }) => {
+  const confirm = window.confirm(`Delete schedule for ${getDepartmentLabel(s.department)}?`);
+  if (!confirm) return;
+  try {
+    await api.delete(`/operations/queue/schedules/${s.id}/`);
+    $q.notify({ type: 'positive', message: 'Schedule deleted' });
+    await loadAllSchedules();
+  } catch (error) {
+    console.error('Failed to delete schedule:', error);
+    $q.notify({ type: 'negative', message: 'Failed to delete schedule' });
+  }
 };
 
 const saveQueueSchedule = async () => {
@@ -1167,12 +1498,16 @@ const saveQueueSchedule = async () => {
   console.log('Sending queue schedule request:', requestData)
   
   try {
-    const response = await api.post('/operations/queue/schedules/', requestData)
-    console.log('Queue schedule created successfully:', response.data)
-    $q.notify({ type: 'positive', message: 'Queue schedule created successfully' })
-    await fetchCurrentSchedule(); // Refresh the current schedule display
+    const response = isEditingSchedule.value && editingScheduleId.value != null
+      ? await api.put(`/operations/queue/schedules/${editingScheduleId.value}/`, requestData)
+      : await api.post('/operations/queue/schedules/', requestData)
+    console.log('Queue schedule saved successfully:', response.data)
+    $q.notify({ type: 'positive', message: isEditingSchedule.value ? 'Queue schedule updated successfully' : 'Queue schedule created successfully' })
+    await loadAllSchedules(); // Refresh schedules and current schedule display
     showQueueScheduleDialog.value = false
-    // Reset form
+    // Reset form and editing state
+    isEditingSchedule.value = false;
+    editingScheduleId.value = null;
     queueForm.value = { 
       department: 'OPD', 
       start_time: '08:00 AM', 
@@ -1181,8 +1516,8 @@ const saveQueueSchedule = async () => {
       is_active: true 
     }
   } catch (error: unknown) {
-    console.error('Failed to create queue schedule:', error)
-    let errorMessage = 'Failed to create queue schedule'
+    console.error('Failed to save queue schedule:', error)
+    let errorMessage = 'Failed to save queue schedule'
     
     // Type guard for axios error
     if (error && typeof error === 'object' && 'response' in error) {
@@ -1239,6 +1574,18 @@ const fetchCurrentSchedule = async () => {
     if (response.data && response.data.length > 0) {
       // Get the first (most recent) schedule
       const schedule = response.data[0]
+      
+      // Fetch actual queue status to get real is_open state
+      let actualIsOpen = schedule.is_open || false
+      try {
+        const statusResponse = await api.get(`/operations/queue/status/?department=${schedule.department}`)
+        if (statusResponse.data) {
+          actualIsOpen = statusResponse.data.is_open || false
+        }
+      } catch (statusError) {
+        console.warn('Failed to fetch queue status, using schedule data:', statusError)
+      }
+      
       currentSchedule.value = {
         id: schedule.id,
         department: schedule.department,
@@ -1246,7 +1593,7 @@ const fetchCurrentSchedule = async () => {
         end_time: schedule.end_time,
         days_of_week: schedule.days_of_week,
         is_active: schedule.is_active,
-        is_open: schedule.is_open || false
+        is_open: actualIsOpen
       }
     } else {
       currentSchedule.value = null
@@ -1278,6 +1625,11 @@ const toggleQueueStatus = async () => {
     // Update the local state
     if (currentSchedule.value) {
       currentSchedule.value.is_open = newStatus
+      const idx = schedules.value.findIndex(s => s.id === currentSchedule.value!.id)
+      if (idx !== -1) {
+        const item = schedules.value[idx]
+        if (item) item.is_open = newStatus
+      }
     }
     
     // Use the message from the backend if available, otherwise use default
@@ -1725,6 +2077,7 @@ onMounted(() => {
 
   // Load queue and medicine data
   void loadQueueData();
+  setupQueueWebSocket();
   void loadMedicineData();
 
   // Load task and assessment data
@@ -1733,6 +2086,12 @@ onMounted(() => {
 
   // Load notifications
   void loadNotifications();
+
+  // Load existing queue schedules
+  void loadAllSchedules();
+  
+  // Ensure current schedule is available for toggling
+  void fetchCurrentSchedule();
 
   // Initialize real-time features
   updateTime(); // Set initial time
@@ -1763,12 +2122,12 @@ onMounted(() => {
 
 // Removed profile picture storage sync: initials-only avatar
 
-  // Cleanup on component unmount
-  onUnmounted(() => {
-    if (timeInterval) {
-      clearInterval(timeInterval);
-    }
-  });
+// Cleanup on component unmount
+onUnmounted(() => {
+  if (timeInterval) {
+    clearInterval(timeInterval);
+  }
+});
 </script>
 
 <style scoped>

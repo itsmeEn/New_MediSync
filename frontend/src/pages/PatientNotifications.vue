@@ -301,6 +301,8 @@ const longPressTimer = ref<NodeJS.Timeout | null>(null)
 const showUserMenu = ref(false)
 const unreadCount = ref(0)
 
+// Queue websocket state - removed unused variables
+
 interface Notification {
   id: number
   title: string
@@ -426,7 +428,12 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  try { if (medicationWS) medicationWS.close() } catch { /* ignore */ }
+  try { 
+    if (medicationWS) medicationWS.close() 
+  } catch (error) {
+    // Ignore WebSocket close errors during cleanup
+    console.debug('WebSocket close error during cleanup:', error)
+  }
   medicationWS = null
 })
 
