@@ -60,6 +60,7 @@ from .serializers import (
 )
 from .tasks import run_analytics_task_async
 from backend.users.models import PatientProfile
+from .ai_insights_model import MediSyncAIInsights
 
 class AnalyticsView(APIView):
     """
@@ -734,9 +735,92 @@ def generate_analytics_pdf(request):
     role-specific data, and consistent branding across doctor and nurse views
     """
     if not PDF_AVAILABLE:
-        return Response({
-            'error': 'PDF generation not available. Please install reportlab and matplotlib.'
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        # Try lazy import to avoid hard 503
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.lib import colors
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+            import matplotlib
+            matplotlib.use('Agg')
+            import io
+            import base64
+            globals()['PDF_AVAILABLE'] = True
+        except Exception:
+            # Graceful HTML fallback when PDF libs are unavailable
+            user_role = request.user.role
+            report_type = request.GET.get('type', 'full')
+            # Gather analytics data similar to PDF path
+            if user_role == 'doctor' or report_type == 'doctor':
+                analytics_data = get_doctor_analytics_data(request.user)
+                title = "Patient Findings Generated Report"
+                role = 'doctor'
+                user_info = {
+                    'name': request.user.full_name,
+                    'specialization': getattr(request.user.doctor_profile, 'specialization', 'General Practice') if hasattr(request.user, 'doctor_profile') else 'General Practice',
+                    'role': 'Doctor',
+                    'department': getattr(request.user.doctor_profile, 'specialization', 'General Practice') if hasattr(request.user, 'doctor_profile') else 'General Practice'
+                }
+            elif user_role == 'nurse' or report_type == 'nurse':
+                analytics_data = get_nurse_analytics_data(request.user)
+                title = "Patient Findings Generated Report"
+                role = 'nurse'
+                user_info = {
+                    'name': request.user.full_name,
+                    'specialization': getattr(request.user.nurse_profile, 'department', 'General') if hasattr(request.user, 'nurse_profile') else 'General',
+                    'role': 'Nurse',
+                    'department': getattr(request.user.nurse_profile, 'department', 'General') if hasattr(request.user, 'nurse_profile') else 'General'
+                }
+            else:
+                analytics_data = get_full_analytics_data()
+                title = "Patient Findings Generated Report"
+                role = 'doctor'
+                user_info = None
+            try:
+                ai_suggestions = build_recommendations(analytics_data, role)
+            except Exception:
+                ai_suggestions = {'high': [], 'medium': [], 'low': []}
+            # Minimal inline HTML report
+            html = f"""
+            <!doctype html>
+            <html>
+              <head>
+                <meta charset='utf-8'>
+                <title>{title}</title>
+                <style>
+                  body {{ font-family: Arial, sans-serif; margin: 24px; }}
+                  h1 {{ color: #1f4b99; margin-bottom: 8px; }}
+                  h2 {{ color: #2a6b2a; margin-top: 24px; }}
+                  .meta {{ color: #555; font-size: 12px; margin-bottom: 16px; }}
+                  .disclaimer {{ color: #666; font-style: italic; margin: 8px 0 16px; }}
+                  ul {{ padding-left: 18px; }}
+                </style>
+              </head>
+              <body>
+                <h1>{title}</h1>
+                <div class='meta'>Role: {user_info.get('role', 'Doctor') if user_info else 'System'} | Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+                <div class='disclaimer'>This is an automated, AI-generated interpretation of the latest analytics findings. Use as guidance, not a substitute for clinical judgment.</div>
+                <h2>AI Suggestions</h2>
+                <h3>High Priority</h3>
+                <ul>
+                  {''.join(f'<li>{item.get('text')}</li>' for item in ai_suggestions.get('high', [])) or '<li>No high priority suggestions.</li>'}
+                </ul>
+                <h3>Medium Priority</h3>
+                <ul>
+                  {''.join(f'<li>{item.get('text')}</li>' for item in ai_suggestions.get('medium', [])) or '<li>No medium priority suggestions.</li>'}
+                </ul>
+                <h3>Low Priority</h3>
+                <ul>
+                  {''.join(f'<li>{item.get('text')}</li>' for item in ai_suggestions.get('low', [])) or '<li>No low priority suggestions.</li>'}
+                </ul>
+              </body>
+            </html>
+            """
+            response = HttpResponse(html, content_type='text/html')
+            response['Content-Disposition'] = f'attachment; filename="{user_role}_analytics_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.html"'
+            return response
     
     user_role = request.user.role
     report_type = request.GET.get('type', 'full')  # full, doctor, nurse
@@ -793,8 +877,17 @@ def generate_analytics_pdf(request):
         # Add analytics sections with visualizations and interpretations
         add_analytics_sections_with_visualizations(story, analytics_data, styles)
         
-        # AI-Based Recommendations
+        # AI-Based Recommendations and Suggestions
         add_ai_interpretation_section(story, analytics_data, styles)
+
+        # AI Suggestions (role-specific, bullet points with priority)
+        try:
+            role = (user_info.get('role', 'Doctor') if user_info else 'Doctor').lower()
+            ai_suggestions = build_recommendations(analytics_data, role)
+            add_ai_suggestions_section(story, ai_suggestions, styles)
+        except Exception:
+            # Fail gracefully; PDF generation should continue
+            pass
         
         # Prepared by signature (bottom-right)
         if user_info:
@@ -1295,13 +1388,14 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
                 story.append(age_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
-                if age_data:
+                if isinstance(age_data, dict) and age_data:
                     dominant_age = max(age_data, key=age_data.get)
                     story.append(Paragraph(f"Interpretation: Majority of patients fall in the {dominant_age} group.", content_style))
             
             # Add text data
-            for age_group, count in age_data.items():
-                story.append(Paragraph(f"• {age_group}: {count} patients", content_style))
+            if isinstance(age_data, dict):
+                for age_group, count in age_data.items():
+                    story.append(Paragraph(f"• {age_group}: {count} patients", content_style))
             story.append(Spacer(1, 15))
         
         # Gender Distribution Chart
@@ -1315,13 +1409,14 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
                 story.append(gender_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
-                if gender_data:
+                if isinstance(gender_data, dict) and gender_data:
                     dominant_gender = max(gender_data, key=gender_data.get)
                     story.append(Paragraph(f"Interpretation: {dominant_gender} segment is most represented.", content_style))
             
             # Add text data
-            for gender, percentage in gender_data.items():
-                story.append(Paragraph(f"• {gender}: {percentage}%", content_style))
+            if isinstance(gender_data, dict):
+                for gender, percentage in gender_data.items():
+                    story.append(Paragraph(f"• {gender}: {percentage}%", content_style))
             story.append(Spacer(1, 15))
             story.append(PageBreak())
     
@@ -1334,18 +1429,20 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
             story.append(Paragraph("Top Medical Conditions by Week:", subsection_style))
             
             # Create illness trends chart
-            illness_chart = create_illness_trends_chart(trends['top_illnesses_by_week'])
+            illness_list = trends.get('top_illnesses_by_week')
+            illness_chart = create_illness_trends_chart(illness_list or [])
             if illness_chart:
                 story.append(illness_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
-                if trends.get('top_illnesses_by_week'):
-                    top_item = trends['top_illnesses_by_week'][0]
+                if isinstance(illness_list, list) and len(illness_list) > 0:
+                    top_item = illness_list[0]
                     story.append(Paragraph(f"Interpretation: {top_item.get('medical_condition', 'N/A')} shows highest frequency in recent weeks.", content_style))
             
             # Add text data
-            for illness in trends['top_illnesses_by_week'][:5]:  # Top 5
-                story.append(Paragraph(f"• {illness.get('medical_condition', 'N/A')}: {illness.get('count', 0)} cases", content_style))
+            if isinstance(illness_list, list):
+                for illness in illness_list[:5]:  # Top 5
+                    story.append(Paragraph(f"• {illness.get('medical_condition', 'N/A')}: {illness.get('count', 0)} cases", content_style))
             story.append(Spacer(1, 15))
             story.append(PageBreak())
     
@@ -1358,18 +1455,20 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
             story.append(Paragraph("Most Prescribed Medications:", subsection_style))
             
             # Create medication chart
-            med_chart = create_medication_chart(med_analysis['medication_pareto_data'])
+            med_list = med_analysis.get('medication_pareto_data')
+            med_chart = create_medication_chart(med_list or [])
             if med_chart:
                 story.append(med_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
-                if med_analysis.get('medication_pareto_data'):
-                    top_med = med_analysis['medication_pareto_data'][0]
+                if isinstance(med_list, list) and len(med_list) > 0:
+                    top_med = med_list[0]
                     story.append(Paragraph(f"Interpretation: {top_med.get('medication', 'N/A')} is frequently prescribed; review inventory and protocols.", content_style))
             
             # Add text data
-            for med in med_analysis['medication_pareto_data'][:5]:  # Top 5
-                story.append(Paragraph(f"• {med.get('medication', 'N/A')}: {med.get('frequency', 0)} prescriptions", content_style))
+            if isinstance(med_list, list):
+                for med in med_list[:5]:  # Top 5
+                    story.append(Paragraph(f"• {med.get('medication', 'N/A')}: {med.get('frequency', 0)} prescriptions", content_style))
             story.append(Spacer(1, 15))
             story.append(PageBreak())
     
@@ -1397,15 +1496,16 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
             story.append(Paragraph("Model Performance:", subsection_style))
             
             # Create metrics visualization
-            metrics_chart = create_metrics_chart(metrics)
+            metrics_chart = create_metrics_chart(metrics or {})
             if metrics_chart:
                 story.append(metrics_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
                 story.append(Paragraph("Interpretation: Error metrics suggest current model performance level.", content_style))
             
-            story.append(Paragraph(f"• Mean Absolute Error: {metrics.get('mae', 'N/A')}", content_style))
-            story.append(Paragraph(f"• Root Mean Square Error: {metrics.get('rmse', 'N/A')}", content_style))
+            if isinstance(metrics, dict):
+                story.append(Paragraph(f"• Mean Absolute Error: {metrics.get('mae', 'N/A')}", content_style))
+                story.append(Paragraph(f"• Root Mean Square Error: {metrics.get('rmse', 'N/A')}", content_style))
         story.append(Spacer(1, 15))
         story.append(PageBreak())
     
@@ -1418,20 +1518,22 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
             story.append(Paragraph("Forecasted Cases for Next 6 Months:", subsection_style))
             
             # Create forecast chart
-            forecast_chart = create_forecast_chart(surge['forecasted_monthly_cases'])
+            forecast_list = surge.get('forecasted_monthly_cases')
+            forecast_chart = create_forecast_chart(forecast_list or [])
             if forecast_chart:
                 story.append(forecast_chart)
                 story.append(Spacer(1, 10))
                 # Interpretation
-                if surge.get('forecasted_monthly_cases'):
-                    first = surge['forecasted_monthly_cases'][0].get('total_cases', 0)
-                    last = surge['forecasted_monthly_cases'][-1].get('total_cases', 0)
+                if isinstance(forecast_list, list) and len(forecast_list) > 1:
+                    first = forecast_list[0].get('total_cases', 0)
+                    last = forecast_list[-1].get('total_cases', 0)
                     trend = "increasing" if last > first else ("decreasing" if last < first else "stable")
                     story.append(Paragraph(f"Interpretation: Forecast indicates {trend} cases over the next months.", content_style))
             
             # Add text data
-            for forecast in surge['forecasted_monthly_cases'][:3]:  # First 3 months
-                story.append(Paragraph(f"• {forecast.get('date', 'N/A')}: {forecast.get('total_cases', 0)} cases", content_style))
+            if isinstance(forecast_list, list):
+                for forecast in forecast_list[:3]:  # First 3 months
+                    story.append(Paragraph(f"• {forecast.get('date', 'N/A')}: {forecast.get('total_cases', 0)} cases", content_style))
         story.append(Spacer(1, 15))
         story.append(PageBreak())
 
@@ -1566,8 +1668,39 @@ def generate_ai_insights(analytics_data):
         if demo_data and 'age_distribution' in demo_data:
             age_data = demo_data['age_distribution']
             if age_data:
-                dominant_age = max(age_data, key=age_data.get)
-                insights.append(f"Patient demographics show a concentration in the {dominant_age} age group, indicating specific healthcare needs for this population segment.")
+                # Robustly determine dominant age group across dict or list formats
+                dominant_age = None
+                try:
+                    if isinstance(age_data, dict) and age_data:
+                        # Prefer numeric values; non-numeric treated as 0
+                        dominant_age = max(
+                            age_data,
+                            key=lambda k: (age_data.get(k) if isinstance(age_data.get(k), (int, float)) else 0)
+                        )
+                    elif isinstance(age_data, list) and age_data:
+                        # Handle list of dicts with flexible keys
+                        best = None
+                        for item in age_data:
+                            if isinstance(item, dict):
+                                label = (
+                                    item.get('age_group') or item.get('group') or item.get('age') or
+                                    item.get('label') or item.get('name')
+                                )
+                                val = item.get('count')
+                                if not isinstance(val, (int, float)):
+                                    val = item.get('value') if isinstance(item.get('value'), (int, float)) else item.get('patients')
+                                if label and isinstance(val, (int, float)):
+                                    if best is None or val > best[1]:
+                                        best = (label, val)
+                        if best:
+                            dominant_age = best[0]
+                except Exception:
+                    dominant_age = None
+                
+                if dominant_age:
+                    insights.append(
+                        f"Patient demographics show a concentration in the {dominant_age} age group, indicating specific healthcare needs for this population segment."
+                    )
     
     # Health Trends Insights
     if analytics_data.get('health_trends'):
@@ -1577,7 +1710,12 @@ def generate_ai_insights(analytics_data):
             if conditions:
                 top_condition = conditions[0] if conditions else None
                 if top_condition:
-                    insights.append(f"Health trend analysis reveals {top_condition.get('condition', 'common conditions')} as the most prevalent issue, suggesting targeted intervention strategies.")
+                    # Handle both dict and string entries safely
+                    if isinstance(top_condition, dict):
+                        cond_name = top_condition.get('condition') or top_condition.get('medical_condition') or str(top_condition)
+                    else:
+                        cond_name = str(top_condition)
+                    insights.append(f"Health trend analysis reveals {cond_name} as the most prevalent issue, suggesting targeted intervention strategies.")
     
     # Medication Analysis Insights (for nurses)
     if analytics_data.get('medication_analysis'):
@@ -1610,6 +1748,173 @@ def generate_ai_insights(analytics_data):
         ]
     
     return insights
+
+# --- AI Suggestions Helpers and Endpoints ---
+
+def _extract_clinical_context(analytics_data):
+    """Collect clinical datapoints to support suggestions."""
+    context = {
+        'dominant_age_group': None,
+        'top_condition': None,
+        'top_medication': None,
+        'predicted_volume_next_period': None,
+    }
+    try:
+        demo = analytics_data.get('patient_demographics') or {}
+        age_dist = demo.get('age_distribution') or {}
+        if isinstance(age_dist, dict) and age_dist:
+            context['dominant_age_group'] = max(age_dist, key=age_dist.get)
+    except Exception:
+        pass
+    try:
+        trends = analytics_data.get('health_trends') or {}
+        common = trends.get('common_conditions') or []
+        if isinstance(common, list) and common:
+            top = common[0]
+            context['top_condition'] = top.get('condition') if isinstance(top, dict) else str(top)
+    except Exception:
+        pass
+    try:
+        meds = analytics_data.get('medication_analysis') or {}
+        pareto = meds.get('medication_pareto_data') or []
+        if isinstance(pareto, list) and pareto:
+            topm = pareto[0]
+            context['top_medication'] = topm.get('medication') if isinstance(topm, dict) else str(topm)
+    except Exception:
+        pass
+    try:
+        volume = analytics_data.get('volume_prediction') or {}
+        context['predicted_volume_next_period'] = volume.get('predicted_volume') or volume.get('forecast_next_month')
+    except Exception:
+        pass
+    return context
+
+
+def build_recommendations(analytics_data, role: str):
+    """Return suggestions grouped by priority using MediSyncAIInsights outputs."""
+    model = MediSyncAIInsights()
+    full = model.generate_insights(analytics_data)
+    risk = (full.get('risk_assessment') or {}).get('consensus', 'moderate_risk')
+    rec_list = (full.get('recommendations') or {}).get('doctors' if role == 'doctor' else 'nurses', [])
+
+    # Priority bucketing: top 3 -> high, next 3 -> medium, rest -> low;
+    # Override bucket by overall risk level for emphasis
+    high, med, low = [], [], []
+    for idx, rec in enumerate(rec_list):
+        bucket = 'low'
+        if idx < 3:
+            bucket = 'high'
+        elif idx < 6:
+            bucket = 'medium'
+        # Risk emphasis
+        if risk == 'high_risk':
+            bucket = 'high' if idx < 6 else 'medium'
+        elif risk == 'moderate_risk' and bucket == 'low':
+            bucket = 'medium'
+        ctx = _extract_clinical_context(analytics_data)
+        item = {
+            'text': rec if isinstance(rec, str) else str(rec),
+            'clinical_data': ctx,
+        }
+        if bucket == 'high':
+            high.append(item)
+        elif bucket == 'medium':
+            med.append(item)
+        else:
+            low.append(item)
+    return {
+        'high': high,
+        'medium': med,
+        'low': low,
+    }
+
+
+def add_ai_suggestions_section(story, suggestions, styles):
+    """Add 'AI Suggestions' section with enhanced formatting and role-aware context."""
+    section_style = ParagraphStyle(
+        'AISuggestionsHeader', parent=styles['Heading2'], fontSize=14, spaceAfter=8, textColor=colors.darkblue
+    )
+    disclaimer_style = ParagraphStyle(
+        'AISuggestionsDisclaimer', parent=styles['Italic'], fontSize=9, textColor=colors.grey, alignment=TA_LEFT, spaceAfter=8
+    )
+    subheader_style = ParagraphStyle(
+        'AISuggestionsSubheader', parent=styles['Heading3'], fontSize=12, spaceAfter=4, textColor=colors.darkgreen
+    )
+    bullet_style = ParagraphStyle(
+        'AISuggestionsBullet', parent=styles['Normal'], fontSize=11, spaceAfter=4, textColor=colors.black, alignment=TA_LEFT
+    )
+    context_style = ParagraphStyle(
+        'AISuggestionsContext', parent=styles['Normal'], fontSize=9, textColor=colors.grey, alignment=TA_LEFT, leftIndent=14, spaceAfter=4
+    )
+
+    def fmt_ctx(ctx: dict):
+        parts = []
+        if ctx.get('dominant_age_group'):
+            parts.append(f"Age Group: {ctx['dominant_age_group']}")
+        if ctx.get('top_condition'):
+            parts.append(f"Top Condition: {ctx['top_condition']}")
+        if ctx.get('top_medication'):
+            parts.append(f"Top Medication: {ctx['top_medication']}")
+        if ctx.get('predicted_volume_next_period') is not None:
+            parts.append(f"Forecast Volume: {ctx['predicted_volume_next_period']}")
+        return '; '.join(parts)
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("AI Suggestions", section_style))
+    story.append(Paragraph(
+        "Disclaimer: This is an automated, AI-generated interpretation of recent analytics. Use as guidance, not a substitute for professional clinical judgment.",
+        disclaimer_style,
+    ))
+
+    for label, items in (
+        ("High Priority", suggestions.get('high', [])),
+        ("Medium Priority", suggestions.get('medium', [])),
+        ("Low Priority", suggestions.get('low', [])),
+    ):
+        if not items:
+            continue
+        story.append(Paragraph(label, subheader_style))
+        for it in items:
+            text = it.get('text') if isinstance(it.get('text'), str) else str(it.get('text'))
+            story.append(Paragraph(f"\u2022 {text}", bullet_style))
+            ctx_text = fmt_ctx(it.get('clinical_data') or {})
+            if ctx_text:
+                story.append(Paragraph(f"Context: {ctx_text}", context_style))
+        story.append(Spacer(1, 6))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def doctor_recommendations(request):
+    """Provide role-based AI suggestions for doctors with timestamp/version."""
+    if getattr(request.user, 'role', None) != 'doctor':
+        return Response({'error': 'Forbidden: doctor role required'}, status=status.HTTP_403_FORBIDDEN)
+    data = get_doctor_analytics_data(request.user)
+    suggestions = build_recommendations(data, role='doctor')
+    return Response({
+        'success': True,
+        'role': 'doctor',
+        'version': '1.0.0',
+        'timestamp': timezone.now().isoformat(),
+        'ai_suggestions': suggestions,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def nurse_recommendations(request):
+    """Provide role-based AI suggestions for nurses with timestamp/version."""
+    if getattr(request.user, 'role', None) != 'nurse':
+        return Response({'error': 'Forbidden: nurse role required'}, status=status.HTTP_403_FORBIDDEN)
+    data = get_nurse_analytics_data(request.user)
+    suggestions = build_recommendations(data, role='nurse')
+    return Response({
+        'success': True,
+        'role': 'nurse',
+        'version': '1.0.0',
+        'timestamp': timezone.now().isoformat(),
+        'ai_suggestions': suggestions,
+    })
 
 def add_doctor_signature(story, doctor_info, styles):
     """Add doctor/nurse name and specialization/department at the bottom right of the PDF"""
