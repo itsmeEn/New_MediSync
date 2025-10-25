@@ -15,6 +15,9 @@ urlpatterns = [
     # Role-specific analytics endpoints
     path('doctor/', views.doctor_analytics, name='doctor_analytics'),
     path('nurse/', views.nurse_analytics, name='nurse_analytics'),
+    # AI recommendation endpoints
+    path('doctor/recommendations/', views.doctor_recommendations, name='doctor_recommendations'),
+    path('nurse/recommendations/', views.nurse_recommendations, name='nurse_recommendations'),
     
     # PDF report generation
     path('pdf/', views.generate_analytics_pdf, name='generate_analytics_pdf'),

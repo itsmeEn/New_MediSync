@@ -30,6 +30,12 @@ html, body {
   background-color: #bbdbd8;
 }
 
+// Role pages body/background utility (nurse & doctor)
+.role-body-bg {
+  background-color: #a9aaab;
+  min-height: 100vh;
+}
+
 // Global safe area utility classes
 .safe-area-top {
   padding-top: var(--safe-area-inset-top);

@@ -1,6 +1,6 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-page class="q-pa-md">
+    <q-page class="q-pa-md role-body-bg">
       <div class="queue-management-page">
         <div class="page-header">
           <h2 class="page-title">Nurse Queue Management</h2>

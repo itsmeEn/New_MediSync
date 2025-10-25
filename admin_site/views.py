@@ -113,6 +113,14 @@ def admin_login(request):
 @permission_classes([AllowAny])
 def admin_register(request):
     """
+    Admin registration endpoint is disabled. Use the fixed admin credentials.
+    """
+    return Response({
+        'error': 'Admin self-registration is disabled.',
+        'message': 'Use the pre-provisioned admin account.'
+    }, status=status.HTTP_403_FORBIDDEN)
+
+    """
     Admin registration endpoint with email verification
     """
     serializer = AdminRegistrationSerializer(data=request.data)

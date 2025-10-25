@@ -18,7 +18,7 @@
     />
     <NurseSidebar v-model="rightDrawerOpen" active-route="nurse-settings" />
 
-    <q-page-container class="page-container-with-fixed-header white-background">
+    <q-page-container class="page-container-with-fixed-header white-background role-body-bg">
       <div class="page-content">
         <div class="row justify-center">
           <div class="col-12 col-lg-10">
@@ -573,6 +573,11 @@ const fetchUserProfile = async () => {
     if (userData.profile_picture) {
       localStorage.setItem('profile_picture', userData.profile_picture);
     }
+
+    // Sync hospital info into settings form
+    profileForm.value.hospitalName = userData.hospital_name || profileForm.value.hospitalName;
+    profileForm.value.hospitalAddress = userData.hospital_address || profileForm.value.hospitalAddress;
+    profileForm.value.department = userData.nurse_profile?.department || profileForm.value.department;
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
   }
@@ -639,10 +644,12 @@ const saveSettings = async () => {
     console.log('📤 Sending profile update...');
     await api.put('/users/profile/update/', {
       email: profileForm.value.email,
+      // Move hospital fields to top-level to match backend serializer
+      hospital_name: profileForm.value.hospitalName,
+      hospital_address: profileForm.value.hospitalAddress,
+      // Keep nurse-specific fields under nurse_profile if supported separately
       nurse_profile: {
         department: profileForm.value.department,
-        hospital_name: profileForm.value.hospitalName,
-        hospital_address: profileForm.value.hospitalAddress,
       },
     });
     console.log('Profile updated successfully');
@@ -949,8 +956,9 @@ const loadUserProfile = async () => {
     profileForm.value = {
       fullName: userData.full_name || '',
       email: userData.email || '',
-      hospitalName: userData.nurse_profile?.hospital_name || '',
-      hospitalAddress: userData.nurse_profile?.hospital_address || '',
+      // Read hospital fields from top-level user fields
+      hospitalName: userData.hospital_name || '',
+      hospitalAddress: userData.hospital_address || '',
       department: userData.nurse_profile?.department || '',
       licenseNumber: userData.nurse_profile?.license_number || '',
     };
@@ -964,8 +972,9 @@ const loadUserProfile = async () => {
       profileForm.value = {
         fullName: user.full_name || '',
         email: user.email || '',
-        hospitalName: user.nurse_profile?.hospital_name || '',
-        hospitalAddress: user.nurse_profile?.hospital_address || '',
+        // Read hospital fields from top-level user fields in localStorage
+        hospitalName: user.hospital_name || '',
+        hospitalAddress: user.hospital_address || '',
         department: user.nurse_profile?.department || '',
         licenseNumber: user.nurse_profile?.license_number || '',
       };

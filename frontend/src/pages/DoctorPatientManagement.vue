@@ -6,7 +6,7 @@
     <!-- Standardized Sidebar Component -->
     <DoctorSidebar v-model="rightDrawerOpen" active-route="patients" />
 
-    <q-page-container class="page-container-with-fixed-header safe-area-bottom">
+    <q-page-container class="page-container-with-fixed-header safe-area-bottom role-body-bg">
       <!-- Main Content -->
       <div class="patient-management-content">
         <!-- Header Section -->
@@ -26,42 +26,53 @@
           <!-- Left Column: Patient List -->
           <div class="left-column">
             <q-card class="dashboard-card patient-list-card">
-              <q-card-section class="card-content">
-                <div class="card-text">
-                  <div class="card-title">Patient List</div>
-                  <div class="card-description">Browse and manage registered patients</div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="people" size="2.2rem" />
-                </div>
+              <q-card-section class="card-header">
+                <h5 class="card-title">Patient List</h5>
+                <q-btn color="primary" icon="refresh" size="sm" @click="loadPatients" :loading="loading" />
               </q-card-section>
 
-              <q-separator class="q-my-md" />
-
               <q-card-section class="card-content">
-                <div class="card-actions">
-                  <q-input
-                    dense
-                    outlined
-                    v-model="searchText"
-                    class="search-input"
-                    placeholder="Search patients..."
-                    debounce="300"
-                    clearable
-                  >
-                    <template #prepend>
-                      <q-icon name="search" />
-                    </template>
-                  </q-input>
-                  <q-btn
-                    color="primary"
-                    icon="refresh"
-                    size="sm"
-                    class="q-ml-sm"
-                    @click="loadPatients"
-                    :loading="loading"
-                    unelevated
-                  />
+                <q-banner dense class="q-mb-sm" icon="info" inline-actions>
+                  Select a patient from the list to work on OPD forms. Archived patients are hidden from selection.
+                </q-banner>
+                <div class="row items-center q-col-gutter-sm q-mb-sm">
+                  <div class="col-12 col-sm-8">
+                    <q-select
+                      v-model="selectedForm"
+                      :options="opdFormOptions"
+                      outlined
+                      dense
+                      label="OPD Forms"
+                      emit-value
+                      map-options
+                      :disable="!selectedPatient"
+                      aria-label="OPD Forms"
+                    />
+                  </div>
+                  <div class="col-6 col-sm-2">
+                    <q-select
+                      v-model="sortKey"
+                      :options="sortOptions"
+                      outlined
+                      dense
+                      label="Sort by"
+                      emit-value
+                      map-options
+                      aria-label="Sort patients"
+                    />
+                  </div>
+                  <div class="col-6 col-sm-2">
+                    <q-select
+                      v-model="sortOrder"
+                      :options="orderOptions"
+                      outlined
+                      dense
+                      label="Order"
+                      emit-value
+                      map-options
+                      aria-label="Sort order"
+                    />
+                  </div>
                 </div>
               </q-card-section>
 
@@ -80,19 +91,17 @@
                   <div
                     v-for="patient in filteredPatients"
                     :key="patient.id"
-                    class="patient-card"
+                    :class="['patient-card', { selected: selectedPatient && selectedPatient.id === patient.id }]"
+                    :aria-selected="selectedPatient && selectedPatient.id === patient.id ? 'true' : 'false'"
                     @click="selectPatient(patient)"
                   >
                     <div class="patient-avatar">
                       <q-avatar size="50px">
                         <img
                           v-if="patient.profile_picture"
-                          :src="
-                            patient.profile_picture.startsWith('http')
-                              ? patient.profile_picture
-                              : `http://localhost:8000${patient.profile_picture}`
-                          "
+                          :src="patient.profile_picture.startsWith('http') ? patient.profile_picture : `http://localhost:8000${patient.profile_picture}`"
                           :alt="patient.full_name"
+                          @error="patient.profile_picture = ''"
                         />
                         <q-icon v-else name="person" size="25px" color="white" />
                       </q-avatar>
@@ -101,14 +110,32 @@
                     <div class="patient-info">
                       <h6 class="patient-name">{{ patient.full_name }}</h6>
                       <p class="patient-details">
-                        Age: {{ patient.age || 'N/A' }} | {{ patient.gender || 'N/A' }} |
-                        {{ patient.blood_type || 'N/A' }}
+                        Assigned by: {{ patient.assigned_by || 'N/A' }} | 
+                        Specialization: {{ patient.specialization_required || 'General' }}
                       </p>
                       <p class="patient-condition">
-                        {{ patient.medical_condition || 'No condition specified' }}
+                        {{ patient.assignment_reason || 'No reason specified' }}
                       </p>
                       <div class="patient-status">
-                        <q-chip color="primary" text-color="white" size="sm"> Patient </q-chip>
+                        <q-chip 
+                          :color="patient.assignment_status === 'pending' ? 'orange' : 
+                                  patient.assignment_status === 'accepted' ? 'blue' : 
+                                  patient.assignment_status === 'in_progress' ? 'purple' : 
+                                  patient.assignment_status === 'completed' ? 'green' : 'grey'" 
+                          text-color="white" 
+                          size="sm"
+                        > 
+                          {{ patient.assignment_status || 'pending' }} 
+                        </q-chip>
+                        <q-chip 
+                          v-if="patient.priority && patient.priority !== 'normal'"
+                          :color="patient.priority === 'high' ? 'red' : 'orange'" 
+                          text-color="white" 
+                          size="sm"
+                          class="q-ml-xs"
+                        > 
+                          {{ patient.priority }} priority
+                        </q-chip>
                       </div>
                     </div>
 
@@ -160,11 +187,19 @@
                 <div class="stats-grid">
                   <div class="stat-item">
                     <div class="stat-number">{{ patients.length }}</div>
-                    <div class="stat-label">Total Patients</div>
+                    <div class="stat-label">Total Assignments</div>
                   </div>
                   <div class="stat-item">
-                    <div class="stat-number">{{ activePatientsCount }}</div>
-                    <div class="stat-label">Active</div>
+                    <div class="stat-number">{{ pendingAssignmentsCount }}</div>
+                    <div class="stat-label">Pending</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-number">{{ acceptedAssignmentsCount }}</div>
+                    <div class="stat-label">Accepted</div>
+                  </div>
+                  <div class="stat-item">
+                    <div class="stat-number">{{ completedAssignmentsCount }}</div>
+                    <div class="stat-label">Completed</div>
                   </div>
                 </div>
               </q-card-section>
@@ -206,10 +241,202 @@
                 />
               </q-card-actions>
             </q-card>
+
+            <!-- List of Available Nurses Card -->
+            <q-card class="dashboard-card nurses-card">
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Available Nurses</div>
+                  <div class="card-description">Nurses who can assign patients</div>
+                </div>
+                <div class="card-icon">
+                  <q-icon name="local_hospital" size="2.2rem" />
+                </div>
+              </q-card-section>
+              <q-card-section class="card-content">
+                <div v-if="nursesLoading" class="loading-section">
+                  <q-spinner color="primary" size="2em" />
+                  <p class="loading-text">Loading nurses...</p>
+                </div>
+                <div v-else-if="availableNurses.length === 0" class="empty-section">
+                  <q-icon name="local_hospital" size="48px" color="grey-5" />
+                  <p class="empty-text">No available nurses</p>
+                </div>
+                <div v-else class="nurses-list">
+                  <div v-for="(nurse, idx) in availableNurses" :key="String(nurse.id ?? nurse.email ?? nurse.full_name ?? idx)" class="nurse-row">
+                    <div class="nurse-avatar">
+                      <q-avatar size="40px" color="teal-8" text-color="white">
+                        {{ getInitials(nurse.full_name || '') }}
+                      </q-avatar>
+                    </div>
+                    <div class="nurse-info">
+                      <div class="nurse-name">{{ nurse.full_name }}</div>
+                      <div class="nurse-details">Department: {{ nurse.specialization || '—' }} | Status: {{ nurse.availability ?? nurse.status ?? 'Available' }}</div>
+                    </div>
+                  </div>
+                </div>
+              </q-card-section>
+            </q-card>
+
+            <!-- Patient Archive Card -->
+            <q-card class="dashboard-card archive-card">
+              <q-card-section class="card-content">
+                <div class="card-text">
+                  <div class="card-title">Patient Archive</div>
+                  <div class="card-description">Doctor OPD forms and clinical documentation</div>
+                </div>
+                <div class="card-icon"><q-icon name="folder_open" size="2.2rem" /></div>
+              </q-card-section>
+              <q-card-section class="card-content">
+                <q-list bordered separator class="opd-forms-list">
+                  <q-item clickable class="q-py-md">
+                    <q-item-section avatar>
+                      <q-icon name="description" color="primary" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>History and Physical (H&P) Form</q-item-label>
+                      <q-item-label caption>
+                        Chief Complaint, HPI, PMH, SH, ROS, Physical Exam, Assessment, and Plan.
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn color="primary" size="sm" label="Create" @click="openForm('hp')" />
+                    </q-item-section>
+                  </q-item>
+
+                  <q-item clickable class="q-py-md">
+                    <q-item-section avatar>
+                      <q-icon name="article" color="secondary" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>Progress Note (SOAP)</q-item-label>
+                      <q-item-label caption>
+                        Subjective updates, Objective data, Assessment changes, and treatment Plan updates.
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn color="secondary" size="sm" label="Create" @click="openForm('soap')" />
+                    </q-item-section>
+                  </q-item>
+
+                  <q-item clickable class="q-py-md">
+                    <q-item-section avatar>
+                      <q-icon name="assignment" color="teal" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>Provider Order Sheet</q-item-label>
+                      <q-item-label caption>
+                        Medication orders, diagnostic requests, therapy orders, and consultations.
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn color="teal" size="sm" label="Create" @click="openForm('orders')" />
+                    </q-item-section>
+                  </q-item>
+
+                  <q-item clickable class="q-py-md">
+                    <q-item-section avatar>
+                      <q-icon name="medical_services" color="deep-orange" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>Operative/Procedure Report</q-item-label>
+                      <q-item-label caption>
+                        Procedure name, indications, anesthesia, steps, findings, complications, and post-procedure plan.
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <q-btn color="deep-orange" size="sm" label="Create" @click="openForm('procedure')" />
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
           </div>
         </div>
       </div>
     </q-page-container>
+
+    <!-- Doctor OPD Forms Modal -->
+    <q-dialog
+      v-model="showFormDialog"
+      transition-show="scale"
+      transition-hide="scale"
+      :persistent="false"
+      content-class="form-dialog-container"
+    >
+      <q-card class="form-dialog-card" style="min-width:700px;max-width:95vw;">
+        <q-card-section class="card-header">
+          <div class="row items-center justify-between">
+            <div class="text-h6">{{ currentFormTitle }}</div>
+            <q-btn flat round dense icon="close" aria-label="Close OPD Form modal" @click="showFormDialog = false" />
+          </div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="card-content">
+          <q-banner dense class="q-mb-md" icon="assignment">
+            {{ currentFormTitle }} for {{ selectedPatient?.full_name || 'Selected Patient' }}
+          </q-banner>
+
+          <div v-if="selectedPatient" class="q-gutter-md q-mb-md">
+            <div class="text-subtitle1 text-bold">Patient Demographics</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6 col-md-3"><q-input :model-value="String(selectedPatient.id)" label="Patient ID" outlined dense readonly/></div>
+              <div class="col-12 col-sm-6 col-md-3"><q-input :model-value="selectedPatient.full_name" label="Name" outlined dense readonly/></div>
+              <div class="col-12 col-sm-6 col-md-3"><q-input :model-value="selectedPatient.gender || ''" label="Sex/Gender" outlined dense readonly/></div>
+              <div class="col-12 col-sm-6 col-md-3"><q-input :model-value="String(selectedPatient.age || '')" label="Age" outlined dense readonly/></div>
+            </div>
+          </div>
+
+          <div v-if="selectedPatient && currentFormType === 'hp'" class="q-gutter-md">
+            <div class="text-subtitle1 text-bold">History and Physical (H&P)</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6"><q-input v-model="hpForm.cc" label="Chief Complaint (CC)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="hpForm.hpi" type="textarea" label="History of Present Illness (HPI)" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="hpForm.pmh" type="textarea" label="Past Medical History (PMH)" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="hpForm.sh" type="textarea" label="Social History (SH)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="hpForm.ros" type="textarea" label="Review of Systems (ROS)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="hpForm.pe" type="textarea" label="Physical Examination" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="hpForm.assessment" type="textarea" label="Assessment (Diagnoses)" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="hpForm.plan" type="textarea" label="Plan (Treatment, Medications, Tests)" outlined dense/></div>
+            </div>
+          </div>
+
+          <div v-if="selectedPatient && currentFormType === 'soap'" class="q-gutter-md">
+            <div class="text-subtitle1 text-bold">Progress Note (SOAP)</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12"><q-input v-model="soapForm.subjective" type="textarea" label="Subjective" outlined dense/></div>
+              <div class="col-12"><q-input v-model="soapForm.objective" type="textarea" label="Objective" outlined dense/></div>
+              <div class="col-12"><q-input v-model="soapForm.assessment" type="textarea" label="Assessment" outlined dense/></div>
+              <div class="col-12"><q-input v-model="soapForm.plan" type="textarea" label="Plan" outlined dense/></div>
+            </div>
+          </div>
+
+          <div v-if="selectedPatient && currentFormType === 'orders'" class="q-gutter-md">
+            <div class="text-subtitle1 text-bold">Provider Order Sheet</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12"><q-input v-model="ordersForm.meds" type="textarea" label="Medication Orders (drug, dose, route, frequency)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="ordersForm.diagnostics" type="textarea" label="Diagnostic Orders (labs, imaging, procedure)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="ordersForm.therapy" type="textarea" label="Therapy Orders (PT/OT, wound care, etc.)" outlined dense/></div>
+              <div class="col-12"><q-input v-model="ordersForm.consults" type="textarea" label="Consultation Requests" outlined dense/></div>
+            </div>
+          </div>
+
+          <div v-if="selectedPatient && currentFormType === 'procedure'" class="q-gutter-md">
+            <div class="text-subtitle1 text-bold">Operative/Procedure Report</div>
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6"><q-input v-model="procedureForm.name" label="Procedure Name" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="procedureForm.indications" label="Indications" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="procedureForm.anesthesia" label="Anesthesia" outlined dense/></div>
+              <div class="col-12"><q-input v-model="procedureForm.steps" type="textarea" label="Procedure Steps" outlined dense/></div>
+              <div class="col-12"><q-input v-model="procedureForm.findings" type="textarea" label="Findings" outlined dense/></div>
+              <div class="col-12"><q-input v-model="procedureForm.complications" type="textarea" label="Complications" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="procedureForm.status" type="textarea" label="Post-Procedure Status" outlined dense/></div>
+              <div class="col-12 col-sm-6"><q-input v-model="procedureForm.immediatePlan" type="textarea" label="Immediate Plan" outlined dense/></div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
 
     <!-- Notifications Modal -->
     <q-dialog v-model="showNotifications" persistent>
@@ -290,7 +517,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
@@ -301,23 +528,34 @@ interface Patient {
   id: number;
   user_id: number;
   full_name: string;
-  email: string;
-  age: number | null;
-  gender: string;
-  blood_type: string;
-  medical_condition: string;
-  hospital: string;
-  insurance_provider: string;
-  billing_amount: number | null;
-  room_number: string;
-  admission_type: string;
-  date_of_admission: string;
-  discharge_date: string;
-  medication: string;
-  test_results: string;
-  assigned_doctor: string | null;
+  patient_name?: string;
+  email?: string;
+  age?: number | null;
+  gender?: string;
+  blood_type?: string;
+  medical_condition?: string;
+  hospital?: string;
+  insurance_provider?: string;
+  billing_amount?: number | null;
+  room_number?: string;
+  admission_type?: string;
+  date_of_admission?: string;
+  discharge_date?: string | null;
+  medication?: string;
+  test_results?: string;
+  assigned_doctor?: string | null;
   profile_picture?: string | null;
   is_dummy?: boolean;
+  // Assignment-related fields
+  assignment_id?: number;
+  assignment_status?: string;
+  assigned_by?: string;
+  assigned_at?: string;
+  specialization_required?: string;
+  assignment_reason?: string;
+  priority?: string;
+  accepted_at?: string | null;
+  completed_at?: string | null;
 }
 
 type DoctorNotification = {
@@ -343,14 +581,82 @@ const patients = ref<Patient[]>([]);
 const selectedPatient = ref<Patient | null>(null);
 const showNotifications = ref(false);
 
+// Form state and handler for OPD forms
+const showFormDialog = ref(false);
+const currentFormType = ref<'hp' | 'soap' | 'orders' | 'procedure' | null>(null);
+const openForm = (type: 'hp' | 'soap' | 'orders' | 'procedure'): void => {
+  if (!selectedPatient.value) {
+    $q.notify({ type: 'warning', message: 'Select a patient first', position: 'top' });
+    return;
+  }
+  currentFormType.value = type;
+  showFormDialog.value = true;
+};
+
+const currentFormTitle = computed(() => {
+  switch (currentFormType.value) {
+    case 'hp': return 'History and Physical (H&P)';
+    case 'soap': return 'Progress Note (SOAP)';
+    case 'orders': return 'Provider Order Sheet';
+    case 'procedure': return 'Operative/Procedure Report';
+    default: return 'OPD Form';
+  }
+});
+
+// OPD form local state to satisfy QInput v-model requirements
+// These refs hold in-progress form values per OPD type.
+const hpForm = ref({
+  cc: '', hpi: '', pmh: '', sh: '', ros: '', pe: '', assessment: '', plan: ''
+});
+const soapForm = ref({
+  subjective: '', objective: '', assessment: '', plan: ''
+});
+const ordersForm = ref({
+  meds: '', diagnostics: '', therapy: '', consults: ''
+});
+const procedureForm = ref({
+  name: '', indications: '', anesthesia: '', steps: '', findings: '', complications: '', status: '', immediatePlan: ''
+});
+
+// OPD form selection and sorting state (mirrors nurse design)
+const selectedForm = ref<'hp' | 'soap' | 'orders' | 'procedure' | ''>('');
+const opdFormOptions = [
+  { label: 'Select Form Type', value: '' },
+  { label: 'History and Physical (H&P)', value: 'hp' },
+  { label: 'Progress Note (SOAP)', value: 'soap' },
+  { label: 'Provider Order Sheet', value: 'orders' },
+  { label: 'Operative/Procedure Report', value: 'procedure' },
+];
+
+const sortKey = ref<'full_name' | 'age' | 'gender'>('full_name');
+const sortOrder = ref<'asc' | 'desc'>('asc');
+const sortOptions = [
+  { label: 'Name', value: 'full_name' },
+  { label: 'Age', value: 'age' },
+  { label: 'Gender', value: 'gender' },
+];
+const orderOptions = [
+  { label: 'Ascending', value: 'asc' },
+  { label: 'Descending', value: 'desc' },
+];
+
+watch(selectedForm, (val) => {
+  if (val && selectedPatient.value) {
+    currentFormType.value = val;
+    showFormDialog.value = true;
+  }
+});
+
 // User profile data
 const userProfile = ref<{
+  id: number;
   full_name: string;
   specialization?: string;
   role: string;
   profile_picture: string | null;
   verification_status: string;
 }>({
+  id: 0,
   full_name: '',
   specialization: '',
   role: '',
@@ -389,41 +695,177 @@ const loadMedicalRequests = async () => {
     console.error('Failed to load medical requests:', error);
     medicalRequests.value = [];
     $q.notify({ type: 'negative', message: 'Failed to load medical requests' });
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadMedicalRequests failed',
+      route: 'DoctorPatientManagement',
+      context: { error: String(error) },
+    });
   } finally {
     medicalRequestsLoading.value = false;
   }
 };
 
+// Available Nurses list
+interface NurseSummary {
+  id: number | string;
+  full_name: string;
+  specialization?: string;
+  department?: string;
+  status?: string;
+  availability?: string;
+  email?: string | undefined;
+  profile_picture?: string | null;
+}
+
+interface AvailableUser {
+  id: number | string;
+  full_name: string;
+  role: string;
+  verification_status: string;
+  email?: string;
+  profile_picture?: string | null;
+  nurse_profile?: { department?: string } | null;
+  specialization?: string;
+}
+ 
+ const availableNurses = ref<NurseSummary[]>([]);
+const nursesLoading = ref(false);
+
+const getInitials = (name: string): string => {
+  const parts = (name || '').trim().split(/\s+/);
+  return parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+};
+
+const loadAvailableNurses = async (): Promise<void> => {
+  nursesLoading.value = true;
+  try {
+    const response = await api.get('/operations/messaging/available-users/');
+    const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
+    const list: NurseSummary[] = users
+      .filter((u) => u.role === 'nurse' && u.verification_status === 'approved')
+      .map((u) => ({
+        id: u.id,
+        full_name: u.full_name,
+        department: u.nurse_profile?.department || u.specialization || 'General',
+        status: 'Verified',
+        availability: 'Available',
+        email: u.email ?? '',
+        profile_picture: u.profile_picture || null,
+      } as NurseSummary));
+    availableNurses.value = list;
+  } catch (error) {
+    console.error('Failed to load available nurses:', error);
+    availableNurses.value = [];
+  } finally {
+    nursesLoading.value = false;
+  }
+};
+
 // Patients filtering and statistics
 const filteredPatients = computed(() => {
-  if (!searchText.value) return patients.value;
-  const search = searchText.value.toLowerCase();
-  return patients.value.filter(
-    (patient) =>
-      patient.full_name.toLowerCase().includes(search) ||
-      (patient.medical_condition || '').toLowerCase().includes(search) ||
-      (patient.hospital || '').toLowerCase().includes(search),
-  );
+  let list = patients.value;
+  if (searchText.value) {
+    const search = searchText.value.toLowerCase();
+    list = list.filter(
+      (patient) =>
+        patient.full_name.toLowerCase().includes(search) ||
+        (patient.medical_condition || '').toLowerCase().includes(search) ||
+        (patient.hospital || '').toLowerCase().includes(search),
+    );
+  }
+  const key = sortKey.value;
+  const dir = sortOrder.value === 'desc' ? -1 : 1;
+  const toComparable = (p: Patient) => {
+    if (key === 'age') return p.age ?? 0;
+    const raw = p[key as keyof Patient];
+    if (typeof raw === 'string') return raw.toLowerCase();
+    if (typeof raw === 'number') return String(raw).toLowerCase();
+    return '';
+  };
+  return [...list].sort((a: Patient, b: Patient) => {
+    const av = toComparable(a);
+    const bv = toComparable(b);
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
 });
 
-const activePatientsCount = computed(
-  () => patients.value.filter((p) => p.discharge_date === null || p.discharge_date === '').length,
+
+
+// Assignment-based statistics
+const pendingAssignmentsCount = computed(
+  () => patients.value.filter((p) => p.assignment_status === 'pending').length,
 );
 
-// Patient data loading and actions
+const acceptedAssignmentsCount = computed(
+  () => patients.value.filter((p) => p.assignment_status === 'accepted' || p.assignment_status === 'in_progress').length,
+);
+
+const completedAssignmentsCount = computed(
+  () => patients.value.filter((p) => p.assignment_status === 'completed').length,
+);
+
+// Patient assignment data loading and actions
 const loadPatients = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/users/doctor/patients/');
-    if (response.data.success) {
-      patients.value = (response.data.patients || []).filter(
-        (p: Patient | Record<string, unknown>) => !(p as Patient).is_dummy,
-      ) as Patient[];
-      console.log('Patients loaded:', patients.value.length, 'User role:', userProfile.value.role);
+    // Load only assigned patients from the assignment API
+    const response = await api.get('/operations/doctor/assignments/');
+    if (response.data && Array.isArray(response.data)) {
+      // Transform assignment data to patient format
+      patients.value = response.data.map((assignment: {
+        id: number;
+        patient_id: number;
+        patient_name: string;
+        status: string;
+        assigned_by_name: string;
+        assigned_at: string;
+        specialization_required: string;
+        assignment_reason: string;
+        priority: string;
+        accepted_at: string | null;
+        completed_at: string | null;
+      }) => ({
+        id: assignment.patient_id,
+        user_id: assignment.patient_id,
+        full_name: assignment.patient_name,
+        patient_name: assignment.patient_name,
+        assignment_id: assignment.id,
+        assignment_status: assignment.status,
+        assigned_by: assignment.assigned_by_name,
+        assigned_at: assignment.assigned_at,
+        specialization_required: assignment.specialization_required,
+        assignment_reason: assignment.assignment_reason,
+        priority: assignment.priority,
+        accepted_at: assignment.accepted_at,
+        completed_at: assignment.completed_at,
+        // Default patient fields for compatibility
+        medical_condition: '',
+        blood_type: '',
+        hospital: '',
+        room_number: '',
+        discharge_date: null,
+        is_dummy: false
+      }));
+      console.log('Assigned patients loaded:', patients.value.length, 'User role:', userProfile.value.role);
+      const first = patients.value[0];
+      if (first) { void loadVerificationStatus(first); }
+    } else {
+      patients.value = [];
+      console.log('No patient assignments found');
     }
   } catch (error) {
-    console.error('Failed to load patients:', error);
-    $q.notify({ type: 'negative', message: 'Failed to load patients', position: 'top' });
+    console.error('Failed to load patient assignments:', error);
+    $q.notify({ type: 'negative', message: 'Failed to load patient assignments', position: 'top' });
+    patients.value = [];
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadPatients failed',
+      route: 'DoctorPatientManagement',
+      context: { error: String(error) },
+    });
   } finally {
     loading.value = false;
   }
@@ -433,6 +875,70 @@ const selectPatient = (patient: Patient) => {
   selectedPatient.value = patient;
   if (selectedPatient.value) {
     console.log('Selected patient id:', selectedPatient.value.id);
+    void loadVerificationStatus(patient);
+  }
+};
+
+// Verification status for selected patient
+interface VerificationStatus {
+  input: {
+    patient_user_id: number;
+    patient_profile_id: number;
+    doctor_user_id: number;
+    doctor_profile_id: number;
+  };
+  persistence: {
+    assignments_count: number;
+    appointments_count: number;
+    archives_count: number;
+  };
+  transmission: {
+    recent_notification_present: boolean;
+    recent_notification_message: string | null;
+    recent_notification_at: string | null;
+  };
+  mapping: {
+    assignment_statuses: string[];
+    appointment_statuses: string[];
+  };
+}
+const verificationStatus = ref<VerificationStatus | null>(null);
+
+const loadVerificationStatus = async (patient: Patient) => {
+  try {
+    const pid = Number(patient.user_id ?? patient.id);
+    const did = userProfile.value.id;
+    const resp = await api.get(`/operations/verification-status/?patient_id=${pid}&doctor_id=${did}`);
+    verificationStatus.value = resp.data as VerificationStatus;
+    $q.notify({
+      type: 'positive',
+      message: `Data availability: assignments ${resp.data?.persistence?.assignments_count ?? 0}, archives ${resp.data?.persistence?.archives_count ?? 0}`,
+      position: 'top',
+      timeout: 2500,
+    });
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'doctor verification fetched',
+      route: 'DoctorPatientManagement',
+      context: {
+        patient_id: pid,
+        doctor_id: did,
+        counts: resp.data?.persistence ?? {},
+      },
+    });
+  } catch (error) {
+    console.error('Verification status error:', error);
+    $q.notify({ type: 'warning', message: 'Failed to verify data availability', position: 'top' });
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'doctor verification failed',
+      route: 'DoctorPatientManagement',
+      context: {
+        patient_id: patient.user_id ?? patient.id,
+        doctor_id: userProfile.value.id,
+        error: String(error),
+      },
+    });
   }
 };
 
@@ -453,6 +959,7 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
     userProfile.value = {
+      id: userData.id,
       full_name: userData.full_name,
       specialization: userData.doctor_profile?.specialization,
       role: userData.role,
@@ -521,13 +1028,134 @@ const formatTime = (dateString: string): string => {
   });
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+let assignmentsTicker: ReturnType<typeof setInterval> | null = null;
+
+const startAssignmentsPolling = (): void => {
+  if (assignmentsTicker) return;
+  assignmentsTicker = setInterval(() => { void loadPatients(); }, 8000);
+};
+
+const stopAssignmentsPolling = (): void => {
+  if (assignmentsTicker) {
+    clearInterval(assignmentsTicker);
+    assignmentsTicker = null;
+  }
+};
+
+// Doctor messaging WebSocket for real-time patient assignments
+let doctorMessagingWS: WebSocket | null = null;
+
+const setupDoctorMessagingWS = (): void => {
+  try {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`);
+    const backendHost = base.hostname;
+    const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80');
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = storedUser.id || storedUser.user?.id || storedUser.user_id;
+
+    if (!userId) {
+      console.warn('No user id found for doctor messaging WebSocket');
+      return;
+    }
+
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/messaging/${userId}/`;
+    const ws = new WebSocket(wsUrl);
+    doctorMessagingWS = ws;
+
+    ws.onopen = () => {
+      console.log('DoctorPatientManagement messaging WebSocket connected');
+    };
+
+    ws.onmessage = async (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'notification') {
+          const notif = data.notification || {};
+          if (notif.event === 'patient_assigned') {
+            $q.notify({
+              type: 'info',
+              message: 'New patient assigned to you',
+              position: 'top'
+            });
+            // Immediate refresh of assignments, notifications, and requests
+            try {
+              await loadPatients();
+            } catch (e) {
+              console.warn('Failed to refresh patients after assignment', e);
+              $q.notify({ type: 'negative', message: 'Failed to refresh patients. Retrying...', position: 'top' });
+              // Quick retry once
+              setTimeout(() => { void loadPatients(); }, 2000);
+            }
+            void loadNotifications();
+            void loadMedicalRequests();
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse doctor WS message', err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('DoctorPatientManagement messaging WebSocket disconnected');
+      // Attempt to reconnect after 5 seconds
+      setTimeout(() => setupDoctorMessagingWS(), 5000);
+    };
+  } catch (e) {
+    console.warn('Failed to setup doctor messaging WebSocket', e);
+  }
+};
+
 onMounted(() => {
   console.log('🚀 DoctorPatientManagement component mounted');
   void fetchUserProfile();
   void loadNotifications();
   void loadPatients();
   void loadMedicalRequests();
+  void loadAvailableNurses();
+  startAssignmentsPolling();
+  setupDoctorMessagingWS();
 });
+
+onUnmounted(() => {
+  stopAssignmentsPolling();
+  try { if (doctorMessagingWS) doctorMessagingWS.close(); } catch (err) { console.warn('Error closing doctor WS', err); } finally { doctorMessagingWS = null; }
+});
+
+
+
+
+
+
+
+
 </script>
 
 <style scoped>

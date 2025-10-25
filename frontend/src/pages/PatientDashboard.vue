@@ -450,7 +450,7 @@ const updateQaLabelFontSize = () => {
 onMounted(async () => {
   // Load dashboard summary
   try {
-    const res = await api.get('/patient/dashboard/summary/')
+    const res = await api.get('/operations/patient/dashboard/summary/', { params: { department: 'OPD' } })
     dashboardSummary.value = res.data as DashboardSummary
   } catch (error: unknown) {
     console.warn('Failed to fetch dashboard summary', error)

@@ -37,24 +37,18 @@ const resolveBaseURL = (): string => {
   return webEndpoint;
 };
 
-// Connectivity test helper: probes a stable PUBLIC or auth endpoint and treats 404 as NOT reachable
+// Connectivity test helper: probes a stable PUBLIC endpoint and treats 404 as NOT reachable
 const testConnectivity = async (endpoint: string): Promise<boolean> => {
   try {
-    // Probe the login endpoint with GET; it should respond 405 (Method Not Allowed)
-    // This avoids generating 401 Unauthorized logs from protected resources.
-    const probeUrl = `${endpoint}/users/login/`;
+    // Probe a public UI config endpoint with GET; should respond 200
+    const probeUrl = `${endpoint}/operations/ui-config/`;
     const testResponse = await axios.get(probeUrl, {
       // Use a short timeout to avoid hanging when port is closed
       timeout: 2500,
       validateStatus: () => true,
     });
-    // Consider 2xx, 401, 403, 405 as reachable; 404 means wrong baseURL
-    return (
-      (testResponse.status >= 200 && testResponse.status < 300) ||
-      testResponse.status === 401 ||
-      testResponse.status === 403 ||
-      testResponse.status === 405
-    );
+    // Consider 2xx as reachable; 404 means wrong baseURL
+    return (testResponse.status >= 200 && testResponse.status < 300);
   } catch {
     // Network errors (like ECONNREFUSED) will land here
     return false;

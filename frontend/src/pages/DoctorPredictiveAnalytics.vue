@@ -7,7 +7,7 @@
       active-route="analytics"
     />
 
-    <q-page-container class="page-container-with-fixed-header">
+    <q-page-container class="page-container-with-fixed-header role-body-bg">
       <!-- Greeting Section -->
       <div class="greeting-section">
         <q-card class="greeting-card">
@@ -570,6 +570,8 @@
               </q-card>
             </div>
 
+            <!-- AI Recommendations UI removed; recommendations are consolidated into generated PDF reports. -->
+
           </q-card-section>
         </q-card>
       </div>
@@ -747,6 +749,8 @@ const analyticsData = ref<AnalyticsData>({
   monthly_illness_forecast: null,
 });
 
+// AI Recommendations moved to PDF generation; UI state removed.
+
 
 const surgeRiskFactors = computed(() => analyticsData.value.surge_prediction?.risk_factors ?? []);
 
@@ -881,6 +885,10 @@ const fetchDoctorAnalytics = async () => {
     });
   }
 };
+
+// Doctor verification check removed; AI recommendations are only in PDF output.
+
+// Doctor AI recommendations are no longer fetched client-side; included in PDF.
 
 const viewDemographics = () => {
   $q.notify({
@@ -1936,6 +1944,8 @@ const riskLevelColor = (level?: string): string => {
   return 'primary';
 };
 
+// Storage sync for AI recommendations removed; PDF includes AI content.
+
 onMounted(() => {
   // Load notifications
   void loadNotifications();
@@ -1948,7 +1958,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
- 
+  // No storage listeners to remove after AI UI removal
 });
 </script>
 

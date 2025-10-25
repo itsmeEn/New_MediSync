@@ -1043,3 +1043,142 @@ class QueueStatusLog(models.Model):
     def __str__(self):
         status_change = "Opened" if self.new_status else "Closed"
         return f"{self.department} Queue {status_change} at {self.changed_at}"
+
+
+class PatientAssessmentArchive(models.Model):
+    user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="patient_archives")
+    patient_profile = models.ForeignKey(PatientProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name="archives")
+    assessment_type = models.CharField(max_length=100, blank=True)
+    medical_condition = models.CharField(max_length=200, blank=True)
+    medical_history_summary = models.TextField(blank=True)
+    assessment_data = models.JSONField(default=dict, help_text="Complete patient assessment data (unencrypted copy for development)")
+    encrypted_assessment_data = models.TextField(blank=True, help_text="Base64 encoded encrypted assessment data")
+    diagnostics = models.JSONField(default=dict, blank=True, help_text="Relevant diagnostic information")
+    last_assessed_at = models.DateTimeField(null=True, blank=True)
+    hospital_name = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_assessed_at", "-updated_at"]
+        db_table = "patient_assessment_archives"
+        verbose_name = "Patient Assessment Archive"
+        verbose_name_plural = "Patient Assessment Archives"
+
+    def __str__(self):
+        name = getattr(self.user, 'full_name', '') or str(self.user_id)
+        return f"Archive for {name} - {self.medical_condition or self.assessment_type}"
+
+    def _get_encryption_key(self):
+        key = getattr(settings, 'ARCHIVE_ENCRYPTION_KEY', None) or getattr(settings, 'MESSAGE_ENCRYPTION_KEY', None)
+        if isinstance(key, str):
+            key = key.encode()
+        return key
+
+    def encrypt_payload(self, payload: dict) -> str:
+        try:
+            key = self._get_encryption_key()
+            if not key:
+                # Fallback for development when key is missing
+                key = Fernet.generate_key()
+            f = Fernet(key)
+            raw = json.dumps(payload or {}, ensure_ascii=False)
+            encrypted = f.encrypt(raw.encode())
+            return base64.b64encode(encrypted).decode()
+        except Exception:
+            # Fallback to plain JSON to avoid data loss in development
+            return json.dumps(payload or {}, ensure_ascii=False)
+
+    def decrypt_payload(self) -> dict:
+        try:
+            if not self.encrypted_assessment_data:
+                return self.assessment_data or {}
+            key = self._get_encryption_key()
+            if not key:
+                return self.assessment_data or {}
+            f = Fernet(key)
+            encrypted_data = base64.b64decode(self.encrypted_assessment_data.encode())
+            decrypted = f.decrypt(encrypted_data).decode()
+            return json.loads(decrypted)
+        except Exception:
+            return self.assessment_data or {}
+
+    def save(self, *args, **kwargs):
+        # Ensure encrypted payload is populated
+        if (self.assessment_data or {}) and not self.encrypted_assessment_data:
+            self.encrypted_assessment_data = self.encrypt_payload(self.assessment_data)
+        # Normalize hospital name from related profile or user
+        if not self.hospital_name:
+            self.hospital_name = getattr(self.user, 'hospital_name', '') or (getattr(getattr(self.patient_profile, 'user', None), 'hospital_name', '') if self.patient_profile else '')
+        super().save(*args, **kwargs)
+
+
+class ArchiveAccessLog(models.Model):
+    ACTION_CHOICES = [
+        ('view', 'View'),
+        ('export', 'Export'),
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('search', 'Search'),
+    ]
+
+    user = models.ForeignKey(Users, on_delete=models.SET_NULL, null=True, related_name="archive_access_logs")
+    record = models.ForeignKey(PatientAssessmentArchive, on_delete=models.CASCADE, related_name="access_logs", null=True, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    accessed_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.CharField(max_length=64, blank=True)
+    query_params = models.TextField(blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-accessed_at"]
+        db_table = "archive_access_logs"
+        verbose_name = "Archive Access Log"
+        verbose_name_plural = "Archive Access Logs"
+
+    def __str__(self):
+        rid = getattr(self.record, 'id', None)
+        return f"Archive access: {self.action} by {getattr(self.user, 'email', 'system')} on {rid}"
+
+
+class SecureKey(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='secure_keys')
+    public_key_pem = models.TextField()
+    algorithm = models.CharField(max_length=64, default='RSA-OAEP-2048-SHA256')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SecureTransmission(models.Model):
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='sent_secure_transmissions')
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='received_secure_transmissions')
+    patient = models.ForeignKey(PatientProfile, on_delete=models.PROTECT, related_name='secure_transmissions')
+    ciphertext_b64 = models.TextField()
+    iv_b64 = models.CharField(max_length=64)
+    encrypted_key_b64 = models.TextField()
+    signature_b64 = models.TextField()
+    signing_public_key_pem = models.TextField()
+    checksum_hex = models.CharField(max_length=128)
+    encryption_alg = models.CharField(max_length=64, default='AES-256-GCM')
+    signature_alg = models.CharField(max_length=64, default='ECDSA-P256-SHA256')
+    status = models.CharField(max_length=32, default='pending', choices=[('pending','pending'),('received','received'),('decrypted','decrypted'),('failed','failed')])
+    created_at = models.DateTimeField(auto_now_add=True)
+    accessed_at = models.DateTimeField(null=True, blank=True)
+    breach_flag = models.BooleanField(default=False)
+    breach_notified_at = models.DateTimeField(null=True, blank=True)
+
+
+class TransmissionAudit(models.Model):
+    transmission = models.ForeignKey('SecureTransmission', on_delete=models.CASCADE, related_name='audits')
+    event = models.CharField(max_length=64)
+    detail = models.TextField(blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MFAChallenge(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mfa_challenges')
+    code = models.CharField(max_length=12)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
