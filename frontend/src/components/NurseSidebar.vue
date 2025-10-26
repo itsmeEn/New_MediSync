@@ -225,27 +225,22 @@ const navigateTo = (route: string) => {
   }
 };
 
+// Immediate logout without confirmation per nurse requirements.
+// Preserves existing notification and centralized redirect via performLogout.
 const logout = () => {
-  $q.dialog({
-    title: 'Confirm Logout',
-    message: 'Are you sure you want to logout?',
-    cancel: true,
-    persistent: true,
-  }).onOk(() => {
-    // Close the drawer
-    drawerOpen.value = false;
+  // Close the drawer immediately
+  drawerOpen.value = false;
 
-    // Show logout notification
-    $q.notify({
-      type: 'positive',
-      message: 'Logged out successfully',
-      position: 'top',
-      timeout: 2000,
-    });
-
-    // Perform centralized logout and redirect
-    void performLogout(router);
+  // Show logout notification
+  $q.notify({
+    type: 'positive',
+    message: 'Logged out successfully',
+    position: 'top',
+    timeout: 2000,
   });
+
+  // Perform centralized logout and redirect
+  void performLogout(router);
 };
 
 const navigateToProfile = () => {
