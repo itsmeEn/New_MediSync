@@ -103,9 +103,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         hospital_id = attrs.get('hospital_id')
         if not hospital_id:
             raise serializers.ValidationError({"hospital": "Please select your hospital."})
-        from admin_site.models import Hospital
+        # Avoid import path issues by using Django app registry
+        from django.apps import apps
+        Hospital = apps.get_model('admin_site', 'Hospital')
         try:
-            hospital = Hospital.objects.get(id=hospital_id, status=Hospital.Status.ACTIVE)
+            hospital = Hospital.objects.get(id=hospital_id, status__iexact=Hospital.Status.ACTIVE)
         except Hospital.DoesNotExist:
             raise serializers.ValidationError({"hospital": "Selected hospital is not active or does not exist."})
         # Propagate authoritative hospital details to the user

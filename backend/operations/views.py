@@ -254,6 +254,47 @@ def doctor_pending_assessments(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def patient_assessments(request):
+    """
+    Return patient assessments filtered by status.
+    - status=completed: return archived patient assessments (limited set)
+    - status=in_progress: return empty list until nurse charts are implemented
+    Response shape: { results: [...], count: N }
+    """
+    try:
+        status_filter = str(request.query_params.get('status', '')).lower()
+        results = []
+        count = 0
+
+        if status_filter == 'completed':
+            # Use archives of patient assessments as "completed" assessments
+            from .models import PatientAssessmentArchive
+            from .serializers import PatientAssessmentArchiveSerializer
+
+            qs = PatientAssessmentArchive.objects.all()
+            # If doctor has hospital affiliation, scope results to that hospital
+            hospital = getattr(request.user, 'hospital_name', None)
+            if hospital:
+                qs = qs.filter(hospital_name__iexact=hospital)
+
+            serializer = PatientAssessmentArchiveSerializer(qs.order_by('-last_assessed_at')[:50], many=True)
+            results = serializer.data
+            count = len(results)
+        elif status_filter == 'in_progress':
+            # Placeholder until NurseChart model is implemented
+            results = []
+            count = 0
+        else:
+            # Unknown status: return empty list for now
+            results = []
+            count = 0
+
+        return Response({ 'results': results, 'count': count }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({ 'error': f'Failed to fetch patient assessments: {str(e)}' }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def doctor_blocked_dates(request):
     """
     Get blocked dates for the current doctor
