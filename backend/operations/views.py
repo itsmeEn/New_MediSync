@@ -14,6 +14,9 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.core.mail import send_mail
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1069,13 +1072,20 @@ def get_available_users(request):
                 'verification_status': user.verification_status
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Get only admin-verified doctors and nurses (excluding current user)
-        # This ensures secure communication between authenticated healthcare providers
-        available_users = User.objects.filter(
-            role__in=['doctor', 'nurse'],
-            is_active=True,
-            verification_status='approved'  # Only admin-verified users for security
-        ).exclude(id=user.id)
+        # Get only admin-verified doctors and nurses in the SAME hospital (excluding current user)
+        # Ensures secure communication between registered, verified providers within the same facility
+        if not user.hospital_name:
+            available_users = User.objects.none()
+        else:
+            available_users = User.objects.filter(
+                role__in=['doctor', 'nurse'],
+                is_active=True,
+                is_verified=True,
+                verification_status='approved',  # Only admin-verified users for security
+                hospital_name=user.hospital_name
+            ).filter(
+                Q(doctor_profile__isnull=False) | Q(nurse_profile__isnull=False)
+            ).exclude(id=user.id)
         
         # Apply search filter if search query is provided
         if search_query:
@@ -1089,7 +1099,7 @@ def get_available_users(request):
         return Response({
             'users': serializer.data,
             'total_count': available_users.count(),
-            'message': f'Found {available_users.count()} verified healthcare providers'
+            'message': f'Found {available_users.count()} verified providers in your hospital'
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -1300,6 +1310,7 @@ def get_medicine_inventory(request):
     """
     try:
         user = request.user
+        logger.info(f"assign_patient_to_doctor:start user_id={getattr(user,'id',None)} role={getattr(user,'role',None)} patient_id={request.data.get('patient_id')} doctor_id={request.data.get('doctor_id')} specialization={request.data.get('specialization')}")
         
         # Check if user is a nurse
         if user.role != 'nurse':
@@ -1738,6 +1749,7 @@ def get_available_doctors(request):
                     'full_name': doctor.user.full_name,
                     'specialization': doctor.specialization,
                     'department': derive_department_label(doctor.specialization),
+                    'hospital_name': getattr(doctor.user, 'hospital_name', None),
                     'is_available': current_patients < 10,  # Assume max 10 patients per doctor
                     'current_patients': current_patients,
                     'profile_picture': profile_picture_url,
@@ -1805,14 +1817,20 @@ def assign_patient_to_doctor(request):
             }, status=status.HTTP_404_NOT_FOUND)
         
         # Create appointment
+        scheduled_time = timezone.now() + timedelta(minutes=15)
+        # Allocate a unique queue number for the appointment
+        last_queue_number = AppointmentManagement.objects.order_by('-queue_number').values_list('queue_number', flat=True).first() or 0
+        next_queue_number = last_queue_number + 1
         appointment = AppointmentManagement.objects.create(
             patient=patient_profile,
             doctor=doctor_profile,
-            appointment_date=timezone.now(),
+            appointment_date=scheduled_time,
+            appointment_time=scheduled_time.time(),
             appointment_type='consultation',
             status='scheduled',
-            notes=f'Assigned by nurse for {specialization} consultation'
+            queue_number=next_queue_number
         )
+        logger.info(f"assign_patient_to_doctor:appointment_created appointment_id={getattr(appointment,'appointment_id',None)} patient_profile_id={getattr(patient_profile,'id',None)} doctor_profile_id={getattr(doctor_profile,'id',None)} queue_number={next_queue_number}")
         
         # Remove patient from queue if they were in queue
         QueueManagement.objects.filter(
@@ -1830,13 +1848,60 @@ def assign_patient_to_doctor(request):
             message=f'New patient {patient_profile.user.full_name} assigned to you for {specialization} consultation',
             is_read=False
         )
+
+        # Create a PatientAssignment record for the doctor to view
+        try:
+            from .models import PatientAssignment
+            assignment = PatientAssignment.objects.create(
+                patient=patient_profile,
+                doctor=doctor_profile,
+                assigned_by=user,
+                specialization_required=specialization,
+                assignment_reason=request.data.get('assignment_reason', ''),
+                status='pending',
+                priority=request.data.get('priority', 'medium')
+            )
+            logger.info(f"assign_patient_to_doctor:assignment_created assignment_id={getattr(assignment,'id',None)} patient_profile_id={getattr(patient_profile,'id',None)} doctor_profile_id={getattr(doctor_profile,'id',None)} status='pending' priority={request.data.get('priority','medium')}")
+        except Exception:
+            assignment = None
+
+        # Broadcast real-time notification to the doctor via WebSocket
+        try:
+            channel_layer = get_channel_layer()
+            notif_payload = {
+                'event': 'patient_assigned',
+                'patient': {
+                    'id': patient_profile.id,
+                    'user_id': patient_profile.user.id,
+                    'full_name': patient_profile.user.full_name,
+                },
+                'specialization': specialization,
+            }
+            # Include assignment data if created
+            if assignment is not None:
+                from .serializers import PatientAssignmentSerializer
+                notif_payload['assignment'] = PatientAssignmentSerializer(assignment).data
+            async_to_sync(channel_layer.group_send)(
+                f'messaging_{doctor_profile.user.id}',
+                {
+                    'type': 'notification',
+                    'notification': notif_payload
+                }
+            )
+            logger.info(f"assign_patient_to_doctor:websocket_broadcasted doctor_user_id={getattr(doctor_profile.user,'id',None)} event='patient_assigned' payload_keys={list(notif_payload.keys())}")
+        except Exception as ws_err:
+            logger.warning(f"assign_patient_to_doctor:websocket_failed doctor_user_id={getattr(doctor_profile.user,'id',None)} error={ws_err}")
+            # Non-blocking: if WS fails, proceed without raising
+            pass
         
         return Response({
             'message': 'Patient assigned successfully',
-            'appointment_id': appointment.appointment_id
+            'appointment_id': appointment.appointment_id,
+            'assignment_id': assignment.id if assignment is not None else None
         }, status=status.HTTP_201_CREATED)
         
     except Exception as e:
+        logger.exception(f"assign_patient_to_doctor:error user_id={getattr(getattr(request,'user',None),'id',None)} details={e}")
         return Response({
             'error': f'Failed to assign patient: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1894,6 +1959,7 @@ def get_doctor_assignments(request):
     """
     try:
         user = request.user
+        logger.info(f"get_doctor_assignments:start user_id={getattr(user,'id',None)} role={getattr(user,'role',None)}")
 
         # Check if user is a doctor
         if user.role != 'doctor':
@@ -1918,9 +1984,11 @@ def get_doctor_assignments(request):
 
         from .serializers import PatientAssignmentSerializer
         serializer = PatientAssignmentSerializer(assignments, many=True)
+        logger.info(f"get_doctor_assignments:result count={len(serializer.data)} doctor_profile_id={getattr(doctor_profile,'id',None)}")
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     except Exception as e:
+        logger.exception(f"get_doctor_assignments:error user_id={getattr(getattr(request,'user',None),'id',None)} details={e}")
         return Response({
             'error': f'Failed to fetch assignments: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -62,7 +62,7 @@ const fetchUnreadCount = async () => {
       unreadCount.value = 0
       return
     }
-    const resp = await api.get('/operations/notifications/', {
+    const resp = await api.get('/operations/messaging/notifications/', {
       params: { unread_only: true }
     })
     const data = Array.isArray(resp.data) ? resp.data : []

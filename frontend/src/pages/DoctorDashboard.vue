@@ -11,7 +11,7 @@
       active-route="doctor-dashboard"
     />
 
-    <q-page-container class="page-container-with-fixed-header safe-area-bottom">
+    <q-page-container class="page-container-with-fixed-header safe-area-bottom role-body-bg">
       <div class="greeting-section">
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">

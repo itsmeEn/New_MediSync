@@ -1,5 +1,8 @@
 from django.urls import path
 from . import views
+from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs
+from . import secure_views
+from . import monitoring_views
 
 urlpatterns = [
     # Dashboard statistics
@@ -64,4 +67,33 @@ urlpatterns = [
     path('queue/availability/', views.check_queue_availability, name='check_queue_availability'),
     path('queue/start-processing/', views.start_queue_processing, name='start_queue_processing'),
     path('queue/notifications/confirm/', views.confirm_notification_delivery, name='confirm_notification_delivery'),
+
+    # Archive endpoints
+    path('archives/', archive_list, name='archive_list'),
+    path('archives/create/', archive_create, name='archive_create'),
+    path('archives/<int:archive_id>/', archive_detail, name='archive_detail'),
+    path('archives/<int:archive_id>/export/', archive_export, name='archive_export'),
+    path('archives/logs/', archive_logs, name='archive_logs'),
+
+    # Public UI config endpoint for connectivity probing
+    path('ui-config/', views.ui_config, name='ui_config'),
+
+    # Monitoring and verification endpoints
+    path('client-log/', monitoring_views.client_log, name='client_log'),
+    path('verification-status/', monitoring_views.verification_status, name='verification_status'),
+
+    # Temporary: stub medical requests endpoint used by DoctorPatientManagement.vue
+    path('medical-requests/', monitoring_views.medical_requests, name='medical_requests'),
+]
+
+urlpatterns += [
+    path('secure/register-public-key/', secure_views.register_public_key),
+    path('secure/doctor-public-key/<int:doctor_id>/', secure_views.get_doctor_public_key),
+    path('secure/transmissions/', secure_views.create_secure_transmission),
+    path('secure/transmissions/list/', secure_views.list_transmissions_for_doctor),
+    path('secure/transmissions/<int:transmission_id>/', secure_views.get_transmission_detail),
+    path('secure/transmissions/<int:transmission_id>/received/', secure_views.mark_transmission_accessed),
+    path('secure/mfa/challenge/', secure_views.mfa_challenge),
+    path('secure/mfa/verify/', secure_views.mfa_verify),
+    path('secure/transmissions/<int:transmission_id>/breach/', secure_views.report_breach),
 ]

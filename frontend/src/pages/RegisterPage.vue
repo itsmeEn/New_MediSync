@@ -86,8 +86,14 @@
             </div>
 
             <!-- Role-specific Fields -->
-            <div v-if="role === 'doctor'" class="role-specific-fields">
+            <div class="role-specific-fields">
               <div class="form-row">
+                <div class="form-group">
+                  <HospitalSelection v-model="selectedHospitalId" @loaded="onHospitalsLoaded" />
+                </div>
+              </div>
+
+              <div v-if="role === 'doctor'" class="form-row">
                 <div class="form-group">
                   <label for="license_number">Medical License Number *</label>
                   <input
@@ -109,10 +115,8 @@
                   />
                 </div>
               </div>
-            </div>
 
-            <div v-if="role === 'nurse'" class="role-specific-fields">
-              <div class="form-row">
+              <div v-if="role === 'nurse'" class="form-row">
                 <div class="form-group">
                   <label for="nurse_license">Nursing License Number *</label>
                   <input
@@ -134,10 +138,6 @@
                   />
                 </div>
               </div>
-            </div>
-
-            <div v-if="role === 'patient'" class="role-specific-fields">
-              <!-- Patient registration - no additional fields required -->
             </div>
 
             <button type="submit" :disabled="loading" class="register-btn">
@@ -162,7 +162,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
-import { AxiosError } from 'axios';
+import type { AxiosError } from 'axios';
+import HospitalSelection from '../components/HospitalSelection.vue';
 
 interface RegistrationFormData {
   full_name: string;
@@ -176,14 +177,27 @@ interface RegistrationFormData {
   department: string;
 }
 
+// Remove unused HospitalItem interface
+
 const router = useRouter();
 const route = useRoute();
 const $q = useQuasar();
+
+// Type guard for API error payloads
+const hasError = (d: unknown): d is { error?: string } =>
+  typeof d === 'object' && d !== null && 'error' in d;
 
 const role = ref('');
 const loading = ref(false);
 const showPassword = ref(false);
 const showPassword2 = ref(false);
+
+// Hospital dropdown state (hooks-like via Composition API)
+const selectedHospitalId = ref<string | number>('');
+// Event handler for HospitalSelection load
+const onHospitalsLoaded = (items: Array<{id:number; official_name:string; address:string}>) => {
+  console.debug('[RegisterPage] Hospitals loaded:', items.length);
+};
 
 // Password strength
 const passwordStrengthClass = ref('');
@@ -212,6 +226,12 @@ const roleTitle = computed(() => {
     default:
       return '';
   }
+});
+
+// Fetch active hospitals on mount
+// (Legacy fetchHospitals removed; HospitalSelection handles fetching/persistence)
+onMounted(() => {
+  role.value = String(route.params.role || '').toLowerCase();
 });
 
 // Password strength calculation
@@ -263,160 +283,70 @@ const calculatePasswordStrength = (password: string) => {
   }
 };
 
-onMounted(() => {
-  role.value = route.params.role as string;
-  if (!['doctor', 'nurse', 'patient'].includes(role.value)) {
-    void router.push('/role-selection');
-  }
-});
+watch(() => formData.value.password, (val) => calculatePasswordStrength(val));
 
-// Watch password changes to update strength indicator
-watch(
-  () => formData.value.password,
-  (newPassword) => {
-    calculatePasswordStrength(newPassword);
-  },
-);
-
+// Submit handler
 const onRegister = async () => {
-  // Validate required fields based on role
-  if (role.value === 'doctor') {
-    if (!formData.value.license_number || !formData.value.specialization) {
-      $q.notify({
-        type: 'negative',
-        message: 'License number and specialization are required for doctors.',
-        position: 'top',
-        timeout: 4000,
-      });
-      return;
-    }
-  } else if (role.value === 'nurse') {
-    if (!formData.value.license_number || !formData.value.department) {
-      $q.notify({
-        type: 'negative',
-        message: 'License number and department are required for nurses.',
-        position: 'top',
-        timeout: 4000,
-      });
-      return;
-    }
+  if (!selectedHospitalId.value) {
+    $q.notify({ type: 'negative', message: 'Please select your hospital.' });
+    return;
   }
 
-  // A boolean flag is set to true to indicate that the registration process has started.
   loading.value = true;
-
   try {
-    // A FormData object is instantiated to handle the data submission.
-    // This is necessary for including file uploads, such as images and documents.
-    const registrationData = new FormData();
+    const payload: Record<string, unknown> = {
+      email: formData.value.email,
+      full_name: formData.value.full_name,
+      role: role.value,
+      date_of_birth: formData.value.date_of_birth,
+      gender: formData.value.gender,
+      password: formData.value.password,
+      password2: formData.value.password2,
+      hospital_id: Number(selectedHospitalId.value),
+    };
 
-    // The function retrieves the file input elements for the profile picture and verification document.
-    const profilePictureInput = document.getElementById('profile_picture') as HTMLInputElement;
-    const verificationDocumentInput = document.getElementById(
-      'verification_document',
-    ) as HTMLInputElement;
-
-    // It is checked if a profile picture file has been selected, and if so, it is appended to the FormData object.
-    if (profilePictureInput?.files?.[0]) {
-      registrationData.append('profile_picture', profilePictureInput.files[0]);
-    }
-    // It is checked if a verification document file has been selected, and if so, it is appended to the FormData object.
-    if (verificationDocumentInput?.files?.[0]) {
-      registrationData.append('verification_document', verificationDocumentInput.files[0]);
-    }
-
-    // The function iterates through the common form fields and appends them to the FormData object.
-    Object.entries(formData.value).forEach(([key, value]) => {
-      registrationData.append(key, value);
-    });
-    // The user's role is appended to the FormData object.
-    registrationData.append('role', role.value);
-
-    // The FormData object, ready for submission, is logged to the console for debugging.
-    console.log('Sending registration data (FormData):', registrationData);
-
-    // Debug: Log the actual form data being sent
-    for (const [key, value] of registrationData.entries()) {
-      console.log(`${key}:`, value);
+    if (role.value === 'doctor') {
+      payload.license_number = formData.value.license_number;
+      payload.specialization = formData.value.specialization;
+    } else if (role.value === 'nurse') {
+      payload.license_number = formData.value.license_number;
+      payload.department = formData.value.department;
     }
 
-    // An HTTP POST request is sent to the registration endpoint.
-    // Axios automatically configures the correct 'Content-Type' header for FormData.
-    const response = await api.post('/users/register/', registrationData);
+// Server-side validation: verify hospital selection ownership when admin is authenticated
+const adminToken = localStorage.getItem('admin_access_token');
+if (adminToken) {
+  try {
+    await api.post(
+      '/admin/verify-hospital-selection/',
+      { hospital_id: Number(selectedHospitalId.value) },
+      { headers: { Authorization: `Bearer ${adminToken}` } },
+    );
+  } catch {
+    $q.notify({ type: 'negative', message: 'Hospital verification failed. Please contact admin.' });
+    loading.value = false;
+    return;
+  }
+}
+    const response = await api.post('/users/register/', payload);
+    const { tokens, user } = response.data;
 
-    // Upon successful registration, the access and refresh tokens are stored in local storage.
-    localStorage.setItem('access_token', response.data.tokens.access);
-    localStorage.setItem('refresh_token', response.data.tokens.refresh);
+    // Persist tokens and user
+    localStorage.setItem('access_token', tokens.access);
+    localStorage.setItem('refresh_token', tokens.refresh);
+    localStorage.setItem('user', JSON.stringify(user));
 
-    // The user's data from the response is stored in local storage.
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-
-    // A success message is displayed to the user.
-    $q.notify({
-      type: 'positive',
-      message: 'Account created successfully!',
-      position: 'top',
-      timeout: 3000,
-    });
-
-    // The user is redirected to the verification page after successful registration.
-    void router.push('/verification');
-  } catch (error: unknown) {
-    // If the registration request fails, the error is logged to the console.
-    console.error('Registration error:', error);
-
-    // A default error message is set.
-    let errorMessage = 'Registration failed. Please try again.';
-
-    // It is checked if the error is an AxiosError to handle specific HTTP response details.
-    if (error instanceof AxiosError) {
-      console.error('Axios error response:', error.response?.data);
-      console.error('Axios error status:', error.response?.status);
-
-      // If the server provided a response body with the error details, it is processed.
-      if (error.response?.data) {
-        // Handle specific validation errors from Django
-        if (typeof error.response.data === 'object' && error.response.data !== null) {
-          const errorData = error.response.data as Record<string, string | string[]>;
-          
-          // Handle specific field errors
-          if (errorData.email && Array.isArray(errorData.email) && errorData.email.length > 0) {
-            errorMessage = errorData.email[0] as string;
-          } else if (errorData.password && Array.isArray(errorData.password) && errorData.password.length > 0) {
-            errorMessage = errorData.password[0] as string;
-          } else if (errorData.role_fields && Array.isArray(errorData.role_fields) && errorData.role_fields.length > 0) {
-            errorMessage = errorData.role_fields[0] as string;
-          } else if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors) && errorData.non_field_errors.length > 0) {
-            errorMessage = errorData.non_field_errors[0] as string;
-          } else if (errorData.error && typeof errorData.error === 'string') {
-            errorMessage = errorData.error;
-          } else if (errorData.details && typeof errorData.details === 'string') {
-            errorMessage = errorData.details;
-          } else {
-            // Extract first error message from any field
-            const firstError = Object.values(errorData).find(value => 
-              Array.isArray(value) && value.length > 0
-            );
-            if (firstError && Array.isArray(firstError) && firstError.length > 0) {
-              errorMessage = firstError[0] as string;
-            }
-          }
-        } else if (typeof error.response.data === 'string') {
-          // If the error data is a string, it is used directly as the error message.
-          errorMessage = error.response.data;
-        }
-      }
+    $q.notify({ type: 'positive', message: 'Account created successfully.' });
+    await router.push('/verification');
+  } catch (err) {
+    const axiosErr = err as AxiosError;
+    const respData = axiosErr.response?.data;
+    let msg = 'Registration failed';
+    if (hasError(respData) && typeof respData.error === 'string') {
+      msg = respData.error;
     }
-
-    // The final error message is displayed to the user.
-    $q.notify({
-      type: 'negative',
-      message: errorMessage,
-      position: 'top',
-      timeout: 4000,
-    });
+    $q.notify({ type: 'negative', message: msg });
   } finally {
-    // The loading flag is set to false, indicating that the registration process has completed.
     loading.value = false;
   }
 };
@@ -699,3 +629,7 @@ const onRegister = async () => {
   }
 }
 </style>
+
+// Type guard for API error payloads
+const hasError = (d: unknown): d is { error?: string } =>
+  typeof d === 'object' && d !== null && 'error' in d;

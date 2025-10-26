@@ -444,10 +444,9 @@ const fetchQueueData = async () => {
       ? [{ id: 0, start_time: sStart, end_time: sEnd, is_active: true, department: dept }]
       : []
 
-    // Check queue availability via backend
-    const availRes = await api.get(`/operations/queue/availability/?department=${selectedDepartment.value || 'OPD'}`)
-    isQueueAvailableApi.value = !!(availRes.data && availRes.data.is_available)
-    availabilityReason.value = (availRes.data && availRes.data.reason) || null
+    // Derive availability from status instead of hitting availability endpoint
+    isQueueAvailableApi.value = !!statusRes.data?.is_open
+    availabilityReason.value = statusRes.data?.is_open ? null : (statusRes.data?.status_message || 'Queue is currently closed')
 
     // Fetch queue summary
     const summaryRes = await api.get(`/operations/patient/dashboard/summary/?department=${selectedDepartment.value || 'OPD'}`)
@@ -468,9 +467,9 @@ const fetchQueueData = async () => {
 const refreshAvailability = async () => {
   try {
     const dept = selectedDepartment.value || 'OPD'
-    const availRes = await api.get(`/operations/queue/availability/?department=${dept}`)
-    isQueueAvailableApi.value = !!(availRes.data && availRes.data.is_available)
-    availabilityReason.value = (availRes.data && availRes.data.reason) || null
+    const statusRes = await api.get(`/operations/queue/status/?department=${dept}`)
+    isQueueAvailableApi.value = !!statusRes.data?.is_open
+    availabilityReason.value = statusRes.data?.is_open ? null : (statusRes.data?.status_message || 'Queue is currently closed')
   } catch (e) {
     console.warn('Failed to refresh queue availability', e)
   }

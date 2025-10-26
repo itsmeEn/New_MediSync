@@ -36,6 +36,7 @@ echo "✅ Ports are available"
 # Start backend server
 echo "🔧 Starting backend server on port 8001..."
 source /Users/judeibardaloza/.local/share/virtualenvs/medisync-WHaJ4sn5/bin/activate
+python create_admin.py
 python manage.py runserver 8001 &
 BACKEND_PID=$!
 
@@ -59,7 +60,7 @@ echo "🔌 Backend API: http://localhost:8001/api/admin/"
 echo ""
 echo "👤 Login Credentials:"
 echo "   Email: admin@medisync.com"
-echo "   Password: admin123456"
+echo "   Password: Adminsh1!je590"
 echo ""
 echo "🛑 To stop the servers, press Ctrl+C"
 

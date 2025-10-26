@@ -13,6 +13,8 @@ export async function performLogout(router: Router): Promise<void> {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('role');
+    localStorage.removeItem('profile_picture');
     // Remove any persisted API base override (will be re-optimized on boot)
     localStorage.removeItem('API_BASE_URL');
   } catch {
@@ -26,6 +28,7 @@ export async function performLogout(router: Router): Promise<void> {
       ...(api.defaults.headers?.common || {}),
       Authorization: undefined,
     };
+    // No need to delete a top-level Authorization; axios uses common/method-specific headers
   } catch {
     // Non-blocking: header reset failures shouldn't stop logout
   }
@@ -34,10 +37,21 @@ export async function performLogout(router: Router): Promise<void> {
   try {
     await router.replace('/login');
   } catch {
-    try {
-      window.location.assign('/login');
-    } catch {
-      window.location.href = '/login';
+    // Fallback based on router mode
+    const mode = process.env.VUE_ROUTER_MODE;
+    if (mode === 'hash') {
+      try {
+        // Ensure hash-mode navigation even if router instance is not available
+        window.location.hash = '#/login';
+      } catch {
+        window.location.href = '/#/login';
+      }
+    } else {
+      try {
+        window.location.assign('/login');
+      } catch {
+        window.location.href = '/login';
+      }
     }
   }
 }

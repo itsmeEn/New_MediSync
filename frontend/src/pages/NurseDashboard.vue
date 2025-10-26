@@ -17,7 +17,7 @@
 
     <NurseSidebar v-model="rightDrawerOpen" :activeRoute="'nurse-dashboard'" />
 
-    <q-page-container class="page-container-with-fixed-header">
+    <q-page-container class="page-container-with-fixed-header role-body-bg">
       <!-- Greeting Section -->
       <div class="greeting-section">
         <q-card class="greeting-card">

@@ -6,7 +6,7 @@
     <!-- Standardized Sidebar Component -->
     <DoctorSidebar v-model="rightDrawerOpen" active-route="messaging" />
 
-    <q-page-container class="page-container-with-fixed-header">
+    <q-page-container class="page-container-with-fixed-header role-body-bg">
       <!-- Main Content -->
       <div class="messaging-content">
         <!-- Header Section -->
@@ -96,6 +96,7 @@
                             v-if="user.profile_picture"
                             :src="getMediaUrl(user.profile_picture)"
                             :alt="user.full_name"
+                            @error="user.profile_picture = ''"
                           />
                           <div v-else class="avatar-initials">{{ getInitials(user?.full_name || '') }}</div>
                         </q-avatar>
@@ -230,6 +231,7 @@
                   v-if="selectedUser?.profile_picture"
                   :src="getMediaUrl(selectedUser.profile_picture)"
                   :alt="selectedUser.full_name"
+                  @error="selectedUser && (selectedUser.profile_picture = '')"
                 />
                 <q-icon
                   v-else
@@ -270,6 +272,7 @@
                       v-if="message.sender.profile_picture"
                       :src="getMediaUrl(message.sender.profile_picture)"
                       :alt="message.sender.full_name"
+                      @error="message.sender.profile_picture = ''"
                     />
                     <div v-else class="avatar-initials">{{ getInitials(message.sender.full_name) }}</div>
                   </q-avatar>

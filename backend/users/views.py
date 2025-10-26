@@ -89,6 +89,10 @@ def register(request):
                         medication=request.data.get('medication', '')
                     )
                 
+                # Verify write persisted by querying freshly
+                if not User.objects.filter(pk=user.pk).exists():
+                    raise Exception("User record was not persisted to the database.")
+                
                 # Generate JWT tokens for the new user
                 refresh = RefreshToken.for_user(user)
                 return Response({
