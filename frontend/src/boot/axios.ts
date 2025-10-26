@@ -148,13 +148,22 @@ api.interceptors.request.use(
       url.includes('/users/reset-password') ||
       url.includes('/users/token/refresh/');
 
+    // Public endpoints that do not require auth; suppress missing-token warnings
+    const isPublicEndpoint =
+      url.includes('/admin/hospitals/') ||
+      url.includes('/admin/config/') ||
+      url.includes('/admin/csrf-token/') ||
+      url.includes('/operations/ui-config/');
+
     if (token && !isAuthEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('Adding auth token to request:', config.url);
-    } else if (!token) {
+    } else if (!token && !isAuthEndpoint && !isPublicEndpoint) {
+      // Only warn for endpoints that are expected to be authenticated
       console.warn('No access token found for request:', config.url);
     } else if (isAuthEndpoint) {
-      console.log('Skipping auth header for auth endpoint:', config.url);
+      // No token expected for auth endpoints like register/login
+      // console.log('Skipping auth header for auth endpoint:', config.url);
     }
 
     // Add CSRF header for unsafe methods if cookie exists

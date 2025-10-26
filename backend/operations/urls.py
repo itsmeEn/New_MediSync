@@ -12,7 +12,7 @@ urlpatterns = [
     path('notifications/', views.doctor_notifications, name='doctor_notifications'),
     path('notifications/<int:notification_id>/mark-read/', views.mark_notification_as_read, name='mark_notification_as_read'),
     path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
-    # path('pending-assessments/', views.doctor_pending_assessments, name='doctor_pending_assessments'),
+    path('patient-assessments/', views.patient_assessments, name='patient_assessments'),
     
     # Appointment management
     path('blocked-dates/', views.doctor_blocked_dates, name='doctor_blocked_dates'),

@@ -208,7 +208,8 @@ def verify_now(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if verification request already exists
-    from admin_site.models import VerificationRequest
+    from django.apps import apps
+    VerificationRequest = apps.get_model('admin_site', 'VerificationRequest')
     existing_request = VerificationRequest.objects.filter(
         user_email=user.email,
         status__in=['pending', 'approved']
