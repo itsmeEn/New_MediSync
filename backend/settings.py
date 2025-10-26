@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+import os
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +39,19 @@ ALLOWED_HOSTS = [
     '0.0.0.0',   # Allow all IPs for development (mobile testing)
 ]
 
+# --- Admin Email Domain Mode (Production vs Testing) ---
+# Toggle accepting non-official email domains (e.g., gmail.com) for testing.
+# This MUST remain disabled in production. It can be enabled via environment variable
+# ADMIN_EMAIL_TEST_MODE=true only when DEBUG is True.
+ADMIN_EMAIL_TEST_MODE = os.getenv('ADMIN_EMAIL_TEST_MODE', 'false').lower() == 'true'
+
+if ADMIN_EMAIL_TEST_MODE and not DEBUG:
+    raise RuntimeError("ADMIN_EMAIL_TEST_MODE cannot be enabled when DEBUG=False. Refusing to start.")
+
+if ADMIN_EMAIL_TEST_MODE:
+    logging.getLogger(__name__).warning(
+        "ADMIN_EMAIL_TEST_MODE is ENABLED: allowing '@gmail.com' for admin registration in development."
+    )
 
 # Application definition
 
@@ -47,6 +62,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
     "django.contrib.postgres",
 
     # Third-party apps
@@ -62,7 +78,7 @@ INSTALLED_APPS = [
     "backend.users.apps.UsersConfig",
     "backend.operations.apps.OperationsConfig",
     "backend.analytics.apps.AnalyticsConfig",
-    "admin_site.apps.AdminSiteConfig",
+    "backend.admin_site.apps.AdminSiteConfig",
 ]
 
 MIDDLEWARE = [
@@ -101,8 +117,12 @@ WSGI_APPLICATION = "backend.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+       "ENGINE": "django.db.backends.postgresql",
+        "NAME": "medisync",
+        "HOST": "localhost",
+        "PORT": "5432",
+        "USER": "postgres",
+        "PASSWORD": "admin1234", 
     }
 }
 
@@ -184,7 +204,7 @@ ADMIN_SITE_AUTH_USER_MODEL = "admin_site.AdminUser"
 
 # Authentication Backends
 AUTHENTICATION_BACKENDS = [
-    'admin_site.backends.AdminUserBackend',
+    'backend.admin_site.backends.AdminUserBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 

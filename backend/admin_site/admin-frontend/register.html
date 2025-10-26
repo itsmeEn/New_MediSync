@@ -14,9 +14,10 @@
             box-sizing: border-box;
         }
 
-        body {
+        body { 
+            background-color: #f0f2f5;
             /* Keep original body background styles */
-            background: url('http://localhost:9000/background.png') no-repeat center center !important;
+            background: linear-gradient(180deg, #f0f2f5 0%, #e9ecef 100%) !important;
             background-size: cover !important;
             background-attachment: fixed !important;
             position: relative !important;
@@ -324,6 +325,7 @@
 </head>
 
 <body>
+
     <div class="register-page">
         <div class="register-container">
             <div id="registrationForm">
@@ -347,6 +349,7 @@
                                     <label for="email">Email Address *</label>
                                     <input id="email" name="email" type="email" required
                                         placeholder="Enter your email" />
+                                    <div id="emailModeHint" class="alert-info-banner text-muted"></div>
                                 </div>
                             </div>
 
@@ -402,6 +405,27 @@
         // API Configuration
         const API_BASE_URL = 'http://localhost:8000/api/admin';
 
+        // Mode/config state
+        let testingModeEnabled = false;
+        let allowedDomains = ['*.gov.ph'];
+
+        async function fetchAdminConfig() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/config/`, { method: 'GET' });
+                if (res.ok) {
+                    const cfg = await res.json();
+                    testingModeEnabled = !!cfg.testing_mode_enabled;
+                    allowedDomains = cfg.allowed_domains || allowedDomains;
+
+                    // Update email hint (production-only)
+                    const hint = document.getElementById('emailModeHint');
+                    hint.textContent = `Allowed domains: ${allowedDomains.join(', ')}`;
+                }
+            } catch (e) {
+                console.warn('Failed to fetch admin config', e);
+            }
+        }
+
         // CSRF Token
         let csrfToken = null;
 
@@ -438,10 +462,14 @@
         const passwordConfirmToggleBtn = document.getElementById('passwordConfirmToggleBtn');
         const passwordStrength = document.getElementById('passwordStrength');
         const alertContainer = document.getElementById('alertContainer');
-        const registrationForm = document.getElementById('registrationForm'); // Now wraps the card content
-        const verificationSuccess = document.getElementById('verificationSuccess'); // Now the success card itself
+        const registrationForm = document.getElementById('registrationForm'); // wraps the card content
+        const verificationSuccess = document.getElementById('verificationSuccess'); // success card itself
+        const emailInput = document.getElementById('email');
 
-        // --- PASSWORD TOGGLE LOGIC (REPLICATED FROM LOGIN VUE IDEA) ---
+        // Load config ASAP
+        fetchAdminConfig();
+
+        // --- PASSWORD TOGGLE LOGIC ---
         function setupPasswordToggle(inputElement, buttonElement) {
             buttonElement.addEventListener('click', function () {
                 const isPassword = inputElement.type === 'password';
@@ -452,7 +480,6 @@
 
         setupPasswordToggle(passwordInput, passwordToggleBtn);
         setupPasswordToggle(passwordConfirmInput, passwordConfirmToggleBtn);
-        // ----------------------------------------------------------------
 
         // Password strength checker
         function checkPasswordStrength(password) {
@@ -512,6 +539,18 @@
             }
         });
 
+        // Domain hint and warning on email input (production-only)
+        emailInput.addEventListener('blur', function () {
+            const email = this.value.trim().toLowerCase();
+            if (!email) return;
+            const isGovPh = /@[A-Za-z0-9.-]*\.gov\.ph$/.test(email);
+            if (!isGovPh) {
+                showAlert('Email must be @*.gov.ph.', 'warning');
+            } else {
+                clearAlerts();
+            }
+        });
+
         // Show alert function
         function showAlert(message, type = 'info') {
             alertContainer.innerHTML = `
@@ -565,6 +604,14 @@
                 return;
             }
 
+            // Client-side domain checks (prod: allow *.gov.ph and gmail.com)
+             const isGovPh = /@[A-Za-z0-9.-]*\.gov\.ph$/.test(data.email.toLowerCase());
+             const isGmail = /@gmail\.com$/.test(data.email.toLowerCase());
+             if (!(isGovPh || isGmail)) {
+                 showAlert('Email must be @*.gov.ph or @gmail.com.', 'error');
+                 return;
+             }
+
             setLoading(true);
 
             try {
@@ -584,8 +631,20 @@
                     registrationForm.classList.add('hidden');
                     verificationSuccess.classList.remove('hidden');
                 } else {
-                    // Show error message
-                    const errorMessage = result.error || result.message || 'Registration failed. Please try again.';
+                    // Show detailed backend validation errors if present
+                    const messages = [];
+                    const pushAll = (val) => {
+                        if (!val) return;
+                        if (Array.isArray(val)) { val.forEach(v => messages.push(String(v))); }
+                        else { messages.push(String(val)); }
+                    };
+                    pushAll(result.full_name);
+                    pushAll(result.email);
+                    pushAll(result.password);
+                    pushAll(result.password_confirm);
+                    pushAll(result.non_field_errors);
+                    const fallback = result.error || result.message || 'Registration failed. Please try again.';
+                    const errorMessage = messages.length ? messages.join('<br>') : fallback;
                     showAlert(errorMessage, 'error');
                 }
             } catch (error) {

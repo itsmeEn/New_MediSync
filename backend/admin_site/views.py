@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -11,10 +12,11 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 import os
 
-from .models import AdminUser, VerificationRequest, SystemLog
+from .models import AdminUser, VerificationRequest, SystemLog, Hospital
 from .serializers import (
     AdminUserSerializer, AdminLoginSerializer, AdminRegistrationSerializer, VerificationRequestSerializer,
-    VerificationRequestUpdateSerializer, DeclineVerificationSerializer, SystemLogSerializer
+    VerificationRequestUpdateSerializer, DeclineVerificationSerializer, SystemLogSerializer,
+    HospitalSerializer, HospitalRegistrationSerializer, HospitalActivationSerializer
 )
 from .authentication import AdminJWTAuthentication
 
@@ -53,12 +55,37 @@ def admin_overview(request):
 @permission_classes([AllowAny])
 def get_csrf_token(request):
     """
-    Get CSRF token for admin frontend
+    Get CSRF token for admin frontend and set it as a cookie so
+    subsequent POST/PUT/PATCH/DELETE requests can include the token header.
     """
     from django.middleware.csrf import get_token
     csrf_token = get_token(request)
+    # Return token in body and set CSRFTOKEN cookie
+    response = Response({'csrf_token': csrf_token}, status=status.HTTP_200_OK)
+    # Django expects the CSRF cookie name to be 'csrftoken'
+    # Set samesite to 'Lax' to allow standard navigation requests
+    response.set_cookie(
+        'csrftoken',
+        csrf_token,
+        secure=False,  # set True if serving over HTTPS
+        httponly=False,  # allow frontend to read cookie for X-CSRFToken header
+        samesite='Lax'
+    )
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def admin_config(request):
+    """Expose configuration relevant to the admin frontend."""
+    # Production-only: no testing mode, only official domain
+    testing_mode = False
+    allowed_domains = ['*.gov.ph', 'gmail.com']
+    banner_text = "Allowed: *.gov.ph, gmail.com"
     return Response({
-        'csrf_token': csrf_token
+        'testing_mode_enabled': testing_mode,
+        'allowed_domains': allowed_domains,
+        'banner_text': banner_text
     }, status=status.HTTP_200_OK)
 
 
@@ -94,12 +121,22 @@ def admin_login(request):
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
             
-            return Response({
+            # Check hospital registration status
+            hospital_registration_required = not user.hospital_registration_completed
+            hospital_data = None
+            if user.hospital:
+                hospital_data = HospitalSerializer(user.hospital).data
+            
+            response_data = {
                 'message': 'Login successful',
                 'admin_user': AdminUserSerializer(user).data,
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
-            }, status=status.HTTP_200_OK)
+                'hospital_registration_required': hospital_registration_required,
+                'hospital': hospital_data
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
         else:
             return Response({
                 'error': 'Invalid credentials.',
@@ -112,14 +149,6 @@ def admin_login(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def admin_register(request):
-    """
-    Admin registration endpoint is disabled. Use the fixed admin credentials.
-    """
-    return Response({
-        'error': 'Admin self-registration is disabled.',
-        'message': 'Use the pre-provisioned admin account.'
-    }, status=status.HTTP_403_FORBIDDEN)
-
     """
     Admin registration endpoint with email verification
     """
@@ -136,7 +165,6 @@ def admin_register(request):
             
             # Generate email verification token
             from django.utils import timezone
-            from django.utils.crypto import get_random_string
             import uuid
             
             verification_token = str(uuid.uuid4())
@@ -371,6 +399,42 @@ def accept_verification(request, verification_id):
     
     try:
         verification = VerificationRequest.objects.get(id=verification_id)
+        
+        # Cross-check hospital details for medical staff
+        if verification.user_role in ['doctor', 'nurse']:
+            try:
+                from backend.users.models import User
+                user = User.objects.get(email=verification.user_email)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'User not found for verification'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Ensure user has hospital info
+            if not user.hospital_name or not user.hospital_address:
+                return Response({
+                    'error': 'User registration missing hospital information.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Find matching hospital record
+            hospital_match = Hospital.objects.filter(
+                official_name=user.hospital_name.strip(),
+                address=user.hospital_address.strip(),
+                status=Hospital.Status.ACTIVE
+            ).first()
+            if not hospital_match:
+                # Log mismatch and return error
+                log_admin_action(
+                    request.user,
+                    'approve_verification_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Hospital mismatch or inactive for {verification.user_email}: {user.hospital_name} / {user.hospital_address}"
+                )
+                return Response({
+                    'error': 'Hospital mismatch: user hospital does not match an active hospital record.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
         verification.approve(request.user)
         
         # Log the action
@@ -403,8 +467,8 @@ def accept_verification(request, verification_id):
                 [verification.user_email],
                 fail_silently=False,
             )
-        except Exception as e:
-            print(f"Failed to send approval email: {e}")
+        except Exception:
+            pass
         
         return Response({
             'message': 'Verification approved successfully'
@@ -566,6 +630,52 @@ def update_verification(request, verification_id):
 @api_view(['GET'])
 @authentication_classes([AdminJWTAuthentication])
 @permission_classes([IsAuthenticated])
+def admin_my_hospitals(request):
+    admin_user = request.user
+    try:
+        status_filter = (request.GET.get('status') or '').strip().lower()
+        queryset = Hospital.objects.filter(admin_users__id=admin_user.id)
+        if status_filter in ['pending', 'active', 'suspended']:
+            queryset = queryset.filter(status=status_filter)
+        data = [
+            {
+                'id': h.id,
+                'official_name': h.official_name,
+                'address': h.address,
+            }
+            for h in queryset.order_by('official_name')
+        ]
+        if not data:
+            return Response({'hospitals': [], 'message': 'No hospitals found for admin.'}, status=status.HTTP_200_OK)
+        return Response({'hospitals': data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to fetch hospitals: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def verify_hospital_selection(request):
+    try:
+        admin_user = request.user
+        hospital_id = int(request.data.get('hospital_id', 0))
+        if not hospital_id:
+            return Response({'error': 'hospital_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        # Ensure selected hospital belongs to current admin and is ACTIVE
+        hospital = Hospital.objects.filter(id=hospital_id, admin_users__id=admin_user.id, status=Hospital.Status.ACTIVE).first()
+        if not hospital:
+            return Response({'authorized': False, 'error': 'Unauthorized hospital selection'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'authorized': True, 'hospital': {
+            'id': hospital.id,
+            'official_name': hospital.official_name,
+            'address': hospital.address
+        }}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Validation failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
 def system_logs(request):
     """
     Get system logs for audit purposes
@@ -720,3 +830,148 @@ def send_verification_email(admin_user, verification_token):
     except Exception as e:
         print(f"Failed to send verification email to {admin_user.email}: {e}")
         raise e
+
+
+# Hospital Registration Views
+
+@api_view(['POST'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def hospital_registration(request):
+    """
+    Handle hospital registration form submission
+    """
+    admin_user = request.user
+    
+    # Check if user already has a hospital registered
+    if admin_user.hospital_registration_completed:
+        return Response({
+            'error': 'Hospital registration already completed'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = HospitalRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        try:
+            # Create hospital instance
+            hospital = serializer.save()
+            
+            # Link hospital to admin user
+            admin_user.hospital = hospital
+            admin_user.save()
+            
+            # Log the action
+            log_admin_action(
+                admin_user=admin_user,
+                action="HOSPITAL_REGISTRATION",
+                target="Hospital",
+                target_id=hospital.id,
+                details=f"Hospital '{hospital.official_name}' registered"
+            )
+            
+            return Response({
+                'message': 'Hospital registration successful. Please proceed to activation.',
+                'hospital': HospitalSerializer(hospital).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Hospital registration failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def hospital_activation(request):
+    """
+    Handle hospital self-verification and activation
+    """
+    admin_user = request.user
+    
+    # Check if user has a hospital to activate
+    if not admin_user.hospital:
+        return Response({
+            'error': 'No hospital found for activation'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if already activated
+    if admin_user.hospital.status == Hospital.Status.ACTIVE:
+        return Response({
+            'error': 'Hospital is already active'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    serializer = HospitalActivationSerializer(data=request.data)
+    if serializer.is_valid():
+        try:
+            # Activate hospital
+            hospital = admin_user.hospital
+            hospital.status = Hospital.Status.ACTIVE
+            hospital.activated_at = timezone.now()
+            hospital.save()
+            
+            # Mark registration as completed
+            admin_user.hospital_registration_completed = True
+            admin_user.save()
+            
+            # Log the action
+            log_admin_action(
+                admin_user=admin_user,
+                action="HOSPITAL_ACTIVATION",
+                target="Hospital",
+                target_id=hospital.id,
+                details=f"Hospital '{hospital.official_name}' activated"
+            )
+            
+            return Response({
+                'message': 'Hospital activated successfully. You now have full admin access.',
+                'hospital': HospitalSerializer(hospital).data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Hospital activation failed: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def hospital_status(request):
+    """
+    Get current hospital registration and activation status
+    """
+    admin_user = request.user
+    
+    response_data = {
+        'hospital_registration_completed': admin_user.hospital_registration_completed,
+        'can_access_admin_functions': admin_user.can_access_admin_functions(),
+        'hospital': None
+    }
+    
+    if admin_user.hospital:
+        response_data['hospital'] = HospitalSerializer(admin_user.hospital).data
+    
+    return Response(response_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def hospitals_list(request):
+    """
+    List hospitals with optional status filter. Defaults to returning ACTIVE hospitals.
+    Returns a distinct set of hospitals to avoid duplicates in dropdowns.
+    """
+    status_filter = (request.GET.get('status') or '').strip().lower()
+    if not status_filter:
+        status_filter = 'active'
+    queryset = Hospital.objects.all()
+    if status_filter in ['pending', 'active', 'suspended']:
+        queryset = queryset.filter(status__iexact=status_filter)
+    # Use values + distinct to ensure unique rows by id/name/address
+    rows = queryset.values('id', 'official_name', 'address').order_by('official_name', 'id').distinct()
+    data = list(rows)
+    return Response({'hospitals': data}, status=status.HTTP_200_OK)

@@ -4,14 +4,78 @@ from django.utils import timezone
 
 from .managers import AdminUserManager
 
+class Hospital(models.Model):
+    """
+    Hospital model to store hospital registration information.
+    """
+    
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+    
+    # Hospital information
+    official_name = models.CharField(max_length=500, help_text="Official Hospital Name")
+    address = models.TextField(help_text="Primary hospital address")
+    license_id = models.CharField(
+        max_length=100, 
+        unique=True, 
+        help_text="Unique National License ID"
+    )
+    license_document = models.FileField(
+        upload_to='hospital_licenses/', 
+        help_text="Upload mock license document"
+    )
+    
+    # Status and verification
+    status = models.CharField(
+        max_length=20, 
+        choices=Status.choices, 
+        default=Status.PENDING
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'admin_hospitals'
+        verbose_name = 'Hospital'
+        verbose_name_plural = 'Hospitals'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.official_name} ({self.license_id})"
+    
+    def activate(self):
+        """Activate the hospital and set activation timestamp."""
+        self.status = self.Status.ACTIVE
+        self.activated_at = timezone.now()
+        self.save()
+
+
 class AdminUser(AbstractUser):
     """
     Admin user model for the separate admin site.
     """
     username = models.CharField(max_length=150, unique=True, null=True, blank=True)
-    email = models.EmailField(unique=True)
+    email = models.EmailField(
+        unique=True
+    )
     full_name = models.CharField(max_length=255)
     is_super_admin = models.BooleanField(default=False)
+    
+    # Hospital relationship
+    hospital = models.ForeignKey(
+        Hospital, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='admin_users'
+    )
+    
+    # Hospital registration status
+    hospital_registration_completed = models.BooleanField(default=False)
     
     # Email verification fields
     is_email_verified = models.BooleanField(default=False)
@@ -30,6 +94,14 @@ class AdminUser(AbstractUser):
     
     def __str__(self):
         return f"{self.full_name} ({self.email})"
+    
+    def can_access_admin_functions(self):
+        """Check if user can access admin functions (hospital must be registered and active)."""
+        return (
+            self.hospital_registration_completed and 
+            self.hospital and 
+            self.hospital.status == Hospital.Status.ACTIVE
+        )
     
     # Fix reverse accessor conflicts
     groups = models.ManyToManyField(

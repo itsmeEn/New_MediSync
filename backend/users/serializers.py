@@ -52,13 +52,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     license_number = serializers.CharField(required=False, write_only=True)
     specialization = serializers.CharField(required=False, write_only=True)
     department = serializers.CharField(required=False, write_only=True)
+    # New: hospital selection is required; accept hospital_id from admin_site
+    hospital_id = serializers.IntegerField(required=True, write_only=True)
 
     class Meta:
         model = User
         fields = [
             "email", "full_name", "role", "date_of_birth", "gender", 
             "password", "password2", "license_number", "specialization", "department",
-            "verification_document"
+            "verification_document", "hospital_id"
         ]
         extra_kwargs = {"password": {"write_only": True}}
 
@@ -70,29 +72,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """
         if len(value) < 8:
             raise serializers.ValidationError("Password must be at least 8 characters long.")
-        
-        # Check if password contains at least one letter and one number
         if not re.search(r'[A-Za-z]', value):
             raise serializers.ValidationError("Password must contain at least one letter.")
-        
         if not re.search(r'\d', value):
             raise serializers.ValidationError("Password must contain at least one number.")
-        
-        return value
-
-    def validate_verification_document(self, value):
-        """
-        Validate verification document file type
-        """
-        if value:
-            allowed_types = ['application/pdf', 'image/jpeg', 'image/png']
-            if value.content_type not in allowed_types:
-                raise serializers.ValidationError("Only PDF, JPG, and PNG files are allowed.")
-            
-            # Check file size (max 5MB)
-            if value.size > 5 * 1024 * 1024:
-                raise serializers.ValidationError("File size must be less than 5MB.")
-        
         return value
 
     def validate_email(self, value):
@@ -116,6 +99,19 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if role == 'nurse' and not attrs.get('department'):
             raise serializers.ValidationError({"role_fields": "Department is required for nurses."})
 
+        # Hospital validation: require an ACTIVE hospital
+        hospital_id = attrs.get('hospital_id')
+        if not hospital_id:
+            raise serializers.ValidationError({"hospital": "Please select your hospital."})
+        from admin_site.models import Hospital
+        try:
+            hospital = Hospital.objects.get(id=hospital_id, status=Hospital.Status.ACTIVE)
+        except Hospital.DoesNotExist:
+            raise serializers.ValidationError({"hospital": "Selected hospital is not active or does not exist."})
+        # Propagate authoritative hospital details to the user
+        attrs['hospital_name'] = hospital.official_name
+        attrs['hospital_address'] = hospital.address
+
         return attrs
 
     def create(self, validated_data):
@@ -123,7 +119,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         validated_data.pop("license_number", None)
         validated_data.pop("specialization", None)
         validated_data.pop("department", None)
-        
+        validated_data.pop("hospital_id", None)
         user = User.objects.create_user(**validated_data)
         return user
 

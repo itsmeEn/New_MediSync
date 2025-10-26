@@ -60,8 +60,12 @@ function setupPasswordToggle() {
 function checkAuth() {
     const token = localStorage.getItem('admin_access_token');
     if (token) {
-        showDashboard();
-        loadDashboardData();
+        ensureHospitalRegistration().then((registered) => {
+            if (registered) {
+                showDashboard();
+                loadDashboardData();
+            }
+        });
     } else {
         showLogin();
     }
@@ -592,7 +596,7 @@ async function handleLogin(event) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
+                'X-CSRFToken': await getCSRFToken()
             },
             body: JSON.stringify({ email, password })
         });
@@ -603,6 +607,13 @@ async function handleLogin(event) {
             localStorage.setItem('admin_access_token', data.access);
             localStorage.setItem('admin_refresh_token', data.refresh);
             currentUser = data.admin_user;
+
+            if (data.hospital_registration_required) {
+                showToast('Info', 'Complete hospital registration to proceed.', 'info');
+                window.location.href = 'hospital-registration.html';
+                showLoading(false);
+                return;
+            }
             
             showToast('Success', 'Login successful!', 'success');
             showDashboard();
@@ -1063,7 +1074,7 @@ async function refreshToken() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': getCSRFToken()
+                'X-CSRFToken': await getCSRFToken()
             },
             body: JSON.stringify({ refresh: refreshToken })
         });
@@ -1122,4 +1133,20 @@ function formatDate(dateString) {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+}
+
+async function ensureHospitalRegistration() {
+    try {
+        const statusResp = await apiCall('/hospital/status/', 'GET');
+        if (statusResp && statusResp.hospital_registration_completed === false) {
+            showToast('Info', 'Please complete hospital registration.', 'info');
+            window.location.href = 'hospital-registration.html';
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('Failed to get hospital status', e);
+        // If status check fails, allow dashboard to avoid locking out admin unexpectedly
+        return true;
+    }
 }

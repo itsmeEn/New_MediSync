@@ -9,6 +9,14 @@ declare module 'vue' {
   }
 }
 
+// Helper to read cookies (for CSRF)
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()!.split(';').shift() || null;
+  return null;
+}
+
 // Initial endpoint resolution (synchronous for boot)
 const resolveBaseURL = (): string => {
   const override = localStorage.getItem('API_BASE_URL');
@@ -126,7 +134,7 @@ const api = axios.create({
   timeout: timeoutConfig.timeout,
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and CSRF
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
@@ -147,6 +155,13 @@ api.interceptors.request.use(
       console.warn('No access token found for request:', config.url);
     } else if (isAuthEndpoint) {
       console.log('Skipping auth header for auth endpoint:', config.url);
+    }
+
+    // Add CSRF header for unsafe methods if cookie exists
+    const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes((config.method || 'GET').toUpperCase());
+    const csrf = getCookie('csrftoken');
+    if (unsafeMethod && csrf) {
+      (config.headers as Record<string, string>)['X-CSRFToken'] = csrf;
     }
 
     return config;
