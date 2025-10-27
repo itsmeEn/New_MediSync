@@ -24,12 +24,6 @@
                 </h2>
                 <p class="greeting-subtitle">See what's happening today - {{ currentDate }}</p>
               </div>
-              <div class="greeting-avatar-section">
-                <q-avatar size="80px" class="doctor-avatar">
-                  <img v-if="userProfile.profile_picture" :src="getProfilePictureUrl(userProfile.profile_picture)" alt="Doctor" />
-                  <q-icon v-else name="person" size="3rem" />
-                </q-avatar>
-              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -681,29 +675,6 @@ const getTimeOfDay = () => {
   if (hour < 12) return 'morning';
   if (hour < 18) return 'afternoon';
   return 'evening';
-};
-
-// Get profile picture URL
-const getProfilePictureUrl = (profilePicture: string | null): string => {
-  if (!profilePicture) {
-    return '';
-  }
-
-  // If it's already a full URL, return as is
-  if (profilePicture.startsWith('http')) {
-    return profilePicture;
-  }
-
-  // Check if it's a relative path starting with /
-  if (profilePicture.startsWith('/')) {
-    // Use the API base URL from axios configuration
-    const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-    return `${baseURL}${profilePicture}`;
-  }
-
-  // If it's a relative path without leading slash, add it
-  const baseURL = api.defaults.baseURL || 'http://localhost:8000';
-  return `${baseURL}/${profilePicture}`;
 };
 
 // Current date for greeting
@@ -2496,58 +2467,7 @@ onUnmounted(() => {
   }
 }
 
-/* Profile Avatar Styles - Circular Design */
-.profile-avatar {
-  border: 3px solid #1e7668 !important;
-  border-radius: 50% !important;
-  overflow: hidden !important;
-}
-
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1e7668;
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
-  border-radius: 50%;
-}
-
-.upload-btn {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  padding: 0 !important;
-}
-
-.verified-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
+/* Profile avatar styles removed from greeting card */
 
 /* Modal Styles */
 .modal-card {

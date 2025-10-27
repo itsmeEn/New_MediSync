@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8000/api/admin';
+const API_BASE_URL = 'http://localhost:8001/api/admin';
 const ANALYTICS_BASE_URL = API_BASE_URL.replace('/api/admin', '/api/analytics');
 
 // Global variables
@@ -752,7 +752,7 @@ async function acceptVerification(id) {
         }
     } catch (error) {
         console.error('Error accepting verification:', error);
-        showToast('Error', 'Failed to approve verification', 'error');
+        showToast('Error', error.message || 'Failed to approve verification', 'error');
     } finally {
         showLoading(false);
     }
@@ -801,7 +801,7 @@ async function confirmDecline() {
         }
     } catch (error) {
         console.error('Error declining verification:', error);
-        showToast('Error', 'Failed to decline verification', 'error');
+        showToast('Error', error.message || 'Failed to decline verification', 'error');
     } finally {
         showLoading(false);
         selectedVerification = null;
@@ -978,7 +978,7 @@ async function archiveVerification(id) {
         }
     } catch (error) {
         console.error('Error archiving verification:', error);
-        showToast('Error', 'Failed to archive verification', 'error');
+        showToast('Error', error.message || 'Failed to archive verification', 'error');
     } finally {
         showLoading(false);
     }

@@ -257,6 +257,14 @@
                   @click="loadPatients"
                   :loading="loading"
                 />
+                <q-btn
+                  class="q-ml-sm"
+                  color="secondary"
+                  icon="bug_report"
+                  size="sm"
+                  label="Test: Dummy Assign"
+                  @click="createDummyAssignment"
+                />
               </q-card-section>
 
               <q-card-section class="card-content">
@@ -1573,6 +1581,7 @@ const doctorOptions = computed(() => (filteredAvailableDoctors.value || []).map(
 
 interface PatientSummary {
   id: number | string;
+  user_id?: number | string;
   full_name?: string | null;
   profile_picture?: string | null;
   age?: number | null;
@@ -1691,6 +1700,45 @@ async function confirmSend() {
   } finally { sendLoading.value = false }
 }
 
+// Developer test utility: create one dummy assignment that the doctor can fetch
+async function createDummyAssignment() {
+  try {
+    // Ensure we have patients loaded
+    if (!patients.value.length) {
+      await loadPatients();
+    }
+    const patient = patients.value.find((p) => !p.is_dummy) || patients.value[0];
+    if (!patient) {
+      $q.notify({ type: 'warning', message: 'No patients available to assign' });
+      return;
+    }
+
+    // Ensure we have available doctors
+    if (!availableDoctors.value.length) {
+      await loadAvailableDoctors();
+    }
+    const doc = (filteredAvailableDoctors.value && filteredAvailableDoctors.value[0]) || availableDoctors.value[0];
+    if (!doc) {
+      $q.notify({ type: 'warning', message: 'No available doctors found' });
+      return;
+    }
+
+    // Prepare and send using existing confirmSend flow
+    selectedPatientForSend.value = {
+      id: patient.id,
+      user_id: (patient as unknown as { user_id?: number | string }).user_id ?? patient.id,
+      full_name: patient.full_name,
+      medical_condition: (patient as unknown as { medical_condition?: string | null }).medical_condition || null,
+    };
+    sendForm.value.doctorId = String(doc.id);
+    await confirmSend();
+    $q.notify({ type: 'positive', message: 'Dummy assignment created for testing' });
+  } catch (error) {
+    console.error('Dummy assignment failed:', error);
+    $q.notify({ type: 'negative', message: 'Failed to create dummy assignment' });
+  }
+}
+
 // Archive action
 function archivePatient(patient: PatientSummary) {
   // Prevent archiving while patient is in active forms
@@ -1702,7 +1750,8 @@ function archivePatient(patient: PatientSummary) {
     .onOk(() => {
       void (async () => {
         try {
-          await api.post('/operations/archives/create/', { patient_id: patient.id })
+          // Backend expects patient_id to be the User ID; fallback to profile id if needed
+          await api.post('/operations/archives/create/', { patient_id: patient.user_id ?? patient.id })
           // Remove from active patients list immediately
           patients.value = patients.value.filter(p => p.id !== patient.id)
           // Clear selection if this patient was selected
