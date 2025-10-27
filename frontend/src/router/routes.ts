@@ -59,6 +59,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('pages/DoctorPatientManagement.vue'),
   },
   {
+    path: '/doctor-patient-archive',
+    name: 'DoctorPatientArchive',
+    component: () => import('pages/DoctorPatientArchive.vue'),
+  },
+  {
     path: '/nurse-dashboard',
     component: () => import('pages/NurseDashboard.vue'),
   },

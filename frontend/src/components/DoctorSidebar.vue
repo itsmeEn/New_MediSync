@@ -8,7 +8,6 @@
     :width="280"
   >
     <div class="sidebar-content">
-      <!-- Logo Section -->
       <div class="logo-section">
         <div class="logo-container">
           <q-avatar size="40px" class="logo-avatar">
@@ -19,7 +18,6 @@
         <q-btn dense flat round icon="menu" @click="toggleDrawer" class="menu-btn" />
       </div>
 
-      <!-- User Profile Section -->
       <div class="sidebar-user-profile">
         <div class="profile-picture-container">
           <q-avatar 
@@ -28,7 +26,6 @@
             @click="navigateToProfile"
             v-ripple
           >
-            <!-- Use profile picture when available; fallback to initials -->
             <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
             <div v-else class="profile-placeholder">
               {{ userInitials }}
@@ -54,7 +51,6 @@
         </div>
       </div>
 
-      <!-- Navigation Menu -->
       <q-list class="navigation-menu">
         <q-item
           clickable
@@ -103,7 +99,19 @@
           </q-item-section>
           <q-item-section>Patient Management</q-item-section>
         </q-item>
-
+        
+        <q-item
+          clickable
+          v-ripple
+          @click="navigateTo('patient-archive')"
+          :class="['nav-item', { active: activeRoute === 'patient-archive' }]"
+          style="padding-left: 40px;"  >
+          <q-item-section avatar>
+            <q-icon name="archive" />
+          </q-item-section>
+          <q-item-section>Patient Archive</q-item-section>
+        </q-item>
+        
         <q-item
           clickable
           v-ripple
@@ -129,7 +137,6 @@
         </q-item>
       </q-list>
 
-      <!-- Logout Section -->
       <div class="logout-section">
         <q-btn color="negative" icon="logout" label="Logout" class="logout-btn" @click="logout" />
       </div>
@@ -240,6 +247,11 @@ const navigateTo = (route: string) => {
     case 'patients':
       void router.push('/doctor-patient-management');
       break;
+    // 💡 NEW ROUTE CASE FOR PATIENT ARCHIVE
+    case 'patient-archive':
+      void router.push('/doctor-patient-archive');
+      break;
+    // ------------------------------------
     case 'analytics':
       void router.push('/doctor-predictive-analytics');
       break;

@@ -7,10 +7,12 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from backend.admin_site.authentication import AdminJWTAuthentication
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -402,6 +404,7 @@ def analytics_stream(request):
 # Stress testing endpoint to assess API performance for doctor, nurse, and patient flows
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@authentication_classes([AdminJWTAuthentication, JWTAuthentication])
 def stress_test_analytics(request):
     """Run a lightweight concurrent stress test against key frontend API routes.
 

@@ -1,5 +1,26 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8000/api/admin';
+const API_BASE_URL = 'http://localhost:8001/api/admin';
+
+// Simple fetch wrapper for hospital registration pages
+async function apiCall(endpoint, method = 'GET', data = null) {
+  const token = localStorage.getItem('admin_access_token');
+  const options = {
+    method,
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json'
+    }
+  };
+  if (data && method !== 'GET') {
+    options.body = JSON.stringify(data);
+  }
+  const resp = await fetch(`${API_BASE_URL}${endpoint}`, options);
+  const payload = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    throw new Error(payload.error || payload.message || `Request failed: ${resp.status}`);
+  }
+  return payload;
+}
 
 // Simple toast utility
 function showToast(title, message, type = 'info') {
