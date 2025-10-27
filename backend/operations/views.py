@@ -2462,37 +2462,35 @@ def queue_status(request):
                 if is_open and not old_status:
                     should_notify_patients = True
                     
-                    # Create persistent notifications for all patients
+                    # Schedule patient notifications in background to avoid blocking the request
                     try:
                         import asyncio
+                        import threading
                         from .async_services import AsyncNotificationService
                         
                         notification_message = f"The {department} queue is now OPEN! You can now join the queue."
                         
-                        # Run async notification service
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            notification_stats = loop.run_until_complete(
-                                AsyncNotificationService.send_notification_to_all_patients(
-                                    message=notification_message,
-                                    department=department
+                        def _run_notify():
+                            try:
+                                asyncio.run(
+                                    AsyncNotificationService.send_notification_to_all_patients(
+                                        message=notification_message,
+                                        department=department
+                                    )
                                 )
-                            )
-                        finally:
-                            loop.close()
+                            except Exception as e:
+                                import logging
+                                logging.getLogger(__name__).error(
+                                    f"Error in background notifications: {str(e)}",
+                                    exc_info=True
+                                )
                         
-                        import logging
-                        logger = logging.getLogger(__name__)
-                        logger.info(
-                            f"Queue opened notification sent to {notification_stats.get('notifications_created', 0)} patients. "
-                            f"Failed: {notification_stats.get('notifications_failed', 0)}"
-                        )
+                        threading.Thread(target=_run_notify, daemon=True).start()
                     except Exception as e:
                         import logging
                         logger = logging.getLogger(__name__)
-                        logger.error(f"Error sending patient notifications: {str(e)}", exc_info=True)
-                        # Continue even if notification fails
+                        logger.error(f"Error scheduling patient notifications: {str(e)}", exc_info=True)
+                        # Continue even if scheduling fails
                 
                 # Broadcast status change via WebSocket (non-blocking)
                 try:
