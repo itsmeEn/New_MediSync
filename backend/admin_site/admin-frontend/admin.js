@@ -1,5 +1,5 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8000/api/admin';
+const API_BASE_URL = 'http://localhost:8001/api/admin';
 const ANALYTICS_BASE_URL = API_BASE_URL.replace('/api/admin', '/api/analytics');
 
 // Global variables

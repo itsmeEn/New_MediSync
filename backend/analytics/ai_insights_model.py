@@ -1,10 +1,11 @@
+# pyright: reportMissingImports=false
 """
 MediSync AI Insights Model
 
 This module implements an AI model that can interpret analytics graphs and provide
 actionable insights for healthcare professionals (doctors and nurses).
 
-The model uses TensorFlow for deep learning components and Random Forest for 
+The model uses TensorFlow for deep learning components and Random Forest for
 classification tasks with a 70-30 train-test split.
 """
 
@@ -22,7 +23,9 @@ except Exception as e:
     layers = None  # type: ignore
     models = None  # type: ignore
     import logging
-    logging.getLogger(__name__).warning(f"TensorFlow not available: {e}. Proceeding without deep learning components.")
+    logging.getLogger(__name__).warning(
+        f"TensorFlow not available: {e}. Proceeding without deep learning components."
+    )
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
