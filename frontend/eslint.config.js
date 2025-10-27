@@ -76,6 +76,9 @@ export default defineConfigWithVueTs(
 
       // allow debugger during development only
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+
+      // Ensure multi-word names; allow imports using single-word component file names
+      'vue/multi-word-component-names': ['error', { ignores: ['Navbar', 'Download', 'Features', 'Contact'] }],
     },
   },
 

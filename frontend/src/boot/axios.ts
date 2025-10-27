@@ -76,6 +76,10 @@ const MOBILE_ENDPOINTS = [
 const resolveWebEndpointWithFallback = async (): Promise<string> => {
   const host = window.location?.hostname || 'localhost';
   const primary = `http://${host}:8000/api`;
+  const enable8001 = localStorage.getItem('ENABLE_8001_FALLBACK') === 'true';
+  if (!enable8001) {
+    return primary;
+  }
   const fallback = `http://${host}:8001/api`;
 
   // Test :8000 first
@@ -83,7 +87,7 @@ const resolveWebEndpointWithFallback = async (): Promise<string> => {
   if (okPrimary) {
     return primary;
   }
-  // Then try :8001 as a secondary option
+  // Then try :8001 as a secondary option (only if enabled)
   const okFallback = await testConnectivity(fallback);
   if (okFallback) {
     return fallback;
@@ -235,18 +239,17 @@ api.interceptors.response.use(
 );
 
 export default defineBoot(async ({ app }) => {
-  // for use inside Vue files (Options API) through this.$axios and this.$api
-
   app.config.globalProperties.$axios = axios;
-  // ^ ^ ^ this will allow to use this.$axios (for Vue Options API form)
-  //       so you won't necessarily have to import axios in each vue file
-
   app.config.globalProperties.$api = api;
-  // ^ ^ ^ this will allow to use this.$api (for Vue Options API form)
-  //       so you can easily perform requests against your app's API
 
-  // Ensure we pick a reachable base URL before the app starts making requests
-  await optimizeEndpoint();
+  // Skip endpoint probe on the landing route to avoid noisy network errors
+  const hash = window.location?.hash || '';
+  const onLanding = hash.includes('/landing');
+  const disableProbe = localStorage.getItem('DISABLE_ENDPOINT_PROBE') === 'true';
+
+  if (!onLanding && !disableProbe) {
+    await optimizeEndpoint();
+  }
 });
 
 export { api };
