@@ -128,14 +128,16 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="department">Department *</label>
-                  <input
+                  <label for="department">Department Selection *</label>
+                  <select
                     id="department"
                     v-model="formData.department"
-                    type="text"
                     required
-                    placeholder="e.g., Emergency, ICU, Pediatrics"
-                  />
+                  >
+                    <option value="">Select department</option>
+                    <option value="OPD">Outpatient Department (OPD)</option>
+                    <option value="OPD Pharmacy">OPD Pharmacy</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -289,6 +291,12 @@ watch(() => formData.value.password, (val) => calculatePasswordStrength(val));
 const onRegister = async () => {
   if (!selectedHospitalId.value) {
     $q.notify({ type: 'negative', message: 'Please select your hospital.' });
+    return;
+  }
+
+  // Nurse-specific validation: ensure department is selected
+  if (role.value === 'nurse' && !String(formData.value.department || '').trim()) {
+    $q.notify({ type: 'negative', message: 'Please select your department.' });
     return;
   }
 

@@ -257,14 +257,6 @@
                   @click="loadPatients"
                   :loading="loading"
                 />
-                <q-btn
-                  class="q-ml-sm"
-                  color="secondary"
-                  icon="bug_report"
-                  size="sm"
-                  label="Test: Dummy Assign"
-                  @click="createDummyAssignment"
-                />
               </q-card-section>
 
               <q-card-section class="card-content">
@@ -1654,6 +1646,7 @@ const saveDischarge = async () => {
 
 // Doctors state and helpers
 const doctorsLoading = ref(false)
+const doctorsLoadError = ref<string | null>(null)
 interface DoctorSummary {
   id?: string | number
   email?: string
@@ -1686,9 +1679,9 @@ const nurseHospital = computed(() => (userProfile.value?.hospital_name || '') ||
 const filteredAvailableDoctors = computed(() => {
   const spec = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
   return (availableDoctors.value || []).filter((d) => {
-    const hospitalOk = nurseHospital.value ? (d.hospital_name || '') === nurseHospital.value : true
+    const hospitalOk = true
     const specOk = spec ? (String(d.specialization || '').toLowerCase().includes(String(spec).toLowerCase())) : true
-    const availOk = (String(d.availability || d.status || '').toLowerCase() === 'available')
+    const availOk = (String(d.availability || d.status || '').toLowerCase() === 'available') || !d.availability
     return hospitalOk && specOk && availOk
   })
 })
@@ -1699,37 +1692,50 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
+// Safe error message extractor to avoid 'any' casts
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error && typeof e.message === 'string') return e.message
+  if (typeof e === 'object' && e !== null && 'message' in (e as Record<string, unknown>)) {
+    const m = (e as { message?: unknown }).message
+    if (typeof m === 'string') return m
+  }
+  try { return JSON.stringify(e) } catch { return String(e) }
+}
+
 async function loadAvailableDoctors() {
   doctorsLoading.value = true
+  doctorsLoadError.value = null
   try {
-    // Try live fetch from backend
-    const res = await api.get('/operations/available-doctors/')
-    type ApiDoctor = {
+    // Unified provider fetch scoped to current hospital; server filters by user.hospital_name
+    const hospitalId = localStorage.getItem('selected_hospital_id')
+    const url = `/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`
+    const res = await api.get(url)
+    type ApiUser = {
       id?: number | string
       full_name?: string
+      role?: string
+      verification_status?: string
+      email?: string
+      profile_picture?: string | null
+      doctor_profile?: { specialization?: string } | null
       specialization?: string
-      is_available?: boolean
-      status?: string
       hospital_name?: string
     }
-    const list: ApiDoctor[] = Array.isArray(res.data?.doctors) ? res.data.doctors : []
-
-    // Determine nurse hospital and filter doctors by same hospital if available
-    const nurseHospital = (userProfile.value?.hospital_name || '') || (JSON.parse(localStorage.getItem('user') || '{}').hospital_name || '')
-    const filtered = nurseHospital ? list.filter((d: ApiDoctor) => (d.hospital_name || '') === nurseHospital) : list
-    const finalList = filtered.length ? filtered : list
-
-    availableDoctors.value = finalList.map((d: ApiDoctor) => ({
-      id: String(d.id ?? ''),
-      full_name: d.full_name ?? 'Unknown Doctor',
-      specialization: d.specialization ?? 'General',
-      availability: d.status ?? (d.is_available ? 'available' : 'busy'),
-      hospital_name: d.hospital_name ?? ''
+    const users: ApiUser[] = Array.isArray(res.data?.users) ? res.data.users : Array.isArray(res.data) ? res.data : []
+    const doctors = users.filter(u => String(u.role).toLowerCase() === 'doctor' && String(u.verification_status).toLowerCase() === 'approved')
+    availableDoctors.value = doctors.map((u) => ({
+      id: String(u.id ?? ''),
+      full_name: u.full_name || 'Unknown Doctor',
+      specialization: u.doctor_profile?.specialization || u.specialization || 'General',
+      availability: 'available',
+      hospital_name: u.hospital_name || nurseHospital.value || ''
     })) as DoctorSummary[]
     // Cache for fallback use
     localStorage.setItem('available_doctors', JSON.stringify(availableDoctors.value))
   } catch (err) {
     console.warn('Failed to fetch doctors; using cache.', err)
+    const msg = getErrorMessage(err)
+    doctorsLoadError.value = msg || 'Unable to load doctors'
     try {
       const cached = localStorage.getItem('available_doctors')
       availableDoctors.value = cached ? (JSON.parse(cached) as DoctorSummary[]) : []
@@ -1877,44 +1883,7 @@ async function confirmSend() {
   } finally { sendLoading.value = false }
 }
 
-// Developer test utility: create one dummy assignment that the doctor can fetch
-async function createDummyAssignment() {
-  try {
-    // Ensure we have patients loaded
-    if (!patients.value.length) {
-      await loadPatients();
-    }
-    const patient = patients.value.find((p) => !p.is_dummy) || patients.value[0];
-    if (!patient) {
-      $q.notify({ type: 'warning', message: 'No patients available to assign' });
-      return;
-    }
-
-    // Ensure we have available doctors
-    if (!availableDoctors.value.length) {
-      await loadAvailableDoctors();
-    }
-    const doc = (filteredAvailableDoctors.value && filteredAvailableDoctors.value[0]) || availableDoctors.value[0];
-    if (!doc) {
-      $q.notify({ type: 'warning', message: 'No available doctors found' });
-      return;
-    }
-
-    // Prepare and send using existing confirmSend flow
-    selectedPatientForSend.value = {
-      id: patient.id,
-      user_id: (patient as unknown as { user_id?: number | string }).user_id ?? patient.id,
-      full_name: patient.full_name,
-      medical_condition: (patient as unknown as { medical_condition?: string | null }).medical_condition || null,
-    };
-    sendForm.value.doctorId = String(doc.id);
-    await confirmSend();
-    $q.notify({ type: 'positive', message: 'Dummy assignment created for testing' });
-  } catch (error) {
-    console.error('Dummy assignment failed:', error);
-    $q.notify({ type: 'negative', message: 'Failed to create dummy assignment' });
-  }
-}
+// Removed developer-only dummy assignment helper; switching to real API-driven data
 
 // Archive action
 function archivePatient(patient: PatientSummary) {

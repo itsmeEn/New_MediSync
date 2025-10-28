@@ -633,21 +633,40 @@ def update_verification(request, verification_id):
 def admin_my_hospitals(request):
     admin_user = request.user
     try:
+        # Ensure the user is an AdminUser
+        if not isinstance(admin_user, AdminUser):
+            return Response({'error': 'Access denied. Admin account required.'}, status=status.HTTP_403_FORBIDDEN)
+
         status_filter = (request.GET.get('status') or '').strip().lower()
+        # Default to ACTIVE when no explicit filter is provided
         queryset = Hospital.objects.filter(admin_users__id=admin_user.id)
+        if not status_filter:
+            status_filter = 'active'
         if status_filter in ['pending', 'active', 'suspended']:
             queryset = queryset.filter(status=status_filter)
-        data = [
-            {
-                'id': h.id,
-                'official_name': h.official_name,
-                'address': h.address,
-            }
-            for h in queryset.order_by('official_name')
-        ]
-        if not data:
+        else:
+            return Response({'error': 'Invalid status filter. Use pending, active, or suspended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        hospitals = list(
+            queryset.order_by('official_name').values('id', 'official_name', 'address')
+        )
+
+        # Log the fetch operation with count
+        try:
+            log_admin_action(
+                admin_user=admin_user,
+                action='FETCH_ADMIN_HOSPITALS',
+                target='Hospital',
+                target_id=0,
+                details=f"status={status_filter}, count={len(hospitals)}"
+            )
+        except Exception:
+            # Avoid breaking the response if logging fails
+            pass
+
+        if not hospitals:
             return Response({'hospitals': [], 'message': 'No hospitals found for admin.'}, status=status.HTTP_200_OK)
-        return Response({'hospitals': data}, status=status.HTTP_200_OK)
+        return Response({'hospitals': hospitals}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': f'Failed to fetch hospitals: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -707,31 +726,37 @@ def serve_verification_document(request, verification_id):
     Serve verification document with appropriate headers for iframe embedding
     """
     try:
+        import mimetypes
+
         verification = get_object_or_404(VerificationRequest, id=verification_id)
-        
-        if not verification.verification_document:
-            return Response({
-                'error': 'Document not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Get the file path
-        file_path = verification.verification_document.path
-        
-        if not os.path.exists(file_path):
-            return Response({
-                'error': 'File not found on disk'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Open and serve the file with appropriate headers
-        file_handle = open(file_path, 'rb')
-        response = FileResponse(file_handle, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
-        
-        # Allow iframe embedding and CORS
+        file_field = verification.verification_document
+
+        if not file_field or not getattr(file_field, 'name', None):
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the file exists in storage
+        storage = file_field.storage
+        file_name = file_field.name
+        if not storage.exists(file_name):
+            return Response({'error': 'File not found on storage'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Guess content type based on file name; fallback to octet-stream
+        guessed_type, _ = mimetypes.guess_type(file_name)
+        content_type = guessed_type or 'application/octet-stream'
+
+        # Open via storage to support non-local backends
+        file_handle = storage.open(file_name, 'rb')
+        response = FileResponse(file_handle, content_type=content_type)
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_name)}"'
+
+        # Allow iframe embedding explicitly (in addition to global settings)
+        response['X-Frame-Options'] = 'ALLOWALL'
+
+        # CORS headers for admin frontend previews
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET'
         response['Access-Control-Allow-Headers'] = '*'
-        
+
         return response
         
     except Exception as e:
@@ -910,11 +935,11 @@ def hospital_activation(request):
             hospital.status = Hospital.Status.ACTIVE
             hospital.activated_at = timezone.now()
             hospital.save()
-            
+
             # Mark registration as completed
             admin_user.hospital_registration_completed = True
             admin_user.save()
-            
+
             # Log the action
             log_admin_action(
                 admin_user=admin_user,
@@ -923,7 +948,15 @@ def hospital_activation(request):
                 target_id=hospital.id,
                 details=f"Hospital '{hospital.official_name}' activated"
             )
-            
+
+            # Re-fetch to ensure persistence
+            persisted = Hospital.objects.get(id=hospital.id)
+            if persisted.status != Hospital.Status.ACTIVE:
+                print(f"[hospital_activation] Persistence check failed for hospital {hospital.id}")
+                return Response({
+                    'error': 'Activation did not persist. Please retry or contact support.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
             return Response({
                 'message': 'Hospital activated successfully. You now have full admin access.',
                 'hospital': HospitalSerializer(hospital).data
@@ -965,13 +998,26 @@ def hospitals_list(request):
     List hospitals with optional status filter. Defaults to returning ACTIVE hospitals.
     Returns a distinct set of hospitals to avoid duplicates in dropdowns.
     """
-    status_filter = (request.GET.get('status') or '').strip().lower()
-    if not status_filter:
-        status_filter = 'active'
-    queryset = Hospital.objects.all()
-    if status_filter in ['pending', 'active', 'suspended']:
-        queryset = queryset.filter(status__iexact=status_filter)
-    # Use values + distinct to ensure unique rows by id/name/address
-    rows = queryset.values('id', 'official_name', 'address').order_by('official_name', 'id').distinct()
-    data = list(rows)
-    return Response({'hospitals': data}, status=status.HTTP_200_OK)
+    try:
+        status_filter = (request.GET.get('status') or '').strip().lower()
+        if not status_filter:
+            status_filter = 'active'
+
+        if status_filter not in ['pending', 'active', 'suspended']:
+            return Response({'error': 'Invalid status filter. Use pending, active, or suspended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify database connectivity by performing a count first
+        total_count = Hospital.objects.count()
+
+        queryset = Hospital.objects.filter(status__iexact=status_filter)
+        # Use values + distinct to ensure unique rows by id/name/address
+        rows = queryset.values('id', 'official_name', 'address').order_by('official_name', 'id').distinct()
+        data = list(rows)
+
+        # Lightweight server-side log for troubleshooting
+        print(f"[hospitals_list] status={status_filter}, total={total_count}, returned={len(data)}")
+
+        return Response({'hospitals': data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(f"[hospitals_list] ERROR: {e}")
+        return Response({'error': f'Failed to fetch hospitals: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

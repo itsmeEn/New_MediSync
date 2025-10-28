@@ -1179,8 +1179,9 @@ interface AvailableUser {
   specialization?: string;
 }
  
- const availableNurses = ref<NurseSummary[]>([]);
+const availableNurses = ref<NurseSummary[]>([]);
 const nursesLoading = ref(false);
+const nursesError = ref<string | null>(null);
 
 const getInitials = (name: string): string => {
   const parts = (name || '').trim().split(/\s+/);
@@ -1195,10 +1196,23 @@ const getAvailabilityColor = (status: string): string => {
   return 'primary';
 };
 
+// Safe error message extractor to avoid 'any' casts
+const getErrorMessage = (e: unknown): string => {
+  if (e instanceof Error && typeof e.message === 'string') return e.message;
+  if (typeof e === 'object' && e !== null && 'message' in (e as Record<string, unknown>)) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === 'string') return m;
+  }
+  try { return JSON.stringify(e); } catch { return String(e); }
+};
+
 const loadAvailableNurses = async (): Promise<void> => {
   nursesLoading.value = true;
+  nursesError.value = null;
   try {
-    const response = await api.get('/operations/messaging/available-users/');
+    const hospitalId = localStorage.getItem('selected_hospital_id');
+    const url = `/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`;
+    const response = await api.get(url);
     const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
     const list: NurseSummary[] = users
       .filter((u) => u.role === 'nurse' && u.verification_status === 'approved')
@@ -1214,6 +1228,8 @@ const loadAvailableNurses = async (): Promise<void> => {
     availableNurses.value = list;
   } catch (error) {
     console.error('Failed to load available nurses:', error);
+    const msg = getErrorMessage(error);
+    nursesError.value = msg || 'Unable to load nurses';
     availableNurses.value = [];
   } finally {
     nursesLoading.value = false;

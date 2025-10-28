@@ -163,6 +163,8 @@ interface UserProfile {
   department?: string;
   verification_status: string;
   profile_picture?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 // Router and Quasar
@@ -184,6 +186,14 @@ const drawerOpen = computed({
 });
 
 const userInitials = computed(() => {
+  const first = userProfile.value.first_name?.trim();
+  const last = userProfile.value.last_name?.trim();
+  if (first || last) {
+    const f = first ? first.charAt(0) : '';
+    const l = last ? last.charAt(0) : '';
+    const initials = `${f}${l}`.toUpperCase();
+    return initials || 'U';
+  }
   const name = userProfile.value.full_name || '';
   const safe = name.trim();
   const initials = safe
@@ -259,6 +269,8 @@ const loadUserProfile = async () => {
       department: userData.nurse_profile?.department || userData.department || 'Nurse',
       verification_status: userData.verification_status,
       profile_picture: userData.profile_picture,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
     };
 
     // Notify when verification becomes approved

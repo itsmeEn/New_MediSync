@@ -31,6 +31,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'localhost', 
     '127.0.0.1', 
+    '192.168.1.2',
     'testserver', 
     '172.20.29.202',  # Current network IP for mobile connectivity
     '192.168.55.101',
