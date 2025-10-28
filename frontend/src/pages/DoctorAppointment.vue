@@ -449,7 +449,7 @@
                   <span class="cell-appt-time">
                     {{ formatTime(appt.appointment_time || appt.appointment_date) }}
                   </span>
-                  <span class="cell-appt-name">{{ appt.patient_name }}</span>
+                  <span class="cell-appt-name">{{ appt.patient_name || 'Patient' }}</span>
                 </div>
                 <div v-if="day.appointments.length > 3" class="cell-more-count">
                   +{{ day.appointments.length - 3 }} more
@@ -489,7 +489,7 @@
                     {{ formatScheduleTime(a) }}
                   </q-item-label>
                   <q-item-label caption>
-                    {{ a.patient_name }}
+                    {{ a.patient_name || 'Patient Schedule' }}
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -857,6 +857,56 @@ interface Appointment {
   };
 }
 
+// Normalize and dedupe helpers to fix missing names and duplicates
+interface RawAppointment {
+  id?: number;
+  appointment_id?: number;
+  appointmentId?: number;
+  patient_name?: string;
+  patient?: { name?: string };
+  patientName?: string;
+  appointment_date?: string;
+  date?: string;
+  appointment_time?: string;
+  time?: string;
+  appointment_type?: string;
+  type?: string;
+  status?: string;
+  notes?: string;
+}
+function normalizeAppointment(raw: RawAppointment): Appointment {
+  return {
+    id: Number(raw?.id ?? raw?.appointment_id ?? raw?.appointmentId ?? -1),
+    patient_name: String(raw?.patient_name ?? raw?.patient?.name ?? raw?.patientName ?? ''),
+    appointment_date: String(raw?.appointment_date ?? raw?.date ?? ''),
+    appointment_time: String(raw?.appointment_time ?? raw?.time ?? ''),
+    appointment_type: String(raw?.appointment_type ?? raw?.type ?? ''),
+    status: String(raw?.status ?? 'scheduled'),
+    notes: String(raw?.notes ?? ''),
+  };
+}
+
+function dedupeAppointments(list: Appointment[]): Appointment[] {
+  const byId = new Map<number, Appointment>();
+  const bySig = new Set<string>();
+  const out: Appointment[] = [];
+  for (const a of list) {
+    const sig = `${a.appointment_date}|${a.appointment_time}|${a.patient_name}|${a.appointment_type}|${a.status}`;
+    if (a.id && a.id !== -1) {
+      if (!byId.has(a.id)) {
+        byId.set(a.id, a);
+        out.push(a);
+      }
+    } else {
+      if (!bySig.has(sig)) {
+        bySig.add(sig);
+        out.push(a);
+      }
+    }
+  }
+  return out;
+}
+
 // Reactive data
 const currentDate = ref(new Date());
 const selectedDate = ref<DayData | null>(null);
@@ -1034,18 +1084,20 @@ function getScheduleTime(appt: Appointment): number {
 
 async function fetchTodaySchedule() {
   try {
-    scheduleLoading.value = true
-    const res = await api.get('/operations/appointments/')
-    const list: Appointment[] = Array.isArray(res.data) ? (res.data as Appointment[]) : []
-    const today = new Date()
-    const items = list.filter((a) => a.appointment_date && isSameDay(a.appointment_date, today))
-    items.sort((a, b) => getScheduleTime(a) - getScheduleTime(b))
-    todaySchedule.value = items
+    scheduleLoading.value = true;
+    const res = await api.get('/operations/appointments/');
+    const raw = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+    const mapped = (raw as RawAppointment[]).map(normalizeAppointment);
+    const deduped = dedupeAppointments(mapped);
+    const today = new Date();
+    const items = deduped.filter((a) => a.appointment_date && isSameDay(a.appointment_date, today));
+    items.sort((a, b) => getScheduleTime(a) - getScheduleTime(b));
+    todaySchedule.value = items;
   } catch (err) {
-    console.error('Failed to fetch today schedule', err)
-    todaySchedule.value = []
+    console.error('Failed to fetch today schedule', err);
+    todaySchedule.value = [];
   } finally {
-    scheduleLoading.value = false
+    scheduleLoading.value = false;
   }
 }
 
@@ -1253,7 +1305,9 @@ function goToToday() {
 async function fetchAppointments() {
   try {
     const response = await api.get('/operations/appointments/');
-    appointments.value = response.data;
+    const raw = Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
+    const mapped = (raw as RawAppointment[]).map(normalizeAppointment);
+    appointments.value = dedupeAppointments(mapped);
   } catch (error) {
     console.error('Failed to fetch appointments:', error);
     $q.notify({
