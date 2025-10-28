@@ -252,10 +252,24 @@ class QueueScheduleSerializer(serializers.ModelSerializer):
     def get_is_currently_open(self, obj):
         """Determine if the queue is currently open based on schedule and override"""
         now = timezone.localtime()
-        day_name = now.strftime('%A')
-        in_schedule = obj.is_active and day_name in obj.days_of_week and obj.start_time <= now.time() <= obj.end_time
+        current_day = now.weekday()  # 0=Monday, 6=Sunday
+        # Normalize days_of_week to numeric list if strings are present
+        days = obj.days_of_week or []
+        if days and isinstance(days[0], str):
+            name_to_num = {
+                'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
+                'Friday': 4, 'Saturday': 5, 'Sunday': 6
+            }
+            def to_num(d: str) -> int:
+                if d.isdigit():
+                    n = int(d)
+                    return n if 0 <= n <= 6 else -1
+                return name_to_num.get(d, -1)
+            days = [to_num(d) for d in days]
+        in_schedule = bool(obj.is_active) and (current_day in days) and (obj.start_time <= now.time() <= obj.end_time)
         if obj.manual_override and obj.override_status is not None:
-            return bool(obj.override_status)
+            # Treat 'enabled' as open, otherwise use in_schedule
+            return obj.override_status == 'enabled'
         return in_schedule
 
 class QueueStatusSerializer(serializers.ModelSerializer):
@@ -274,11 +288,11 @@ class QueueStatusSerializer(serializers.ModelSerializer):
 
     def get_current_schedule_start_time(self, obj):
         schedule = QueueSchedule.objects.filter(department=obj.department, is_active=True).first()
-        return schedule.start_time if schedule else None
+        return schedule.start_time.isoformat() if schedule and schedule.start_time else None
 
     def get_current_schedule_end_time(self, obj):
         schedule = QueueSchedule.objects.filter(department=obj.department, is_active=True).first()
-        return schedule.end_time if schedule else None
+        return schedule.end_time.isoformat() if schedule and schedule.end_time else None
 
     def get_current_schedule_days_of_week(self, obj):
         schedule = QueueSchedule.objects.filter(department=obj.department, is_active=True).first()
@@ -306,11 +320,32 @@ class CreateQueueScheduleSerializer(serializers.ModelSerializer):
         fields = ['department', 'start_time', 'end_time', 'days_of_week', 'is_active']
     
     def validate_days_of_week(self, value):
-        valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        # Accept numeric days (0=Mon..6=Sun), numeric strings, or day names; normalize to numeric
+        valid_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        name_to_num = {
+            'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
+            'Friday': 4, 'Saturday': 5, 'Sunday': 6
+        }
+        normalized: list[int] = []
         for day in value:
-            if day not in valid_days:
-                raise serializers.ValidationError(f"Invalid day: {day}")
-        return value
+            if isinstance(day, int):
+                if day < 0 or day > 6:
+                    raise serializers.ValidationError(f"Invalid day: {day}")
+                normalized.append(day)
+            elif isinstance(day, str):
+                d = day.strip()
+                if d.isdigit():
+                    num = int(d)
+                    if num < 0 or num > 6:
+                        raise serializers.ValidationError(f"Invalid day: {day}")
+                    normalized.append(num)
+                else:
+                    if d not in valid_names:
+                        raise serializers.ValidationError(f"Invalid day: {day}")
+                    normalized.append(name_to_num[d])
+            else:
+                raise serializers.ValidationError(f"Invalid day type: {type(day).__name__}")
+        return normalized
 
     def validate(self, data):
         if data['start_time'] >= data['end_time']:

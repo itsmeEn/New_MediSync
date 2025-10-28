@@ -29,6 +29,11 @@ const routes: RouteRecordRaw[] = [
     path: '/verification',
     component: () => import('pages/VerificationPage.vue'),
   },
+  // Add landing route
+  {
+    path: '/landing',
+    component: () => import('pages/LandingPage.vue'),
+  },
   {
     path: '/doctor-dashboard',
     component: () => import('pages/DoctorDashboard.vue'),
