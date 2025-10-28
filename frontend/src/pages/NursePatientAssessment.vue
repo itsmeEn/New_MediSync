@@ -1166,100 +1166,165 @@ const saveRegistration = () => {
   $q.notify({ type: 'positive', message: 'Patient registration saved' })
 }
 
-const loadIntake = () => {
+const loadIntake = async () => {
   if (!selectedPatient.value) return
   try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_intake`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const {
-        bp = '', hr = '', rr = '', temp = '', o2 = '', weight = '', height = '',
-        chiefComplaint = '', painScore = 0, allergies = [], mentalStatus = '', fallRisk = ''
-      } = p || {}
-      intakeForm.value = {
-        bp, hr, rr, temp, o2, weight, height,
-        chiefComplaint, painScore,
-        allergies: Array.isArray(allergies) ? allergies : [],
-        mentalStatus, fallRisk
-      }
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/intake/`)
+    type ApiAllergy = { name?: string; substance?: string; reaction?: string }
+    type ApiIntake = {
+      vitals?: { bp?: string; hr?: number | string; rr?: number | string; temp_c?: number | string; temp?: number | string; o2_sat?: number | string }
+      weight_kg?: number | string
+      height_cm?: number | string
+      chief_complaint?: string
+      pain_score?: number | string
+      allergies?: ApiAllergy[]
+      mental_status?: string
+      fall_risk_score?: number | string
     }
-  } catch (e) { console.warn('Failed to load intake', e) }
-}
-
-const loadFlowSheet = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_flow`)
-    flowSheetEntries.value = raw ? (JSON.parse(raw).entries || []) : []
-  } catch { flowSheetEntries.value = [] }
-}
-
-const loadMar = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_mar`)
-    marEntries.value = raw ? (JSON.parse(raw).entries || []) : []
-  } catch { marEntries.value = [] }
-}
-
-const loadEducation = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_education`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const { topics = [], warningSigns = '', comprehension = '', returnDemoSuccess = false, barriers = '' } = p || {}
-      educationForm.value = {
-        topics: Array.isArray(topics) ? topics : [],
-        warningSigns, comprehension, returnDemoSuccess, barriers
-      }
-      // Ensure saved topics are offered as options
-      const savedTopics = Array.from(new Set([...(educationForm.value.topics || [])])).map(String)
-      educationTopicOptions.length = 0
-      educationTopicOptions.push(...savedTopics)
+    const d = (res.data?.data as ApiIntake) || {}
+    const vit = d.vitals || {}
+    intakeForm.value = {
+      bp: String(vit.bp || ''),
+      hr: String(vit.hr ?? ''),
+      rr: String(vit.rr ?? ''),
+      temp: String(vit.temp_c ?? vit.temp ?? ''),
+      o2: String(vit.o2_sat ?? ''),
+      weight: String(d.weight_kg ?? ''),
+      height: String(d.height_cm ?? ''),
+      chiefComplaint: String(d.chief_complaint || ''),
+      painScore: Number(d.pain_score ?? 0),
+      allergies: Array.isArray(d.allergies) ? d.allergies.map((a: ApiAllergy) => ({ name: a.name ?? a.substance ?? '', reaction: a.reaction ?? '' })) : [],
+      mentalStatus: String(d.mental_status || ''),
+      fallRisk: String(d.fall_risk_score ?? '')
     }
-  } catch (e) { console.warn('Failed to load education', e) }
+  } catch (e) {
+    console.warn('Failed to fetch intake', e)
+    $q.notify({ type: 'warning', message: 'Unable to load intake from server' })
+  }
 }
 
-const loadDischarge = () => {
+const loadFlowSheet = async () => {
   if (!selectedPatient.value) return
   try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_discharge`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const {
-        verbalUnderstands = false,
-        writtenProvided = false,
-        followUpDate = '',
-        followUpTime = '',
-        equipmentNeeds = '',
-        finalBP = '',
-        finalHR = '',
-        transportationStatus = '',
-        nurseId = '',
-        patientAcknowledged = false
-      } = p || {}
-      dischargeForm.value = {
-        verbalUnderstands,
-        writtenProvided,
-        followUpDate,
-        followUpTime,
-        equipmentNeeds,
-        finalBP,
-        finalHR,
-        transportationStatus,
-        nurseId,
-        patientAcknowledged
-      }
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/flow-sheets/`)
+    type FlowSheetApiEntry = {
+      time_of_reading?: string
+      repeated_vitals?: { bp?: string; hr?: number | string; pain?: number | string }
+      intake_ml?: number | string
+      output_ml?: number | string
+      site_checks?: string
+      nursing_interventions?: string[] | string
     }
-  } catch (e) { console.warn('Failed to load discharge', e) }
+    const list: FlowSheetApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as FlowSheetApiEntry[]) : []
+    flowSheetEntries.value = list.map((e: FlowSheetApiEntry) => ({
+      timestamp: String(e.time_of_reading || ''),
+      bp: String((e.repeated_vitals || {}).bp || ''),
+      hr: String((e.repeated_vitals || {}).hr ?? ''),
+      pain: Number((e.repeated_vitals || {}).pain ?? 0),
+      intake: Number(e.intake_ml ?? 0),
+      output: Number(e.output_ml ?? 0),
+      siteCheck: String(e.site_checks || ''),
+      interventions: Array.isArray(e.nursing_interventions) ? (e.nursing_interventions.join(', ')) : String(e.nursing_interventions || '')
+    }))
+  } catch (e) {
+    console.warn('Failed to fetch flow sheets', e)
+    $q.notify({ type: 'warning', message: 'Unable to load flow sheets from server' })
+    flowSheetEntries.value = []
+  }
+}
+
+const loadMar = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/mar/`)
+    type MarApiEntry = {
+      datetime_administered?: string
+      name?: string
+      dose?: string
+      route?: string
+      nurse_initials?: string
+      prn_reason?: string | null
+      prn_response?: string | null
+      withheld_reason?: string | null
+    }
+    const list: MarApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as MarApiEntry[]) : []
+    marEntries.value = list.map((e: MarApiEntry) => ({
+      datetime: String(e.datetime_administered || ''),
+      medName: String(e.name || ''),
+      dose: String(e.dose || ''),
+      route: String(e.route || ''),
+      nurseId: String(e.nurse_initials || ''),
+      isPRN: Boolean(e.prn_reason || e.prn_response),
+      prnReason: String(e.prn_reason || ''),
+      prnResponse: String(e.prn_response || ''),
+      notGiven: Boolean(e.withheld_reason),
+      withheldReason: String(e.withheld_reason || '')
+    }))
+  } catch (e) {
+    console.warn('Failed to fetch MAR', e)
+    $q.notify({ type: 'warning', message: 'Unable to load MAR from server' })
+    marEntries.value = []
+  }
+}
+
+const loadEducation = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/education/`)
+    type EducationApiEntry = {
+      topics?: string[]
+      comprehension_level?: string
+      return_demonstration?: boolean
+      barriers_to_learning?: string[] | string
+    }
+    const list: EducationApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as EducationApiEntry[]) : []
+    // Use the most recent education entry to populate form
+    const latest: EducationApiEntry = list[list.length - 1] ?? {}
+    educationForm.value = {
+      topics: Array.isArray(latest.topics) ? latest.topics : [],
+      warningSigns: '',
+      comprehension: String(latest.comprehension_level || ''),
+      returnDemoSuccess: Boolean(latest.return_demonstration || false),
+      barriers: Array.isArray(latest.barriers_to_learning) ? latest.barriers_to_learning.join(', ') : String(latest.barriers_to_learning || '')
+    }
+    const savedTopics = Array.from(new Set([...(educationForm.value.topics || [])])).map(String)
+    educationTopicOptions.length = 0
+    educationTopicOptions.push(...savedTopics)
+  } catch (e) {
+    console.warn('Failed to fetch education', e)
+    $q.notify({ type: 'warning', message: 'Unable to load education from server' })
+  }
+}
+
+const loadDischarge = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/discharge/`)
+    const d = res.data?.data || {}
+    const vit = d.discharge_vitals || {}
+    dischargeForm.value = {
+      verbalUnderstands: Boolean(d.understanding_confirmed || false),
+      writtenProvided: Boolean(d.written_instructions_provided || false),
+      followUpDate: '',
+      followUpTime: '',
+      equipmentNeeds: Array.isArray(d.equipment_needs) ? d.equipment_needs.join(', ') : String(d.equipment_needs || ''),
+      finalBP: String(vit.bp || ''),
+      finalHR: String(vit.hr ?? ''),
+      transportationStatus: String(d.transportation_status || ''),
+      nurseId: String(d.nurse_signature || ''),
+      patientAcknowledged: Boolean(d.patient_acknowledgment || false)
+    }
+  } catch (e) {
+    console.warn('Failed to fetch discharge', e)
+    $q.notify({ type: 'warning', message: 'Unable to load discharge from server' })
+  }
 }
 
 watch(selectedPatient, (p) => {
   registrationCompleted.value = !!(p && localStorage.getItem(`patient_reg_${p.id}`))
   if (p) {
     loadDemographics();
-    loadIntake(); loadFlowSheet(); loadMar(); loadEducation(); loadDischarge();
+    void loadIntake(); void loadFlowSheet(); void loadMar(); void loadEducation(); void loadDischarge();
   } else {
     demographics.value = null
   }
@@ -1397,15 +1462,46 @@ const ensureDemographicsBeforeSubmit = (): boolean => {
   if (!demographics.value) { $q.notify({ type: 'warning', message: 'Load demographics before submitting the form.' }); return false }
   return true
 }
-const saveIntake = () => {
+const saveIntake = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
   const required = [intakeForm.value.bp, intakeForm.value.hr, intakeForm.value.rr, intakeForm.value.temp, intakeForm.value.o2, intakeForm.value.weight, intakeForm.value.height, intakeForm.value.chiefComplaint, intakeForm.value.mentalStatus, intakeForm.value.fallRisk]
   if (required.some(v => !v)) { $q.notify({ type: 'warning', message: 'Please fill all required fields' }); return }
-  const key = `opd_forms_${selectedPatient.value.id}_intake`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, ...intakeForm.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Intake saved locally' })
+  try {
+    const payload = {
+      vitals: {
+        bp: intakeForm.value.bp,
+        hr: Number(intakeForm.value.hr),
+        rr: Number(intakeForm.value.rr),
+        temp_c: Number(intakeForm.value.temp),
+        o2_sat: Number(intakeForm.value.o2),
+      },
+      weight_kg: Number(intakeForm.value.weight),
+      height_cm: Number(intakeForm.value.height),
+      chief_complaint: intakeForm.value.chiefComplaint,
+      pain_score: Number(intakeForm.value.painScore),
+      allergies: (intakeForm.value.allergies || []).map((a) => ({ substance: a.name, reaction: a.reaction })),
+      current_medications: [],
+      mental_status: intakeForm.value.mentalStatus,
+      fall_risk_score: Number(intakeForm.value.fallRisk),
+      assessed_at: new Date().toISOString(),
+    }
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/intake/`, payload)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Intake saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save intake'))
+    }
+  } catch (err: unknown) {
+    console.error('Save intake failed', err)
+    let msg = 'Failed to save intake';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // Flow Sheets
@@ -1414,13 +1510,34 @@ const flowSheetEntries = ref<FlowEntry[]>([])
 const newFlowEntry = ref<FlowEntry>({ timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' })
 const addFlowEntry = () => { flowSheetEntries.value.push({ ...newFlowEntry.value }); newFlowEntry.value = { timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' } }
 const removeFlowEntry = (idx: number) => { flowSheetEntries.value.splice(idx, 1) }
-const saveFlowSheet = () => {
+const saveFlowSheet = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
-  const key = `opd_forms_${selectedPatient.value.id}_flow`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, entries: flowSheetEntries.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Flow sheet saved locally' })
+  try {
+    const entries = (flowSheetEntries.value || []).map((e: FlowEntry) => ({
+      time_of_reading: e.timestamp,
+      repeated_vitals: { bp: e.bp, hr: Number(e.hr), pain: Number(e.pain) },
+      intake_ml: Number(e.intake),
+      output_ml: Number(e.output),
+      site_checks: e.siteCheck,
+      nursing_interventions: String(e.interventions || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+    }))
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/flow-sheets/`, entries)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Flow sheets saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save flow sheets'))
+    }
+  } catch (err: unknown) {
+    console.error('Save flow sheets failed', err)
+    let msg = 'Failed to save flow sheets';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // MAR
@@ -1435,13 +1552,36 @@ const addMarEntry = () => {
   newMarEntry.value = { datetime: '', medName: '', dose: '', route: '', nurseId: '', isPRN: false, prnReason: '', prnResponse: '', notGiven: false, withheldReason: '' }
 }
 const removeMarEntry = (idx: number) => { marEntries.value.splice(idx, 1) }
-const saveMar = () => {
+const saveMar = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
-  const key = `opd_forms_${selectedPatient.value.id}_mar`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, entries: marEntries.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'MAR saved locally' })
+  try {
+    const entries = (marEntries.value || []).map((e: MarEntry) => ({
+      datetime_administered: e.datetime,
+      name: e.medName,
+      dose: e.dose,
+      route: e.route,
+      nurse_initials: e.nurseId,
+      prn_reason: e.isPRN ? e.prnReason : null,
+      prn_response: e.isPRN ? e.prnResponse : null,
+      withheld_reason: e.notGiven ? e.withheldReason : null,
+    }))
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/mar/`, entries)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'MAR saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save MAR'))
+    }
+  } catch (err: unknown) {
+    console.error('Save MAR failed', err)
+    let msg = 'Failed to save MAR';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // Patient Education
@@ -1465,14 +1605,51 @@ const dischargeForm = ref({
 const resetDischarge = () => {
   dischargeForm.value = { verbalUnderstands: false, writtenProvided: false, followUpDate: '', followUpTime: '', equipmentNeeds: '', finalBP: '', finalHR: '', transportationStatus: '', nurseId: '', patientAcknowledged: false }
 }
-const saveDischarge = () => {
+const saveDischarge = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   const required = [dischargeForm.value.finalBP, dischargeForm.value.finalHR, dischargeForm.value.nurseId]
   if (required.some(v => !v)) { $q.notify({ type: 'warning', message: 'Fill discharge vitals and nurse ID' }); return }
-  const key = `opd_forms_${selectedPatient.value.id}_discharge`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, ...dischargeForm.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Discharge summary saved locally' })
+  try {
+    type DischargePayload = {
+      discharge_vitals: { bp: string; hr: number }
+      understanding_confirmed: boolean
+      written_instructions_provided: boolean
+      follow_up_appointments_made: boolean
+      equipment_needs: string[]
+      transportation_status: string
+      nurse_signature: string
+      patient_acknowledgment: boolean
+      discharged_at?: string
+    }
+    const payload: DischargePayload = {
+      discharge_vitals: { bp: dischargeForm.value.finalBP, hr: Number(dischargeForm.value.finalHR) },
+      understanding_confirmed: Boolean(dischargeForm.value.verbalUnderstands),
+      written_instructions_provided: Boolean(dischargeForm.value.writtenProvided),
+      follow_up_appointments_made: Boolean(dischargeForm.value.followUpDate || dischargeForm.value.followUpTime),
+      equipment_needs: String(dischargeForm.value.equipmentNeeds || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+      transportation_status: dischargeForm.value.transportationStatus,
+      nurse_signature: dischargeForm.value.nurseId,
+      patient_acknowledgment: Boolean(dischargeForm.value.patientAcknowledged),
+    }
+    if (payload.understanding_confirmed) {
+      payload.discharged_at = new Date().toISOString()
+    }
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/discharge/`, payload)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Discharge summary saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save discharge summary'))
+    }
+  } catch (err: unknown) {
+    console.error('Save discharge failed', err)
+    let msg = 'Failed to save discharge summary';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // Doctors state and helpers

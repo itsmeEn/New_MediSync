@@ -26,7 +26,10 @@ from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
 from .serializers import (
     UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, 
     ProfileUpdateSerializer, TwoFactorEnableSerializer,
-    TwoFactorVerifySerializer, TwoFactorDisableSerializer, TwoFactorLoginSerializer
+    TwoFactorVerifySerializer, TwoFactorDisableSerializer, TwoFactorLoginSerializer,
+    NursingIntakeAssessmentSerializer, FlowSheetEntrySerializer, MARRecordSerializer,
+    EducationEntrySerializer, DischargeSummarySerializer,
+    HPFormSerializer, ProgressNoteSerializer, ProviderOrderSerializer, OperativeReportSerializer
 )
 
 # These classes are correctly defined and can be used as they are.
@@ -522,6 +525,695 @@ def get_nurse_patients(request):
             'error': f'Error fetching patients: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# ============================================
+# Nurse-centric Forms CRUD Endpoints
+# ============================================
+
+def _require_nurse(user):
+    if user.role != 'nurse':
+        return Response({'error': 'Only nurses can access this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
+    return None
+
+
+def _get_patient_profile(patient_id):
+    try:
+        return PatientProfile.objects.select_related('user').get(id=patient_id)
+    except PatientProfile.DoesNotExist:
+        return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def nurse_patient_forms_overview(request, patient_id):
+    """Return all nurse-centric forms for a given patient."""
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response({
+        'success': True,
+        'patient': {
+            'id': profile.id,
+            'full_name': profile.user.full_name,
+            'email': profile.user.email,
+            'gender': profile.user.gender,
+            'blood_type': profile.blood_type,
+            'medical_condition': profile.medical_condition,
+        },
+        'forms': {
+            'nursing_intake_assessment': profile.nursing_intake_assessment or {},
+            'graphic_flow_sheets': list(profile.graphic_flow_sheets or []),
+            'medication_administration_records': list(profile.medication_administration_records or []),
+            'patient_education_record': list(profile.patient_education_record or []),
+            'discharge_checklist_summary': profile.discharge_checklist_summary or {},
+        }
+    })
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_intake(request, patient_id):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': profile.nursing_intake_assessment or {}})
+
+    # PUT
+    serializer = NursingIntakeAssessmentSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        profile.set_nursing_intake(serializer.validated_data)
+        valid, errors = profile.validate_nurse_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['nursing_intake_assessment'])
+    return Response({'success': True, 'data': profile.nursing_intake_assessment})
+
+
+@api_view(['GET', 'POST', 'PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_flow_sheets(request, patient_id):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.graphic_flow_sheets or [])})
+
+    if request.method == 'POST':
+        serializer = FlowSheetEntrySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            profile.add_flow_sheet_entry(serializer.validated_data)
+            valid, errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['graphic_flow_sheets'])
+        return Response({'success': True, 'data': list(profile.graphic_flow_sheets or [])}, status=status.HTTP_201_CREATED)
+
+    # PUT replace full list
+    if isinstance(request.data, list):
+        # Validate each entry
+        errors = []
+        cleaned = []
+        for idx, item in enumerate(request.data):
+            s = FlowSheetEntrySerializer(data=item)
+            if not s.is_valid():
+                errors.append({idx: s.errors})
+            else:
+                cleaned.append(s.validated_data)
+        if errors:
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            profile.graphic_flow_sheets = cleaned
+            valid, val_errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': val_errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['graphic_flow_sheets'])
+        return Response({'success': True, 'data': list(profile.graphic_flow_sheets or [])})
+
+    return Response({'error': 'Invalid payload; expected list for PUT.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_flow_sheets_update(request, patient_id, index):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = FlowSheetEntrySerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.graphic_flow_sheets or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        items[index] = serializer.validated_data
+        profile.graphic_flow_sheets = items
+        valid, errors = profile.validate_nurse_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['graphic_flow_sheets'])
+    return Response({'success': True, 'data': list(profile.graphic_flow_sheets or [])})
+
+
+@api_view(['GET', 'POST', 'PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_mar_records(request, patient_id):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.medication_administration_records or [])})
+
+    if request.method == 'POST':
+        serializer = MARRecordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            mar = list(profile.medication_administration_records or [])
+            mar.append(serializer.validated_data)
+            profile.medication_administration_records = mar
+            valid, errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['medication_administration_records'])
+        return Response({'success': True, 'data': list(profile.medication_administration_records or [])}, status=status.HTTP_201_CREATED)
+
+    # PUT replace full list
+    if isinstance(request.data, list):
+        errors = []
+        cleaned = []
+        for idx, item in enumerate(request.data):
+            s = MARRecordSerializer(data=item)
+            if not s.is_valid():
+                errors.append({idx: s.errors})
+            else:
+                cleaned.append(s.validated_data)
+        if errors:
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            profile.medication_administration_records = cleaned
+            valid, val_errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': val_errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['medication_administration_records'])
+        return Response({'success': True, 'data': list(profile.medication_administration_records or [])})
+
+    return Response({'error': 'Invalid payload; expected list for PUT.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_mar_update(request, patient_id, index):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = MARRecordSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.medication_administration_records or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        items[index] = serializer.validated_data
+        profile.medication_administration_records = items
+        valid, errors = profile.validate_nurse_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['medication_administration_records'])
+    return Response({'success': True, 'data': list(profile.medication_administration_records or [])})
+
+
+@api_view(['GET', 'POST', 'PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_education_records(request, patient_id):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.patient_education_record or [])})
+
+    if request.method == 'POST':
+        serializer = EducationEntrySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            edu = list(profile.patient_education_record or [])
+            edu.append(serializer.validated_data)
+            profile.patient_education_record = edu
+            valid, errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['patient_education_record'])
+        return Response({'success': True, 'data': list(profile.patient_education_record or [])}, status=status.HTTP_201_CREATED)
+
+    # PUT replace full list
+    if isinstance(request.data, list):
+        errors = []
+        cleaned = []
+        for idx, item in enumerate(request.data):
+            s = EducationEntrySerializer(data=item)
+            if not s.is_valid():
+                errors.append({idx: s.errors})
+            else:
+                cleaned.append(s.validated_data)
+        if errors:
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            profile.patient_education_record = cleaned
+            valid, val_errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'errors': val_errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['patient_education_record'])
+        return Response({'success': True, 'data': list(profile.patient_education_record or [])})
+
+    return Response({'error': 'Invalid payload; expected list for PUT.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_education_update(request, patient_id, index):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = EducationEntrySerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.patient_education_record or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        items[index] = serializer.validated_data
+        profile.patient_education_record = items
+        valid, errors = profile.validate_nurse_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['patient_education_record'])
+    return Response({'success': True, 'data': list(profile.patient_education_record or [])})
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def nurse_discharge_summary(request, patient_id):
+    deny = _require_nurse(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': profile.discharge_checklist_summary or {}})
+
+    serializer = DischargeSummarySerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        profile.set_discharge_summary(serializer.validated_data)
+        valid, errors = profile.validate_nurse_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['discharge_checklist_summary'])
+    return Response({'success': True, 'data': profile.discharge_checklist_summary})
+
+
+# ============================================
+# Doctor-centric Forms CRUD Endpoints
+# ============================================
+
+def _require_doctor(user):
+    if user.role not in ('doctor', 'admin'):
+        return Response({'error': 'Only doctors can access this endpoint.'}, status=status.HTTP_403_FORBIDDEN)
+    return None
+
+
+def _doctor_authorized_for_profile(user, profile: PatientProfile):
+    # Allow if admin, or assigned doctor, or the requesting doctor is the patient's assigned doctor
+    if user.role == 'admin':
+        return True
+    return profile.assigned_doctor_id == user.id
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def doctor_patient_forms_overview(request, patient_id):
+    """Return doctor-centric forms for a given patient (restricted to assigned doctor/admin)."""
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    return Response({
+        'success': True,
+        'patient': {
+            'id': profile.id,
+            'full_name': profile.user.full_name,
+            'email': profile.user.email,
+        },
+        'forms': {
+            'history_physical_forms': list(profile.history_physical_forms or []),
+            'progress_notes': list(profile.progress_notes or []),
+            'provider_order_sheets': list(profile.provider_order_sheets or []),
+            'operative_procedure_reports': list(profile.operative_procedure_reports or []),
+        }
+    })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def doctor_hp_forms(request, patient_id):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.history_physical_forms or [])})
+
+    serializer = HPFormSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    entry = dict(serializer.validated_data)
+    # Enrich server-side
+    entry.setdefault('provider_signature', request.user.full_name)
+    entry.setdefault('provider_id', str(request.user.id))
+    entry.setdefault('created_at', datetime.utcnow().isoformat())
+
+    with transaction.atomic():
+        profile.add_hp_form(entry)
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['history_physical_forms'])
+    return Response({'success': True, 'data': list(profile.history_physical_forms or [])})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def doctor_hp_forms_update(request, patient_id, index):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = HPFormSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.history_physical_forms or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry = dict(serializer.validated_data)
+        entry.setdefault('provider_signature', request.user.full_name)
+        entry.setdefault('provider_id', str(request.user.id))
+        entry.setdefault('created_at', datetime.utcnow().isoformat())
+        items[index] = entry
+        profile.history_physical_forms = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['history_physical_forms'])
+    return Response({'success': True, 'data': list(profile.history_physical_forms or [])})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def doctor_progress_notes(request, patient_id):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.progress_notes or [])})
+
+    serializer = ProgressNoteSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    entry = dict(serializer.validated_data)
+    # Normalize date_time
+    entry['date_time'] = entry.get('date_time') or entry.get('date_time_note') or datetime.utcnow().isoformat()
+    entry.pop('date_time_note', None)
+    entry.setdefault('provider_signature', request.user.full_name)
+    entry.setdefault('created_at', datetime.utcnow().isoformat())
+
+    with transaction.atomic():
+        items = list(profile.progress_notes or [])
+        items.append(entry)
+        profile.progress_notes = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['progress_notes'])
+    return Response({'success': True, 'data': list(profile.progress_notes or [])})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def doctor_progress_notes_update(request, patient_id, index):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = ProgressNoteSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.progress_notes or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry = dict(serializer.validated_data)
+        entry['date_time'] = entry.get('date_time') or entry.get('date_time_note') or datetime.utcnow().isoformat()
+        entry.pop('date_time_note', None)
+        entry.setdefault('provider_signature', request.user.full_name)
+        entry.setdefault('created_at', datetime.utcnow().isoformat())
+        items[index] = entry
+        profile.progress_notes = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['progress_notes'])
+    return Response({'success': True, 'data': list(profile.progress_notes or [])})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def doctor_provider_orders(request, patient_id):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.provider_order_sheets or [])})
+
+    serializer = ProviderOrderSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    entry = dict(serializer.validated_data)
+    entry.setdefault('ordering_provider', request.user.full_name)
+    entry.setdefault('date_time_placed', datetime.utcnow().isoformat())
+    entry.setdefault('created_at', datetime.utcnow().isoformat())
+
+    with transaction.atomic():
+        items = list(profile.provider_order_sheets or [])
+        items.append(entry)
+        profile.provider_order_sheets = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['provider_order_sheets'])
+    return Response({'success': True, 'data': list(profile.provider_order_sheets or [])})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def doctor_provider_orders_update(request, patient_id, index):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = ProviderOrderSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.provider_order_sheets or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry = dict(serializer.validated_data)
+        entry.setdefault('ordering_provider', request.user.full_name)
+        entry.setdefault('date_time_placed', datetime.utcnow().isoformat())
+        entry.setdefault('created_at', datetime.utcnow().isoformat())
+        items[index] = entry
+        profile.provider_order_sheets = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['provider_order_sheets'])
+    return Response({'success': True, 'data': list(profile.provider_order_sheets or [])})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def doctor_operative_reports(request, patient_id):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        return Response({'success': True, 'data': list(profile.operative_procedure_reports or [])})
+
+    serializer = OperativeReportSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    entry = dict(serializer.validated_data)
+    entry.setdefault('patient_id', str(profile.user_id))
+    entry.setdefault('surgeon_signature', request.user.full_name)
+    entry.setdefault('date_time_performed', datetime.utcnow().isoformat())
+    entry.setdefault('created_at', datetime.utcnow().isoformat())
+
+    with transaction.atomic():
+        items = list(profile.operative_procedure_reports or [])
+        items.append(entry)
+        profile.operative_procedure_reports = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['operative_procedure_reports'])
+    return Response({'success': True, 'data': list(profile.operative_procedure_reports or [])})
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def doctor_operative_reports_update(request, patient_id, index):
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    serializer = OperativeReportSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        items = list(profile.operative_procedure_reports or [])
+        if index < 0 or index >= len(items):
+            return Response({'error': 'Index out of range.'}, status=status.HTTP_400_BAD_REQUEST)
+        entry = dict(serializer.validated_data)
+        entry.setdefault('patient_id', str(profile.user_id))
+        entry.setdefault('surgeon_signature', request.user.full_name)
+        entry.setdefault('date_time_performed', datetime.utcnow().isoformat())
+        entry.setdefault('created_at', datetime.utcnow().isoformat())
+        items[index] = entry
+        profile.operative_procedure_reports = items
+        valid, errors = profile.validate_doctor_forms_minimal()
+        if not valid:
+            transaction.set_rollback(True)
+            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+        profile.save(update_fields=['operative_procedure_reports'])
+    return Response({'success': True, 'data': list(profile.operative_procedure_reports or [])})
 def calculate_age(birth_date):
     """Calculate age from birth date"""
     if not birth_date:
