@@ -784,6 +784,9 @@ def patient_dashboard_summary(request):
     - nowServing: unified index of the first patient (1 if any)
     - currentPatient: name of the patient currently at the top of the unified queue
     - myPosition: the authenticated patient's unified position in the queue
+    Also returns:
+    - estimatedWaitMins: integer minutes based on relative baseline calculation
+    - progressValue: placeholder progress (0 for now)
     """
     try:
         department = request.query_params.get('department', 'OPD')
@@ -854,6 +857,37 @@ def patient_dashboard_summary(request):
                 if it.get('patient_user_id') == my_user_id:
                     summary['myPosition'] = str(idx)
                     break
+
+        # Compute estimated wait minutes for the current patient (or department fallback)
+        estimated_wait_minutes = 0
+        try:
+            queue_entry = PriorityQueue.objects.filter(
+                patient__user=request.user,
+                department=department,
+                status__in=['waiting', 'in_progress']
+            ).first()
+            if not queue_entry:
+                queue_entry = QueueManagement.objects.filter(
+                    patient__user=request.user,
+                    department=department,
+                    status__in=['waiting', 'in_progress']
+                ).first()
+            if queue_entry:
+                est_td = queue_entry.get_estimated_wait_time()
+                if est_td:
+                    estimated_wait_minutes = max(0, int(est_td.total_seconds() // 60))
+            else:
+                try:
+                    qs = QueueStatus.objects.get(department=department)
+                    if qs.estimated_wait_time:
+                        estimated_wait_minutes = max(0, int(qs.estimated_wait_time.total_seconds() // 60))
+                except QueueStatus.DoesNotExist:
+                    pass
+        except Exception:
+            pass
+
+        summary['estimatedWaitMins'] = estimated_wait_minutes
+        summary['progressValue'] = 0
 
         return Response(summary, status=status.HTTP_200_OK)
 
@@ -1687,6 +1721,7 @@ def get_available_doctors(request):
     """
     Get available verified doctors by specialization with optional search functionality.
     Only shows doctors who have completed admin verification process.
+    For patients, filters doctors by the same hospital where the patient is registered.
     """
     try:
         user = request.user
@@ -1704,13 +1739,31 @@ def get_available_doctors(request):
         search_query = request.GET.get('search', '').strip()
         
         # Get only admin-verified doctors with the specified specialization
-        from backend.users.models import GeneralDoctorProfile
+        from backend.users.models import GeneralDoctorProfile, PatientProfile
         
         doctors_query = GeneralDoctorProfile.objects.filter(
             user__verification_status='approved',  # Only admin-verified doctors for security
             user__is_active=True,
             available_for_consultation=True
         )
+        
+        # Filter doctors by patient's registered hospital if the user is a patient
+        if user.role == 'patient':
+            try:
+                patient_profile = PatientProfile.objects.get(user=user)
+                patient_hospital = patient_profile.hospital
+                
+                if patient_hospital:
+                    # Filter doctors who work at the same hospital as the patient
+                    doctors_query = doctors_query.filter(user__hospital_name=patient_hospital)
+            except PatientProfile.DoesNotExist:
+                # If patient profile doesn't exist, return empty list for security
+                return Response({
+                    'doctors': [],
+                    'total_count': 0,
+                    'message': 'Patient profile not found. Please complete your registration.',
+                    'error': 'Patient profile required for appointment scheduling'
+                }, status=status.HTTP_404_NOT_FOUND)
         
         if specialization:
             doctors_query = doctors_query.filter(specialization__icontains=specialization)
@@ -1730,11 +1783,22 @@ def get_available_doctors(request):
                 'emergency-medicine': ['emergency', 'emergency medicine']
             }
             keywords = dept_map.get(dept_slug, [])
-            if keywords:
-                q = Q()
-                for kw in keywords:
-                    q |= Q(specialization__icontains=kw)
-                doctors_query = doctors_query.filter(q)
+            # Build combined filter: direct slug match OR keyword-based match
+            q = Q(
+                specialization__iexact=dept_slug
+            ) | Q(
+                specialization__icontains=dept_slug
+            ) | Q(
+                specialization__icontains=dept_slug.replace('-', ' ')
+            ) | Q(
+                specialization__icontains=dept_slug.replace('-', '_')
+            )
+            for kw in keywords:
+                q |= Q(specialization__icontains=kw)
+            # Include doctors with blank specialization for General Medicine
+            if dept_slug == 'general-medicine':
+                q |= Q(specialization__isnull=True) | Q(specialization='')
+            doctors_query = doctors_query.filter(q)
         
         # Apply search filter if search query is provided
         if search_query:
