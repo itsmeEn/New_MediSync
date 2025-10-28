@@ -217,3 +217,143 @@ class TwoFactorLoginSerializer(serializers.Serializer):
         if not value.isdigit():
             raise serializers.ValidationError("OTP code must contain only digits.")
         return value
+
+
+# ---- Nurse-centric form serializers ----
+
+class NursingIntakeAssessmentSerializer(serializers.Serializer):
+    """
+    Serializer for Nursing Intake & Assessment. Uses permissive JSON fields
+    with minimal validation to mirror model-level checks.
+    """
+    vitals = serializers.JSONField(required=False)
+    weight_kg = serializers.FloatField(required=False)
+    height_cm = serializers.FloatField(required=False)
+    chief_complaint = serializers.CharField(required=False, allow_blank=True)
+    pain_score = serializers.FloatField(required=False)
+    allergies = serializers.JSONField(required=False)
+    current_medications = serializers.JSONField(required=False)
+    mental_status = serializers.CharField(required=False, allow_blank=True)
+    fall_risk_score = serializers.FloatField(required=False)
+    assessed_at = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_pain_score(self, value):
+        if value is None:
+            return value
+        if value < 0 or value > 10:
+            raise serializers.ValidationError("pain_score must be between 0 and 10")
+        return value
+
+
+class FlowSheetEntrySerializer(serializers.Serializer):
+    """Single graphic flow sheet entry."""
+    time_of_reading = serializers.CharField(required=True)
+    repeated_vitals = serializers.JSONField(required=False)
+    intake_ml = serializers.FloatField(required=False)
+    output_ml = serializers.FloatField(required=False)
+    site_checks = serializers.CharField(required=False, allow_blank=True)
+    nursing_interventions = serializers.JSONField(required=False)
+
+
+class MARRecordSerializer(serializers.Serializer):
+    """Medication Administration Record entry."""
+    datetime_administered = serializers.CharField(required=True)
+    name = serializers.CharField(required=True)
+    dose = serializers.CharField(required=True)
+    route = serializers.CharField(required=True)
+    nurse_initials = serializers.CharField(required=True)
+    prn_reason = serializers.CharField(required=False, allow_blank=True)
+    prn_response = serializers.CharField(required=False, allow_blank=True)
+    withheld_reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class EducationEntrySerializer(serializers.Serializer):
+    topics = serializers.JSONField(required=True)
+    teaching_method = serializers.CharField(required=True)
+    comprehension_level = serializers.CharField(required=False, allow_blank=True)
+    return_demonstration = serializers.CharField(required=False, allow_blank=True)
+    barriers_to_learning = serializers.JSONField(required=False)
+    recorded_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class DischargeSummarySerializer(serializers.Serializer):
+    discharge_vitals = serializers.JSONField(required=False)
+    understanding_confirmed = serializers.BooleanField(required=False)
+    written_instructions_provided = serializers.BooleanField(required=False)
+    follow_up_appointments_made = serializers.BooleanField(required=False)
+    equipment_needs = serializers.JSONField(required=False)
+    transportation_status = serializers.CharField(required=False, allow_blank=True)
+    nurse_signature = serializers.CharField(required=False, allow_blank=True)
+    patient_acknowledgment = serializers.BooleanField(required=False)
+    discharged_at = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs.get("understanding_confirmed") and not attrs.get("discharged_at"):
+            raise serializers.ValidationError({"discharged_at": "Required when understanding_confirmed is true"})
+        return attrs
+
+
+# ---- Doctor-centric form serializers ----
+
+class HPFormSerializer(serializers.Serializer):
+    """History & Physical form entry serializer (permissive; model enforces minimal checks)."""
+    patient_name = serializers.CharField(required=False, allow_blank=True)
+    dob = serializers.CharField(required=False, allow_blank=True)
+    mrn = serializers.CharField(required=False, allow_blank=True)
+    provider_signature = serializers.CharField(required=False, allow_blank=True)
+    provider_id = serializers.CharField(required=False, allow_blank=True)
+    chief_complaint = serializers.CharField(required=False, allow_blank=True)
+    history_present_illness = serializers.CharField(required=False, allow_blank=True)
+    past_medical_history = serializers.CharField(required=False, allow_blank=True)
+    social_history = serializers.CharField(required=False, allow_blank=True)
+    review_of_systems = serializers.JSONField(required=False)
+    physical_exam = serializers.CharField(required=False, allow_blank=True)
+    assessment = serializers.CharField(required=False, allow_blank=True)
+    diagnoses_icd_codes = serializers.JSONField(required=False)
+    initial_plan = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProgressNoteSerializer(serializers.Serializer):
+    """SOAP progress note serializer (accepts either date_time or date_time_note)."""
+    date_time = serializers.CharField(required=False, allow_blank=True)
+    date_time_note = serializers.CharField(required=False, allow_blank=True)
+    subjective = serializers.CharField(required=False, allow_blank=True)
+    objective = serializers.CharField(required=False, allow_blank=True)
+    vitals = serializers.JSONField(required=False)
+    lab_imaging_results = serializers.CharField(required=False, allow_blank=True)
+    assessment = serializers.CharField(required=False, allow_blank=True)
+    plan = serializers.CharField(required=False, allow_blank=True)
+    follow_up_date = serializers.CharField(required=False, allow_blank=True)
+    provider_signature = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProviderOrderSerializer(serializers.Serializer):
+    """Provider order sheet serializer."""
+    ordering_provider = serializers.CharField(required=False, allow_blank=True)
+    date_time_placed = serializers.CharField(required=False, allow_blank=True)
+    order_type = serializers.CharField(required=False, allow_blank=True)
+    medication_orders = serializers.JSONField(required=False)
+    diagnostic_orders = serializers.JSONField(required=False)
+    consultation_orders = serializers.JSONField(required=False)
+    general_orders = serializers.JSONField(required=False)
+    order_status = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)
+
+
+class OperativeReportSerializer(serializers.Serializer):
+    """Operative/procedure report serializer."""
+    patient_id = serializers.CharField(required=False, allow_blank=True)
+    date_time_performed = serializers.CharField(required=False, allow_blank=True)
+    procedure_name = serializers.CharField(required=False, allow_blank=True)
+    indications = serializers.CharField(required=False, allow_blank=True)
+    consent_status = serializers.CharField(required=False, allow_blank=True)
+    anesthesia_type = serializers.CharField(required=False, allow_blank=True)
+    anesthesia_dose = serializers.CharField(required=False, allow_blank=True)
+    procedure_steps = serializers.CharField(required=False, allow_blank=True)
+    findings = serializers.CharField(required=False, allow_blank=True)
+    complications = serializers.CharField(required=False, allow_blank=True)
+    disposition_plan = serializers.CharField(required=False, allow_blank=True)
+    surgeon_signature = serializers.CharField(required=False, allow_blank=True)
+    created_at = serializers.CharField(required=False, allow_blank=True)

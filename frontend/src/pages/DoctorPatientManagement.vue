@@ -1007,6 +1007,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
+import type { AxiosError } from 'axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
 // Form validation helpers
@@ -1025,6 +1026,9 @@ interface Patient {
   user_id: number;
   full_name: string;
   patient_name?: string;
+  // Optional identifiers commonly used across forms
+  date_of_birth?: string;
+  mrn?: string;
   email?: string;
   age?: number | null;
   gender?: string;
@@ -1646,6 +1650,8 @@ const showDoctorFormDialog = ref(false)
 const selectedFormType = ref<FormType | null>(null)
 const selectedFormPatient = ref<Patient | null>(null)
 const formSubmitting = ref(false)
+const doctorFormLoading = ref(false)
+const editingIndex = ref<number | null>(null)
 
 // Form type options for dropdown
 const formTypeOptions = [
@@ -1870,6 +1876,7 @@ const openFormForPatient = (patient: Patient, type: FormType): void => {
   selectedFormType.value = type
   resetForm(type)
   showDoctorFormDialog.value = true
+  void loadExistingDoctorForms()
 }
 
 const validateForm = (): boolean => {
@@ -1928,32 +1935,261 @@ const saveDoctorForm = async (): Promise<void> => {
   formSubmitting.value = true
   try {
     const pid = selectedFormPatient.value?.user_id ?? selectedFormPatient.value?.id
-    const payload = {
-      type: selectedFormType.value,
-      patient_id: pid,
-      patient_name: selectedFormPatient.value?.full_name ?? selectedFormPatient.value?.patient_name,
-      provider_id: userProfile.value.id,
-      provider_name: userProfile.value.full_name,
-      timestamp: new Date().toISOString(),
-      data:
-        selectedFormType.value === 'hp' ? hpForm.value :
-        selectedFormType.value === 'soap' ? soapForm.value :
-        selectedFormType.value === 'orders' ? orderForm.value :
-        selectedFormType.value === 'procedure' ? procedureForm.value : {}
+    const endpointBase = `/users/doctor/patient/${pid}`
+    let endpoint = ''
+    let data: Record<string, unknown> = {}
+
+    if (selectedFormType.value === 'hp') {
+      endpoint = `${endpointBase}/hp/`
+      const physicalExam = [
+        hpForm.value.pe_general && `General: ${hpForm.value.pe_general}`,
+        hpForm.value.pe_heent && `HEENT: ${hpForm.value.pe_heent}`,
+        hpForm.value.pe_cardiac && `Cardiac: ${hpForm.value.pe_cardiac}`,
+        hpForm.value.pe_pulmonary && `Pulmonary: ${hpForm.value.pe_pulmonary}`,
+        hpForm.value.pe_abdomen && `Abdomen: ${hpForm.value.pe_abdomen}`,
+        hpForm.value.pe_neurologic && `Neurologic: ${hpForm.value.pe_neurologic}`,
+      ].filter(Boolean).join('\n')
+      data = {
+        patient_name: selectedFormPatient.value?.full_name ?? selectedFormPatient.value?.patient_name ?? '',
+        dob: selectedFormPatient.value?.date_of_birth ?? '',
+        mrn: selectedFormPatient.value?.mrn ?? '',
+        chief_complaint: hpForm.value.chief_complaint,
+        history_present_illness: hpForm.value.hpi,
+        past_medical_history: hpForm.value.pmh,
+        social_history: hpForm.value.social_history,
+        review_of_systems: hpForm.value.ros_notes ? [hpForm.value.ros_notes] : [],
+        physical_exam: physicalExam,
+        assessment: hpForm.value.assessment,
+        diagnoses_icd_codes: hpForm.value.assessment_codes ? hpForm.value.assessment_codes.split(',').map(s => s.trim()).filter(Boolean) : [],
+        initial_plan: hpForm.value.plan,
+      }
+    } else if (selectedFormType.value === 'soap') {
+      endpoint = `${endpointBase}/progress-notes/`
+      data = {
+        date_time_note: new Date().toISOString(),
+        subjective: soapForm.value.subjective,
+        objective: soapForm.value.objective,
+        assessment: soapForm.value.assessment,
+        plan: soapForm.value.plan,
+      }
+    } else if (selectedFormType.value === 'orders') {
+      endpoint = `${endpointBase}/orders/`
+      data = {
+        order_type: orderForm.value.order_type,
+        order_status: orderForm.value.order_status,
+        medication_orders: {
+          drug_name: orderForm.value.med_drug_name,
+          dose: orderForm.value.med_dose,
+          route: orderForm.value.med_route,
+          frequency: orderForm.value.med_frequency,
+        },
+        diagnostic_orders: {
+          test_name: orderForm.value.diag_test_name,
+          priority: orderForm.value.diag_priority,
+          reason: orderForm.value.diag_reason,
+        },
+        consultation_orders: {
+          specialty: orderForm.value.consult_specialty,
+          question: orderForm.value.consult_reason,
+        },
+        general_orders: {
+          diet: orderForm.value.general_diet,
+          activity_level: orderForm.value.general_activity_level,
+          vitals_frequency: orderForm.value.general_vitals_frequency,
+          isolation_status: orderForm.value.general_isolation_status,
+        },
+      }
+    } else if (selectedFormType.value === 'procedure') {
+      endpoint = `${endpointBase}/operative-reports/`
+      data = {
+        procedure_name: procedureForm.value.procedure_name,
+        indications: procedureForm.value.indications,
+        consent_status: procedureForm.value.consent_obtained ? 'obtained' : 'unknown',
+        anesthesia_type: procedureForm.value.anesthesia,
+        anesthesia_dose: '',
+        procedure_steps: procedureForm.value.steps,
+        findings: procedureForm.value.findings,
+        complications: procedureForm.value.complications,
+        disposition_plan: procedureForm.value.disposition_plan,
+      }
     }
-    await api.post('/operations/client-log/', {
-      level: 'info',
-      message: 'doctor_form_submit',
-      route: 'DoctorPatientManagement',
-      context: payload,
-    })
-    $q.notify({ type: 'positive', message: 'Form saved (logged) successfully', position: 'top' })
+
+    if (!endpoint) throw new Error('Invalid form type')
+
+    if (editingIndex.value !== null) {
+      await api.put(`${endpoint}${editingIndex.value}/`, data)
+      $q.notify({ type: 'positive', message: 'Form updated successfully', position: 'top' })
+    } else {
+      await api.post(endpoint, data)
+      $q.notify({ type: 'positive', message: 'Form submitted successfully', position: 'top' })
+    }
     showDoctorFormDialog.value = false
   } catch (error) {
     console.error('Failed to save form:', error)
-    $q.notify({ type: 'negative', message: 'Failed to save form', position: 'top' })
+    let message = 'Failed to save form'
+    const axiosErr = error as AxiosError<{ detail?: string }>
+    if (axiosErr && axiosErr.response) {
+      message = axiosErr.response.data?.detail ?? message
+    } else if (typeof (error as { message?: string }).message === 'string') {
+      message = (error as { message?: string }).message ?? message
+    }
+    $q.notify({ type: 'negative', message, position: 'top' })
   } finally {
     formSubmitting.value = false
+  }
+}
+
+// Backend record shapes used when prefilling forms from GET responses
+type HPRecord = {
+  chief_complaint?: string;
+  history_present_illness?: string;
+  past_medical_history?: string;
+  social_history?: string;
+  review_of_systems?: string[] | string;
+  physical_exam?: string;
+  assessment?: string;
+  diagnoses_icd_codes?: string[];
+  initial_plan?: string;
+}
+
+type SOAPRecord = {
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+}
+
+type OrdersRecord = {
+  order_type?: OrderFormModel['order_type'];
+  order_status?: OrderFormModel['order_status'];
+  medication_orders?: {
+    drug_name?: string;
+    dose?: string;
+    route?: string;
+    frequency?: string;
+  };
+  diagnostic_orders?: {
+    test_name?: string;
+    priority?: OrderFormModel['diag_priority'];
+    reason?: string;
+  };
+  consultation_orders?: {
+    specialty?: string;
+    question?: string;
+  };
+  general_orders?: {
+    diet?: string;
+    activity_level?: string;
+    vitals_frequency?: string;
+    isolation_status?: string;
+  };
+}
+
+type ProcedureRecord = {
+  procedure_name?: string;
+  indications?: string;
+  consent_status?: string;
+  anesthesia_type?: string;
+  procedure_steps?: string;
+  findings?: string;
+  complications?: string;
+  disposition_plan?: string;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object'
+
+const loadExistingDoctorForms = async (): Promise<void> => {
+  if (!selectedFormType.value || !selectedFormPatient.value) return
+  doctorFormLoading.value = true
+  editingIndex.value = null
+  try {
+    const pid = selectedFormPatient.value.user_id ?? selectedFormPatient.value.id
+    const endpointBase = `/users/doctor/patient/${pid}`
+    let endpoint = ''
+    if (selectedFormType.value === 'hp') endpoint = `${endpointBase}/hp/`
+    else if (selectedFormType.value === 'soap') endpoint = `${endpointBase}/progress-notes/`
+    else if (selectedFormType.value === 'orders') endpoint = `${endpointBase}/orders/`
+    else if (selectedFormType.value === 'procedure') endpoint = `${endpointBase}/operative-reports/`
+    if (!endpoint) return
+    const resp = await api.get(endpoint)
+    const raw = resp.data?.data
+    const list: unknown[] = Array.isArray(raw) ? raw : []
+    if (list.length > 0) {
+      const lastIdx = list.length - 1
+      const last = list[lastIdx]
+      editingIndex.value = lastIdx
+      if (selectedFormType.value === 'hp') {
+        if (isRecord(last)) {
+          const hp = last as Partial<HPRecord>
+          hpForm.value.chief_complaint = hp.chief_complaint ?? ''
+          hpForm.value.hpi = hp.history_present_illness ?? ''
+          hpForm.value.pmh = hp.past_medical_history ?? ''
+          hpForm.value.allergies_medications = ''
+          hpForm.value.social_history = hp.social_history ?? ''
+          hpForm.value.ros_notes = Array.isArray(hp.review_of_systems) ? hp.review_of_systems.join('; ') : (typeof hp.review_of_systems === 'string' ? hp.review_of_systems : '')
+          const pe: string = hp.physical_exam ?? ''
+          hpForm.value.pe_general = pe
+          hpForm.value.pe_heent = ''
+          hpForm.value.pe_cardiac = ''
+          hpForm.value.pe_pulmonary = ''
+          hpForm.value.pe_abdomen = ''
+          hpForm.value.pe_neurologic = ''
+          hpForm.value.assessment = hp.assessment ?? ''
+          hpForm.value.assessment_codes = Array.isArray(hp.diagnoses_icd_codes) ? hp.diagnoses_icd_codes.join(', ') : ''
+          hpForm.value.plan = hp.initial_plan ?? ''
+        }
+      } else if (selectedFormType.value === 'soap') {
+        if (isRecord(last)) {
+          const soap = last as Partial<SOAPRecord>
+          soapForm.value.subjective = soap.subjective ?? ''
+          soapForm.value.objective = soap.objective ?? ''
+          soapForm.value.assessment = soap.assessment ?? ''
+          soapForm.value.plan = soap.plan ?? ''
+        }
+      } else if (selectedFormType.value === 'orders') {
+        if (isRecord(last)) {
+          const ord = last as Partial<OrdersRecord>
+          const med = ord.medication_orders ?? {}
+          orderForm.value.order_type = ord.order_type ?? ''
+          orderForm.value.order_status = ord.order_status ?? ''
+          orderForm.value.med_drug_name = med.drug_name ?? ''
+          orderForm.value.med_dose = med.dose ?? ''
+          orderForm.value.med_route = med.route ?? ''
+          orderForm.value.med_frequency = med.frequency ?? ''
+          const diag = ord.diagnostic_orders ?? {}
+          orderForm.value.diag_test_name = diag.test_name ?? ''
+          orderForm.value.diag_priority = diag.priority ?? ''
+          orderForm.value.diag_reason = diag.reason ?? ''
+          const consult = ord.consultation_orders ?? {}
+          orderForm.value.consult_specialty = consult.specialty ?? ''
+          orderForm.value.consult_reason = consult.question ?? ''
+          const gen = ord.general_orders ?? {}
+          orderForm.value.general_diet = gen.diet ?? ''
+          orderForm.value.general_activity_level = gen.activity_level ?? ''
+          orderForm.value.general_vitals_frequency = gen.vitals_frequency ?? ''
+          orderForm.value.general_isolation_status = gen.isolation_status ?? ''
+        }
+      } else if (selectedFormType.value === 'procedure') {
+        if (isRecord(last)) {
+          const proc = last as Partial<ProcedureRecord>
+          procedureForm.value.procedure_name = proc.procedure_name ?? ''
+          procedureForm.value.indications = proc.indications ?? ''
+          procedureForm.value.consent_obtained = (proc.consent_status ?? '') === 'obtained'
+          procedureForm.value.anesthesia = proc.anesthesia_type ?? ''
+          procedureForm.value.steps = proc.procedure_steps ?? ''
+          procedureForm.value.findings = proc.findings ?? ''
+          procedureForm.value.complications = proc.complications ?? ''
+          procedureForm.value.disposition_plan = proc.disposition_plan ?? ''
+        }
+      }
+      $q.notify({ type: 'info', message: 'Loaded latest record for editing', position: 'top' })
+    } else {
+      editingIndex.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load doctor forms:', error)
+  } finally {
+    doctorFormLoading.value = false
   }
 }
 
