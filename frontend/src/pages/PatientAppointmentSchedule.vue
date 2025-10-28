@@ -12,7 +12,7 @@
         <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm">
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
@@ -748,6 +748,7 @@ const loadDoctors = async () => {
       full_name?: string
       department?: string
       specialization?: string
+      hospital_name?: string
       is_available?: boolean
       current_patients?: number
       verification_status?: string
@@ -761,7 +762,7 @@ const loadDoctors = async () => {
     const allDoctors: DoctorOption[] = list.map((d) => ({
       label: `${d.full_name ?? 'Unknown'} — ${d.department ?? d.specialization ?? 'Unknown'}`,
       value: String(d.id),
-      detail: `${d.current_patients ?? 0} patients today | ${d.specialization ?? 'General Medicine'}`,
+      detail: `${d.hospital_name ? d.hospital_name + ' | ' : ''}${d.current_patients ?? 0} patients today | ${d.specialization ?? 'General Medicine'}`,
       isAvailable: d.is_available ?? false,
       currentPatients: d.current_patients ?? 0,
       verification_status: d.verification_status ?? undefined,
@@ -771,9 +772,8 @@ const loadDoctors = async () => {
     doctorOptions.value = allDoctors.filter((d) => {
       const isVerified = d.is_verified === true
       const isApproved = d.verification_status === 'approved'
-      const isAvailable = d.isAvailable === true
-      
-      return isVerified && isApproved && isAvailable
+      // Removed strict availability filter to allow selection of verified doctors
+      return isVerified && isApproved
     })
       
   } catch (e) {

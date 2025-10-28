@@ -428,17 +428,16 @@ const accountStatus = ref({
 
 // Options
 const specializationOptions = [
-  { label: 'Internal Medicine', value: 'internal_medicine' },
+  { label: 'General Medicine', value: 'general-medicine' },
   { label: 'Cardiology', value: 'cardiology' },
   { label: 'Dermatology', value: 'dermatology' },
-  { label: 'Emergency Medicine', value: 'emergency_medicine' },
-  { label: 'Family Medicine', value: 'family_medicine' },
-  { label: 'Neurology', value: 'neurology' },
   { label: 'Orthopedics', value: 'orthopedics' },
   { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Psychiatry', value: 'psychiatry' },
-  { label: 'Radiology', value: 'radiology' },
-  { label: 'Surgery', value: 'surgery' },
+  { label: 'Gynecology', value: 'gynecology' },
+  { label: 'Neurology', value: 'neurology' },
+  { label: 'Oncology', value: 'oncology' },
+  { label: 'Optometrist', value: 'optometrist' },
+  { label: 'Emergency Medicine', value: 'emergency-medicine' },
   { label: 'Other', value: 'other' },
 ];
 
@@ -471,6 +470,8 @@ const saveSettings = async () => {
       full_name: profileForm.value.fullName,
       hospital_name: profileForm.value.hospitalName,
       hospital_address: profileForm.value.hospitalAddress,
+      specialization: profileForm.value.specialization,
+      license_number: profileForm.value.licenseNumber,
     });
 
     // Check if profile update was successful
@@ -480,10 +481,13 @@ const saveSettings = async () => {
       userData.full_name = profileForm.value.fullName;
       userData.hospital_name = profileForm.value.hospitalName;
       userData.hospital_address = profileForm.value.hospitalAddress;
+      userData.doctor_profile = userData.doctor_profile || {};
+      userData.doctor_profile.specialization = profileForm.value.specialization;
+      userData.doctor_profile.license_number = profileForm.value.licenseNumber;
       localStorage.setItem('userData', JSON.stringify(userData));
     }
 
-    // Note: phone and specialization fields are not supported by the current backend
+    // Note: phone field is not supported by the current backend
     // ProfileUpdateSerializer and would need backend changes to be saved
 
     // Save notification preferences (if endpoint exists)

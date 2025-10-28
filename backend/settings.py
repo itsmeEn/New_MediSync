@@ -34,6 +34,8 @@ ALLOWED_HOSTS = [
     'testserver', 
     '172.20.29.202',  # Current network IP for mobile connectivity
     '192.168.55.101',
+    '192.168.1.60',
+    '192.168.56.1',
     '10.0.2.2',  # Android emulator
     '10.0.3.2',  # Alternative Android emulator IP
     '0.0.0.0',   # Allow all IPs for development (mobile testing)
@@ -122,7 +124,7 @@ DATABASES = {
         "HOST": "localhost",
         "PORT": "5432",
         "USER": "postgres",
-        "PASSWORD": "admin1234", 
+        "PASSWORD": "postgres", 
     }
 }
 
@@ -332,11 +334,19 @@ MESSAGE_ENCRYPTION_KEY = "your-32-character-secret-key-here"  # Change this in p
 ASGI_APPLICATION = "backend.asgi.application"
 
 # Channel Layers Configuration
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+# Channel Layers Configuration
+if DEBUG:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],
+            },
         },
-    },
-}
+    }

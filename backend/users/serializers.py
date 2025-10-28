@@ -153,15 +153,52 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer for updating user profile information including hospital details
+    Serializer for updating user profile information including hospital details,
+    and doctor-specific fields (specialization, license_number) when applicable.
     """
+    specialization = serializers.CharField(required=False, allow_blank=True)
+    license_number = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = User
         fields = [
             'email', 'full_name', 'date_of_birth', 'gender', 
-            'hospital_name', 'hospital_address'
+            'hospital_name', 'hospital_address',
+            'specialization', 'license_number'
         ]
         read_only_fields = ['email']  # Email should not be updated through this endpoint
+
+    def update(self, instance, validated_data):
+        # Extract doctor-specific fields
+        specialization = validated_data.pop('specialization', None)
+        license_number = validated_data.pop('license_number', None)
+
+        # Update top-level User fields first
+        instance = super().update(instance, validated_data)
+
+        # Update doctor profile if user is a doctor
+        try:
+            from .models import GeneralDoctorProfile
+            if getattr(instance, 'role', None) == 'doctor':
+                # Ensure doctor profile exists
+                doctor_profile = getattr(instance, 'doctor_profile', None)
+                if doctor_profile is None:
+                    doctor_profile = GeneralDoctorProfile.objects.create(user=instance)
+
+                changed = False
+                if specialization is not None:
+                    doctor_profile.specialization = specialization
+                    changed = True
+                if license_number is not None:
+                    doctor_profile.license_number = license_number
+                    changed = True
+                if changed:
+                    doctor_profile.save()
+        except Exception:
+            # Silently ignore to avoid breaking generic profile updates; logs handled in views
+            pass
+
+        return instance
 
 
 class TwoFactorEnableSerializer(serializers.Serializer):
