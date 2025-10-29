@@ -993,7 +993,7 @@ const getAvailabilityColor = (status: string): string => {
 const loadAvailableNurses = async (): Promise<void> => {
   nursesLoading.value = true;
   try {
-    const response = await api.get('/operations/messaging/available-users/');
+    const response = await api.get('/api/operations/messaging/available-users/');
     const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
     const list: NurseSummary[] = users
       .filter((u) => u.role === 'nurse' && u.verification_status === 'approved')

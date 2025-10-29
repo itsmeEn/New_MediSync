@@ -1211,7 +1211,7 @@ const loadAvailableNurses = async (): Promise<void> => {
   nursesError.value = null;
   try {
     const hospitalId = localStorage.getItem('selected_hospital_id');
-    const url = `/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`;
+    const url = `/api/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`;
     const response = await api.get(url);
     const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
     const list: NurseSummary[] = users

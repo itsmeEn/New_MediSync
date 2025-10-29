@@ -189,3 +189,195 @@ class AdminSiteAPITests(TestCase):
         resp = self.client.get(url + '?status=unknown')
         self.assertEqual(resp.status_code, 400)
         self.assertIn('Invalid status filter', resp.json().get('error', ''))
+
+    def test_serve_verification_document_pdf_success(self):
+        # Create active hospital and link to admin
+        hospital = Hospital.objects.create(
+            official_name="Doc Hospital",
+            address="10 Care Way",
+            license_id="LIC-4001",
+            license_document=SimpleUploadedFile('lic4001.pdf', b'PDF', content_type='application/pdf'),
+            status=Hospital.Status.ACTIVE
+        )
+        admin = AdminUser.objects.create_user(
+            email="admin-doc@medisync.local",
+            password="AdminPass123!",
+            full_name="Admin Doc",
+            is_active=True,
+            is_email_verified=True,
+        )
+        admin.hospital = hospital
+        admin.hospital_registration_completed = True
+        admin.save()
+        refresh = RefreshToken.for_user(admin)
+        access = str(refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+        # Create user under same hospital
+        user = User.objects.create_user(
+            email="doc2@example.com",
+            password="DocPass123!",
+            full_name="Doctor Two",
+            role="doctor",
+            hospital_name=hospital.official_name,
+            hospital_address=hospital.address,
+        )
+        # Attach a PDF document
+        pdf_content = b"%PDF-1.4 Mock PDF content"
+        verification = VerificationRequest.objects.create(
+            user_email=user.email,
+            user_full_name=user.full_name,
+            user_role="doctor",
+            status=VerificationRequest.Status.PENDING,
+            verification_document=SimpleUploadedFile('doc_verif.pdf', pdf_content, content_type='application/pdf')
+        )
+
+        url = reverse('serve_verification_document', kwargs={"verification_id": verification.id})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get('Content-Type'), 'application/pdf')
+        self.assertIn('inline', resp.get('Content-Disposition', ''))
+
+    def test_serve_verification_document_image_success(self):
+        # Create active hospital and link to admin
+        hospital = Hospital.objects.create(
+            official_name="Image Hospital",
+            address="20 Pixel Rd",
+            license_id="LIC-4002",
+            license_document=SimpleUploadedFile('lic4002.pdf', b'PDF', content_type='application/pdf'),
+            status=Hospital.Status.ACTIVE
+        )
+        admin = AdminUser.objects.create_user(
+            email="admin-img@medisync.local",
+            password="AdminPass123!",
+            full_name="Admin Img",
+            is_active=True,
+            is_email_verified=True,
+        )
+        admin.hospital = hospital
+        admin.hospital_registration_completed = True
+        admin.save()
+        refresh = RefreshToken.for_user(admin)
+        access = str(refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+        # Create user under same hospital
+        user = User.objects.create_user(
+            email="nurse2@example.com",
+            password="NursePass123!",
+            full_name="Nurse Two",
+            role="nurse",
+            hospital_name=hospital.official_name,
+            hospital_address=hospital.address,
+        )
+        # Attach a PNG document
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"mock"
+        verification = VerificationRequest.objects.create(
+            user_email=user.email,
+            user_full_name=user.full_name,
+            user_role="nurse",
+            status=VerificationRequest.Status.PENDING,
+            verification_document=SimpleUploadedFile('nurse_verif.png', png_bytes, content_type='image/png')
+        )
+
+        url = reverse('serve_verification_document', kwargs={"verification_id": verification.id})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get('Content-Type'), 'image/png')
+        self.assertIn('inline', resp.get('Content-Disposition', ''))
+
+    def test_serve_verification_document_hospital_mismatch_forbidden(self):
+        # Create admin with active hospital A
+        admin_hospital = Hospital.objects.create(
+            official_name="Admin Hospital",
+            address="30 Admin Blvd",
+            license_id="LIC-4003",
+            license_document=SimpleUploadedFile('lic4003.pdf', b'PDF', content_type='application/pdf'),
+            status=Hospital.Status.ACTIVE
+        )
+        admin = AdminUser.objects.create_user(
+            email="admin-mismatch@medisync.local",
+            password="AdminPass123!",
+            full_name="Admin Mismatch",
+            is_active=True,
+            is_email_verified=True,
+        )
+        admin.hospital = admin_hospital
+        admin.hospital_registration_completed = True
+        admin.save()
+        refresh = RefreshToken.for_user(admin)
+        access = str(refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+        # Create different active hospital B for user
+        user_hospital = Hospital.objects.create(
+            official_name="User Hospital",
+            address="40 User St",
+            license_id="LIC-4004",
+            license_document=SimpleUploadedFile('lic4004.pdf', b'PDF', content_type='application/pdf'),
+            status=Hospital.Status.ACTIVE
+        )
+        user = User.objects.create_user(
+            email="doc-mismatch@example.com",
+            password="DocPass123!",
+            full_name="Doctor Mismatch",
+            role="doctor",
+            hospital_name=user_hospital.official_name,
+            hospital_address=user_hospital.address,
+        )
+        verification = VerificationRequest.objects.create(
+            user_email=user.email,
+            user_full_name=user.full_name,
+            user_role="doctor",
+            status=VerificationRequest.Status.PENDING,
+            verification_document=SimpleUploadedFile('doc_mismatch.pdf', b'PDF', content_type='application/pdf')
+        )
+
+        url = reverse('serve_verification_document', kwargs={"verification_id": verification.id})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('Hospital mismatch', resp.json().get('error', ''))
+
+    def test_serve_verification_document_not_found(self):
+        # Create active hospital and admin
+        hospital = Hospital.objects.create(
+            official_name="Empty Doc Hospital",
+            address="50 Missing Rd",
+            license_id="LIC-4005",
+            license_document=SimpleUploadedFile('lic4005.pdf', b'PDF', content_type='application/pdf'),
+            status=Hospital.Status.ACTIVE
+        )
+        admin = AdminUser.objects.create_user(
+            email="admin-empty@medisync.local",
+            password="AdminPass123!",
+            full_name="Admin Empty",
+            is_active=True,
+            is_email_verified=True,
+        )
+        admin.hospital = hospital
+        admin.hospital_registration_completed = True
+        admin.save()
+        refresh = RefreshToken.for_user(admin)
+        access = str(refresh.access_token)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+        # Create user and verification without a document
+        user = User.objects.create_user(
+            email="nurse-empty@example.com",
+            password="NursePass123!",
+            full_name="Nurse Empty",
+            role="nurse",
+            hospital_name=hospital.official_name,
+            hospital_address=hospital.address,
+        )
+        verification = VerificationRequest.objects.create(
+            user_email=user.email,
+            user_full_name=user.full_name,
+            user_role="nurse",
+            status=VerificationRequest.Status.PENDING,
+        )
+
+        url = reverse('serve_verification_document', kwargs={"verification_id": verification.id})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn('Document not found', resp.json().get('error', ''))

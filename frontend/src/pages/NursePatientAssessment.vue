@@ -1678,10 +1678,19 @@ const nurseHospital = computed(() => (userProfile.value?.hospital_name || '') ||
 
 const filteredAvailableDoctors = computed(() => {
   const spec = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
+  const currentHospital = nurseHospital.value
+  
   return (availableDoctors.value || []).filter((d) => {
-    const hospitalOk = true
+    // Hospital validation: ensure doctor is from the same hospital as the nurse
+    const hospitalOk = currentHospital && d.hospital_name && 
+      String(d.hospital_name).toLowerCase().trim() === String(currentHospital).toLowerCase().trim()
+    
+    // Specialization matching (optional - if patient has a specific condition)
     const specOk = spec ? (String(d.specialization || '').toLowerCase().includes(String(spec).toLowerCase())) : true
+    
+    // Availability check
     const availOk = (String(d.availability || d.status || '').toLowerCase() === 'available') || !d.availability
+    
     return hospitalOk && specOk && availOk
   })
 })
@@ -1705,11 +1714,22 @@ function getErrorMessage(e: unknown): string {
 async function loadAvailableDoctors() {
   doctorsLoading.value = true
   doctorsLoadError.value = null
+  
+  // Validate that nurse has hospital information
+  const currentHospital = nurseHospital.value
+  if (!currentHospital || currentHospital.trim() === '') {
+    doctorsLoadError.value = 'Hospital information missing. Please update your profile with hospital details.'
+    doctorsLoading.value = false
+    availableDoctors.value = []
+    return
+  }
+  
   try {
-    // Unified provider fetch scoped to current hospital; server filters by user.hospital_name
-    const hospitalId = localStorage.getItem('selected_hospital_id')
-    const url = `/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`
+    // Use the correct endpoint for fetching available users (doctors) in the same hospital
+    // The backend automatically filters by user.hospital_name for security
+    const url = '/api/operations/messaging/available-users/'
     const res = await api.get(url)
+    
     type ApiUser = {
       id?: number | string
       full_name?: string
@@ -1721,8 +1741,14 @@ async function loadAvailableDoctors() {
       specialization?: string
       hospital_name?: string
     }
+    
+    // Extract users from response
     const users: ApiUser[] = Array.isArray(res.data?.users) ? res.data.users : Array.isArray(res.data) ? res.data : []
+    
+    // Filter for doctors only (nurses are also returned by the endpoint)
     const doctors = users.filter(u => String(u.role).toLowerCase() === 'doctor' && String(u.verification_status).toLowerCase() === 'approved')
+    
+    // Map to DoctorSummary format
     availableDoctors.value = doctors.map((u) => ({
       id: String(u.id ?? ''),
       full_name: u.full_name || 'Unknown Doctor',
@@ -1730,15 +1756,25 @@ async function loadAvailableDoctors() {
       availability: 'available',
       hospital_name: u.hospital_name || nurseHospital.value || ''
     })) as DoctorSummary[]
+    
+    console.log(`Loaded ${availableDoctors.value.length} doctors from hospital: ${nurseHospital.value}`)
+    
     // Cache for fallback use
     localStorage.setItem('available_doctors', JSON.stringify(availableDoctors.value))
   } catch (err) {
-    console.warn('Failed to fetch doctors; using cache.', err)
+    console.error('Failed to fetch doctors:', err)
     const msg = getErrorMessage(err)
-    doctorsLoadError.value = msg || 'Unable to load doctors'
+    doctorsLoadError.value = msg || 'Unable to load doctors from your hospital'
+    
+    // Try to use cached data as fallback
     try {
       const cached = localStorage.getItem('available_doctors')
-      availableDoctors.value = cached ? (JSON.parse(cached) as DoctorSummary[]) : []
+      if (cached) {
+        availableDoctors.value = JSON.parse(cached) as DoctorSummary[]
+        console.log(`Using cached doctors: ${availableDoctors.value.length} available`)
+      } else {
+        availableDoctors.value = []
+      }
     } catch {
       availableDoctors.value = []
     }

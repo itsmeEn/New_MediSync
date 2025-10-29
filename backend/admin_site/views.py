@@ -723,22 +723,136 @@ def system_logs(request):
 @permission_classes([IsAuthenticated])
 def serve_verification_document(request, verification_id):
     """
-    Serve verification document with appropriate headers for iframe embedding
+    Serve verification document with appropriate headers for iframe embedding,
+    enforcing admin access privileges and hospital linkage for medical staff.
     """
     try:
         import mimetypes
+        from django.db import DatabaseError
+
+        # Ensure caller is an AdminUser
+        if not isinstance(request.user, AdminUser):
+            return Response({
+                'error': 'Access denied. Admin privileges required.',
+                'resolution': 'Log in as an admin user to access verification documents.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Verify admin is eligible to access admin functions
+        if not (request.user.is_super_admin or request.user.can_access_admin_functions()):
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                'Admin does not have active hospital or registration completed.'
+            )
+            return Response({
+                'error': 'Admin lacks required hospital registration or hospital is inactive.',
+                'resolution': 'Complete hospital registration and ensure hospital status is ACTIVE.'
+            }, status=status.HTTP_403_FORBIDDEN)
 
         verification = get_object_or_404(VerificationRequest, id=verification_id)
-        file_field = verification.verification_document
 
+        # For doctor/nurse, enforce that user belongs to the admin’s active hospital
+        if verification.user_role in ['doctor', 'nurse']:
+            try:
+                from backend.users.models import User
+                user = User.objects.get(email=verification.user_email)
+            except User.DoesNotExist:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"User not found for email {verification.user_email}"
+                )
+                return Response({
+                    'error': 'User not found for verification.',
+                    'resolution': 'Confirm the user exists in the main app and retry.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except DatabaseError as db_err:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Database error retrieving user: {str(db_err)}"
+                )
+                return Response({
+                    'error': 'Database connectivity issue while retrieving user record.',
+                    'resolution': 'Check database availability and admin app DB connections.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            admin_hospital = request.user.hospital
+            if not admin_hospital or admin_hospital.status != Hospital.Status.ACTIVE:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    'Admin hospital missing or inactive.'
+                )
+                return Response({
+                    'error': 'Admin hospital is missing or inactive.',
+                    'resolution': 'Assign an ACTIVE hospital to the admin and retry.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            user_hospital_name = (user.hospital_name or '').strip()
+            user_hospital_address = (user.hospital_address or '').strip()
+            if not user_hospital_name or not user_hospital_address:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    'User registration missing hospital information.'
+                )
+                return Response({
+                    'error': 'User registration missing hospital information.',
+                    'resolution': 'Ensure user hospital name and address are provided during registration.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Require that the user’s hospital matches the admin’s active hospital
+            if not (
+                user_hospital_name == admin_hospital.official_name.strip() and
+                user_hospital_address == admin_hospital.address.strip()
+            ):
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Hospital mismatch for {verification.user_email}: user={user_hospital_name} | {user_hospital_address} vs admin={admin_hospital.official_name} | {admin_hospital.address}"
+                )
+                return Response({
+                    'error': 'Hospital mismatch: admin hospital does not match user registration hospital.',
+                    'resolution': 'Switch to the matching hospital or correct the user’s hospital details.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        # Document existence validations
+        file_field = verification.verification_document
         if not file_field or not getattr(file_field, 'name', None):
-            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                'Verification document not present on request.'
+            )
+            return Response({'error': 'Document not found', 'resolution': 'Ask the user to re-upload the document.'}, status=status.HTTP_404_NOT_FOUND)
 
         # Ensure the file exists in storage
         storage = file_field.storage
         file_name = file_field.name
         if not storage.exists(file_name):
-            return Response({'error': 'File not found on storage'}, status=status.HTTP_404_NOT_FOUND)
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                f'File missing in storage: {file_name}'
+            )
+            return Response({'error': 'File not found on storage', 'resolution': 'Verify storage configuration and file paths.'}, status=status.HTTP_404_NOT_FOUND)
 
         # Guess content type based on file name; fallback to octet-stream
         guessed_type, _ = mimetypes.guess_type(file_name)
@@ -757,12 +871,34 @@ def serve_verification_document(request, verification_id):
         response['Access-Control-Allow-Methods'] = 'GET'
         response['Access-Control-Allow-Headers'] = '*'
 
+        # Log success
+        log_admin_action(
+            request.user,
+            'serve_document',
+            'verification_request',
+            verification_id,
+            f"Served document {os.path.basename(file_name)} with content-type {content_type}"
+        )
+
         return response
         
     except Exception as e:
         print(f"Error serving document for verification {verification_id}: {str(e)}")
+        # Attempt to log the error if user context is available
+        try:
+            if isinstance(request.user, AdminUser):
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Unhandled exception: {str(e)}"
+                )
+        except Exception:
+            pass
         return Response({
-            'error': f'Failed to serve document: {str(e)}'
+            'error': 'Failed to serve document due to an unexpected error.',
+            'resolution': 'Check server logs for details and verify storage/DB configurations.'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

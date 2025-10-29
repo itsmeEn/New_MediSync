@@ -623,7 +623,7 @@ const loadAvailableUsers = async (): Promise<void> => {
     loading.value = true;
     console.log('📞 Loading available users...');
 
-    const response = await api.get('/operations/messaging/available-users/');
+    const response = await api.get('/api/operations/messaging/available-users/');
     
     // Handle new API response format
     if (response.data.users) {
