@@ -3,6 +3,7 @@
     <NurseHeader
       @toggle-drawer="toggleRightDrawer"
       @show-notifications="showNotifications = true"
+      @show-stock-alerts="showStockAlerts = true"
       :unread-notifications-count="unreadNotificationsCount"
       :search-text="text"
       @search-input="onSearchInput"
@@ -14,128 +15,9 @@
       :get-search-result-subtitle="getSearchResultSubtitle"
     />
 
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
+    <NurseSidebar v-model="rightDrawerOpen" :activeRoute="'nurse-dashboard'" />
 
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials || 'NU' }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">Nurse</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('nurse-dashboard')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patient-assessment')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="assignment" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('nurse-medicine-inventory')"
-            class="nav-item"
-          >
-            <q-item-section avatar>
-              <q-icon name="medication" />
-            </q-item-section>
-            <q-item-section>Medicine Inventory</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
-
-    <q-page-container class="page-container-with-fixed-header">
+    <q-page-container class="page-container-with-fixed-header role-body-bg">
       <!-- Greeting Section -->
       <div class="greeting-section">
         <q-card class="greeting-card">
@@ -227,6 +109,7 @@
                 icon="volume_up"
                 size="md"
                 @click="callNextPatient"
+                :disable="allPatients.length === 0"
                 class="action-btn"
               />
               <q-btn
@@ -241,34 +124,94 @@
           </q-card-section>
 
           <q-card-section class="queue-panels-section">
-            <!-- Patient Care Panels -->
-            <div class="queue-panels-container">
-              <!-- Normal Queues Panel -->
-              <div class="queue-panel normal-queue-panel">
-                <h4 class="queue-panel-title">Normal Queues</h4>
-                <div class="queue-content">
-                  <div v-if="normalQueue.length === 0" class="empty-queue">
-                    <p>No patients in normal queue</p>
-                  </div>
-                  <div v-else class="queue-list">
-                    <!-- Patient list items will go here -->
-                  </div>
-                </div>
+            <!-- Consolidated Queue View with Filters -->
+            <div class="row items-center q-col-gutter-sm q-mb-md">
+              <div class="col-12 col-md-3">
+                <q-select v-model="selectedDepartment" :options="departmentOptions" emit-value map-options label="Department" dense outlined />
               </div>
-
-              <!-- Priority Queues Panel -->
-              <div class="queue-panel priority-queue-panel">
-                <h4 class="queue-panel-title">Priority Queues</h4>
-                <div class="queue-content">
-                  <div v-if="priorityQueue.length === 0" class="empty-queue">
-                    <p>No patients in priority queue</p>
-                  </div>
-                  <div v-else class="queue-list">
-                    <!-- Patient list items will go here -->
-                  </div>
-                </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="queueTypeFilter" :options="[{ label: 'All', value: 'all' }, { label: 'Normal', value: 'normal' }, { label: 'Priority', value: 'priority' }]" emit-value map-options label="Queue Type" dense outlined />
+              </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="sortBy" :options="[{ label: 'Position', value: 'position' }, { label: 'Enqueue Time', value: 'enqueue_time' }]" emit-value map-options label="Sort By" dense outlined />
+              </div>
+              <div class="col-6 col-md-3">
+                <q-select v-model="sortDir" :options="[{ label: 'Ascending', value: 'asc' }, { label: 'Descending', value: 'desc' }]" emit-value map-options label="Order" dense outlined />
               </div>
             </div>
+
+            <q-list bordered class="consolidated-queue-list">
+              <q-item v-for="(patient, idx) in filteredSortedPatients" :key="`${patient.queue_type}-${patient.id}-${patient.queue_number}-${idx}`">
+                <q-item-section avatar>
+                  <q-avatar color="primary" text-color="white">{{ idx + 1 }}</q-avatar>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ patient.patient_name }}</q-item-label>
+                  <q-item-label caption>
+                    <q-chip dense :color="patient.queue_type === 'priority' ? 'red' : 'blue'" text-color="white" class="q-mr-sm">
+                      {{ patient.queue_type === 'priority' ? 'Priority' : 'Normal' }}
+                    </q-chip>
+                    <q-chip dense color="teal" text-color="white" class="q-mr-sm">
+                      Pos #{{ idx + 1 }}
+                    </q-chip>
+                    <span class="text-grey-7">{{ patient.department }}</span>
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat round icon="more_vert" />
+                </q-item-section>
+              </q-item>
+              <q-item v-if="filteredSortedPatients.length === 0">
+                <q-item-section class="text-center text-grey-7">No patients in queue</q-item-section>
+              </q-item>
+            </q-list>
+          </q-card-section>
+        </q-card>
+      </div>
+
+      <!-- My Queue Schedules -->
+      <div class="queueing-section">
+        <q-card class="queueing-card">
+          <q-card-section class="queueing-header">
+            <h3 class="queueing-title">My Queue Schedules</h3>
+            <div class="queueing-actions">
+              <q-btn
+                color="primary"
+                label="Add Schedule"
+                icon="add"
+                size="md"
+                @click="isEditingSchedule = false; editingScheduleId = null; showQueueScheduleDialog = true; void loadAllSchedules();"
+                class="action-btn"
+              />
+            </div>
+          </q-card-section>
+          <q-card-section>
+            <div v-if="schedulesLoading" class="text-center text-grey-7 q-pa-md">Loading schedules...</div>
+            <div v-else-if="schedules.length === 0" class="text-center text-grey-6 q-pa-md">
+              No schedules yet. Create one to manage queue availability.
+            </div>
+            <q-list v-else>
+              <q-item v-for="s in schedules" :key="s.id">
+                <q-item-section>
+                  <q-item-label>
+                    {{ getDepartmentLabel(s.department) }}
+                    <q-chip dense :color="s.is_active ? 'positive' : 'grey'" text-color="white" class="q-ml-sm">
+                      {{ s.is_active ? 'Active' : 'Inactive' }}
+                    </q-chip>
+                    <q-chip dense :color="s.is_open ? 'positive' : 'negative'" text-color="white" class="q-ml-sm">
+                      {{ s.is_open ? 'Open' : 'Closed' }}
+                    </q-chip>
+                  </q-item-label>
+                  <q-item-label caption>
+                    {{ formatTimeDisplay(s.start_time) }} - {{ formatTimeDisplay(s.end_time) }} · {{ formatDays(s.days_of_week) }}
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat dense icon="edit" color="primary" @click="editSchedule(s)" />
+                  <q-btn flat dense icon="delete" color="negative" @click="deleteSchedule(s)" />
+                </q-item-section>
+              </q-item>
+            </q-list>
           </q-card-section>
         </q-card>
       </div>
@@ -430,6 +373,110 @@
       </q-card>
     </q-dialog>
 
+
+    <!-- Queue Schedule Modal -->
+    <q-dialog v-model="showQueueScheduleDialog" class="centered-dialog">
+      <q-card class="dialog-card">
+        <q-card-section class="dialog-header">
+          <div class="text-h6">{{ isEditingSchedule ? 'Edit Queue Schedule' : 'Create Queue Schedule' }}</div>
+        <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+        </q-card-section>
+        <q-card-section class="dialog-body">
+          <div class="form-container">
+            <q-banner v-if="!isEditingSchedule && duplicateDeptScheduleExists" class="q-mb-md" rounded dense color="negative" text-color="white">
+              A schedule already exists for {{ getDepartmentLabel(queueForm.department as DepartmentValue) }}. Please edit the existing schedule instead.
+            </q-banner>
+            <!-- Current Schedule Display -->
+            <div v-if="currentSchedule" class="current-schedule-container">
+              <div class="schedule-info">
+                <div class="schedule-header">
+                  <q-icon name="schedule" color="primary" size="sm" />
+                  <span class="schedule-title">Current Schedule</span>
+      </div>
+                <div class="schedule-details">
+                  <div class="schedule-row">
+                    <span class="schedule-label">Department:</span>
+                    <span class="schedule-value">{{ getDepartmentLabel(currentSchedule.department) }}</span>
+                  </div>
+                  <div class="schedule-row">
+                    <span class="schedule-label">Time:</span>
+                    <span class="schedule-value">{{ formatTimeDisplay(currentSchedule.start_time) }} - {{ formatTimeDisplay(currentSchedule.end_time) }}</span>
+                  </div>
+                  <div class="schedule-row">
+                    <span class="schedule-label">Days:</span>
+                    <span class="schedule-value">{{ formatDays(currentSchedule.days_of_week) }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="schedule-actions">
+                <q-btn 
+                  :color="currentSchedule.is_open ? 'negative' : 'positive'"
+                  :label="currentSchedule.is_open ? 'Close Queue' : 'Open Queue'"
+                  :icon="currentSchedule.is_open ? 'close' : 'play_arrow'"
+                  @click="toggleQueueStatus"
+                  :loading="togglingQueue"
+                  class="queue-toggle-btn"
+                />
+              </div>
+            </div>
+
+            <q-select 
+              v-model="queueForm.department" 
+              :options="departmentOptions" 
+              label="Department" 
+              emit-value 
+              map-options 
+              outlined
+              class="form-field"
+            />
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-sm-6">
+                <q-input 
+                  v-model="queueForm.start_time" 
+                  label="Queue Start Time" 
+                  outlined
+                  mask="##:## AM"
+                  hint="Format: HH:MM AM/PM"
+                  class="form-field"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-input 
+                  v-model="queueForm.end_time" 
+                  label="Queue End Time" 
+                  outlined
+                  mask="##:## AM"
+                  hint="Format: HH:MM AM/PM"
+                  class="form-field"
+                />
+              </div>
+            </div>
+            <q-select
+              v-model="queueForm.days_of_week"
+              :options="dayOptions"
+              label="Days of Week"
+              emit-value 
+              map-options 
+              multiple 
+              use-chips
+              outlined
+              class="form-field"
+            />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="dialog-actions">
+          <q-btn 
+            color="positive" 
+            :label="isEditingSchedule ? 'Save Changes' : 'Create Schedule'" 
+            @click="saveQueueSchedule" 
+            :loading="savingSchedule"
+            class="save-btn"
+            unelevated
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- Notifications Modal -->
     <q-dialog v-model="showNotifications" persistent>
       <q-card style="width: 400px; max-width: 90vw">
@@ -479,6 +526,46 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Stock Alerts Modal -->
+    <q-dialog v-model="showStockAlerts" persistent>
+      <q-card style="width: 700px; max-width: 95vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Stock Alerts & Notifications</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+        </q-card-section>
+
+        <q-card-section>
+          <div v-if="stockAlerts.length === 0" class="text-center text-grey-6 q-py-lg">
+            No stock alerts at the moment
+          </div>
+          <div v-else>
+            <q-list>
+              <q-item v-for="alert in stockAlerts" :key="alert.id" clickable>
+                <q-item-section avatar>
+                  <q-icon :name="getStockAlertIcon(alert.severity)" :color="alert.color" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ alert.title }}</q-item-label>
+                  <q-item-label caption>{{ alert.message }}</q-item-label>
+                  <q-item-label caption class="text-grey-5">{{ formatTime(alert.created_at) }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn dense flat icon="done" v-if="!alert.isRead" @click="markStockAlertRead(alert.id)" />
+                  <q-icon v-else name="check_circle" class="text-positive" />
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right" v-if="stockAlerts.length > 0">
+          <q-btn flat label="Mark All Read" @click="markAllStockAlertsRead" />
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
@@ -488,24 +575,12 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
-
-// Type definitions for error handling
-interface ApiErrorResponse {
-  profile_picture?: string[];
-  detail?: string;
-}
-
-interface ApiError {
-  response?: {
-    data?: ApiErrorResponse;
-  };
-}
-
+import NurseSidebar from 'src/components/NurseSidebar.vue';
+import { showVerificationToastOnce } from 'src/utils/verificationToast';
 const router = useRouter();
 const $q = useQuasar();
 const rightDrawerOpen = ref(false);
 const text = ref('');
-const fileInput = ref<HTMLInputElement>();
 
 // Type definitions for search
 interface DoctorData {
@@ -524,6 +599,8 @@ interface MedicineData {
   current_stock: number;
   unit_price?: number;
   minimum_stock_level?: number;
+  stock_quantity?: number;
+  minimum_stock?: number;
   expiry_date?: string;
   batch_number?: string;
   usage_pattern?: string;
@@ -584,6 +661,19 @@ const showPatientsDialog = ref(false);
 const showVitalsDialog = ref(false);
 const showMedicationsDialog = ref(false);
 const showNotifications = ref(false);
+const showStockAlerts = ref(false);
+const showQueueScheduleDialog = ref(false);
+const savingSchedule = ref(false);
+const currentSchedule = ref<{
+  id: number;
+  department: DepartmentValue;
+  start_time: string;
+  end_time: string;
+  days_of_week: number[];
+  is_active: boolean;
+  is_open: boolean;
+} | null>(null);
+const togglingQueue = ref(false);
 
 // Notification system
 const notifications = ref<Notification[]>([]);
@@ -616,16 +706,141 @@ interface RawNotification {
   created_at: string;
 }
 
-// Medicine data interface
-interface MedicineData {
-  stock_quantity: number;
-  minimum_stock: number;
-  name?: string;
-}
 
 // Queue data
 const normalQueue = ref<PatientData[]>([]);
 const priorityQueue = ref<PatientData[]>([]);
+
+// Consolidated queue view state
+type QueueTypeFilter = 'all' | 'normal' | 'priority'
+const selectedDepartment = ref<DepartmentValue>('OPD')
+const queueTypeFilter = ref<QueueTypeFilter>('all')
+const sortBy = ref<'position' | 'enqueue_time'>('position')
+const sortDir = ref<'asc' | 'desc'>('asc')
+
+interface QueueItem extends PatientData {
+  queue_type: 'normal' | 'priority'
+  position?: number
+}
+interface ConsolidatedPatientDTO {
+  id: number
+  queue_number?: number | string
+  patient_name: string
+  department?: string
+  status?: string
+  position?: number
+  enqueue_time?: string
+  queue_type: 'normal' | 'priority'
+  priority_level?: string | number
+}
+const allPatients = ref<QueueItem[]>([])
+
+const parseQueueNumber = (qn: string | number | undefined): number | undefined => {
+  if (qn === undefined || qn === null) return undefined
+  if (typeof qn === 'number' && Number.isFinite(qn)) return qn
+  const m = String(qn).match(/\d+/)
+  return m ? parseInt(m[0], 10) : undefined
+}
+
+const filteredSortedPatients = computed(() => {
+  let list = allPatients.value
+  if (queueTypeFilter.value !== 'all') {
+    list = list.filter(p => p.queue_type === queueTypeFilter.value)
+  }
+  const compare = (a: QueueItem, b: QueueItem) => {
+    // Always prioritize patients from the priority queue over normal
+    const typeRank = (q: QueueItem) => (q.queue_type === 'priority' ? 0 : 1)
+    const tDiff = typeRank(a) - typeRank(b)
+    if (tDiff !== 0) return tDiff
+
+    const field = sortBy.value
+    const toNum = (n: number) => (Number.isFinite(n) ? n : 0)
+    const avRaw = field === 'position' ? (a.position ?? a.position_in_queue ?? a.priority_position ?? 0) : (a.enqueue_time ? Date.parse(a.enqueue_time) : 0)
+    const bvRaw = field === 'position' ? (b.position ?? b.position_in_queue ?? b.priority_position ?? 0) : (b.enqueue_time ? Date.parse(b.enqueue_time) : 0)
+    const av = toNum(avRaw)
+    const bv = toNum(bvRaw)
+    return sortDir.value === 'asc' ? av - bv : bv - av
+  }
+  return [...list].sort(compare)
+})
+
+// Keep selectedDepartment in sync with current schedule when available
+watch(() => currentSchedule.value?.department, (dept) => {
+  if (dept) selectedDepartment.value = dept
+})
+
+// Schedules list and editing state
+const schedules = ref<Array<{
+  id: number;
+  department: DepartmentValue;
+  start_time: string;
+  end_time: string;
+  days_of_week: number[];
+  is_active: boolean;
+  is_open?: boolean;
+}>>([]);
+const schedulesLoading = ref(false);
+const isEditingSchedule = ref(false);
+const editingScheduleId = ref<number | null>(null);
+const duplicateDeptScheduleExists = computed(() => {
+  if (!queueForm.value.department) return false;
+  return schedules.value.some(s => s.department === queueForm.value.department);
+});
+
+// Queue schedule form
+type DepartmentValue = 'OPD' | 'Pharmacy' | 'Appointment'
+
+const departmentOptions = [
+  { label: 'Out Patient Department', value: 'OPD' },
+  { label: 'Pharmacy', value: 'Pharmacy' },
+  { label: 'Appointment', value: 'Appointment' }
+]
+
+const dayOptions = [
+  { label: 'Monday', value: 0 },
+  { label: 'Tuesday', value: 1 },
+  { label: 'Wednesday', value: 2 },
+  { label: 'Thursday', value: 3 },
+  { label: 'Friday', value: 4 },
+  { label: 'Saturday', value: 5 },
+  { label: 'Sunday', value: 6 }
+]
+
+const queueForm = ref<{
+  department: DepartmentValue | null
+  start_time: string
+  end_time: string
+  days_of_week: number[]
+  is_active: boolean
+}>({ 
+  department: 'OPD', 
+  start_time: '08:00 AM', 
+  end_time: '05:00 PM', 
+  days_of_week: [0,1,2,3,4], 
+  is_active: true 
+})
+
+watch(() => queueForm.value.department, async (dept) => {
+  if (!dept) {
+    currentSchedule.value = null;
+    return;
+  }
+  if (schedules.value.length === 0) {
+    await loadAllSchedules();
+  }
+  const match = schedules.value.find((s) => s.department === dept);
+  currentSchedule.value = match
+    ? {
+        id: match.id,
+        department: match.department,
+        start_time: match.start_time,
+        end_time: match.end_time,
+        days_of_week: match.days_of_week,
+        is_active: match.is_active,
+        is_open: match.is_open || false
+      }
+    : null;
+});
 
 // Medicine data
 const medicines = ref<MedicineData[]>([]);
@@ -812,14 +1027,6 @@ const userProfile = ref<{
   email: '',
 });
 
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'N';
-  return userProfile.value.full_name
-    .split(' ')
-    .map((name) => name.charAt(0))
-    .join('')
-    .toUpperCase();
-});
 
 const getTimeOfDay = () => {
   const hour = new Date().getHours();
@@ -838,25 +1045,6 @@ const currentDate = computed(() => {
   });
 });
 
-// Format profile picture URL
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // If it's a relative path, construct the full URL
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    return `http://localhost:8000${userProfile.value.profile_picture}`;
-  }
-
-  // If it's just a filename, construct the full URL
-  return `http://localhost:8000/media/profile_pictures/${userProfile.value.profile_picture}`;
-});
 
 // Update current time
 const updateTime = () => {
@@ -935,124 +1123,16 @@ const toggleRightDrawer = () => {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 };
 
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store profile picture in localStorage for cross-page sync
-      localStorage.setItem('profile_picture', response.data.user.profile_picture);
-
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as ApiError;
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
-
-const navigateTo = (route: string) => {
-  // Close drawer first
-  rightDrawerOpen.value = false;
-
-  // Navigate to different sections
-  switch (route) {
-    case 'nurse-dashboard':
-      // Already on dashboard
-      break;
-    case 'patient-assessment':
-      void router.push('/nurse-patient-assessment');
-      break;
-    case 'nurse-messaging':
-      void router.push('/nurse-messaging');
-      break;
-    case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory');
-      break;
-    case 'nurse-analytics':
-      void router.push('/nurse-analytics');
-      break;
-    case 'nurse-settings':
-      void router.push('/nurse-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
-  }
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
 
 // Fetch user profile from API
 const fetchUserProfile = async () => {
   try {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
+
+    // Check for verification status change
+    const previousStatus = userProfile.value.verification_status;
+    const newStatus = userData.verification_status;
 
     userProfile.value = {
       first_name: userData.first_name,
@@ -1064,6 +1144,11 @@ const fetchUserProfile = async () => {
       verification_status: userData.verification_status,
       email: userData.email,
     };
+
+    // Show notification if verification status changed to approved
+    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
+      showVerificationToastOnce(newStatus);
+    }
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
@@ -1092,11 +1177,126 @@ const fetchUserProfile = async () => {
 // Load queue data
 const loadQueueData = async () => {
   try {
-    const response = await api.get('/operations/nurse/queue/patients/');
+    const dept = selectedDepartment.value || 'OPD'
+    const response = await api.get(`/operations/nurse/queue/patients/?department=${dept}`);
     normalQueue.value = response.data.normal_queue || [];
     priorityQueue.value = response.data.priority_queue || [];
+    const consolidated: ConsolidatedPatientDTO[] = Array.isArray(response.data.all_patients) ? response.data.all_patients : []
+     const filtered = consolidated.filter((item) => !/^\s*jane patient\s*$/i.test(item.patient_name))
+     const mapped = filtered.map((item: ConsolidatedPatientDTO) => {
+        const base: QueueItem = {
+          id: item.id,
+          patient_name: item.patient_name,
+          queue_number: String(item.queue_number ?? ''),
+          queue_type: item.queue_type,
+        }
+        if (item.department !== undefined) base.department = item.department
+        if (item.status !== undefined) base.status = item.status
+        if (item.enqueue_time !== undefined) base.enqueue_time = item.enqueue_time
+        if (item.priority_level !== undefined) base.priority_level = typeof item.priority_level === 'string' ? item.priority_level : String(item.priority_level)
+ 
+        const derivedPosition = parseQueueNumber(item.queue_number) ?? item.position
+        if (derivedPosition !== undefined) {
+          base.position = derivedPosition
+          if (item.queue_type === 'normal') base.position_in_queue = derivedPosition
+          else base.priority_position = derivedPosition
+        }
+ 
+        return base
+      })
+      const unique = new Map<string, QueueItem>()
+      for (const p of mapped) {
+        unique.set(`${p.queue_type}|${p.id}|${p.queue_number}`, p)
+      }
+      allPatients.value = Array.from(unique.values())
+    console.log(`NurseDashboard queues loaded: normal=${normalQueue.value.length}, priority=${priorityQueue.value.length}, all=${allPatients.value.length}`)
   } catch (error) {
     console.error('Failed to load queue data:', error);
+  }
+};
+
+// WebSocket for real-time queue updates
+const queueWebSocket = ref<WebSocket | null>(null)
+const setupQueueWebSocket = (restart = false) => {
+  try {
+    if (restart && queueWebSocket.value) {
+      try { queueWebSocket.value.close() } catch (err) { console.debug('Ignoring WebSocket close error', err) }
+      queueWebSocket.value = null
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = new URL(api.defaults.baseURL || `http://${window.location.hostname}:8000/api`)
+    const backendHost = base.hostname
+    const backendPort = base.port || (base.protocol === 'https:' ? '443' : '80')
+    const dept = selectedDepartment.value || 'OPD'
+    const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${dept}/`
+    const ws = new WebSocket(wsUrl)
+    queueWebSocket.value = ws
+    ws.onopen = () => {
+      console.log('NurseDashboard WebSocket connected')
+    }
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'queue_status' || data.type === 'queue_status_update' || data.type === 'queue_schedule' || data.type === 'queue_schedule_update' || data.type === 'queue_notification') {
+          void loadQueueData()
+          console.log(`NurseDashboard queues refreshed via WebSocket: type=${data.type}, department=${dept}`)
+        }
+      } catch (e) {
+        console.warn('Invalid WS message for NurseDashboard', e)
+      }
+    }
+    ws.onclose = () => {
+      console.log('NurseDashboard WebSocket disconnected')
+      setTimeout(() => setupQueueWebSocket(true), 5000)
+    }
+  } catch (e) {
+    console.warn('Failed to setup NurseDashboard WebSocket', e)
+  }
+}
+
+// Load all queue schedules for current nurse
+const loadAllSchedules = async () => {
+  try {
+    schedulesLoading.value = true;
+    const response = await api.get('/operations/queue/schedules/');
+    schedules.value = response.data || [];
+    
+    // Fetch actual queue status for all departments to get real is_open state
+    try {
+      const statusResponse = await api.get('/operations/queue/status/');
+      const queueStatuses = statusResponse.data || [];
+      
+      // Update schedules with actual queue status
+      schedules.value = schedules.value.map(schedule => {
+        const status = queueStatuses.find((s: { department: string }) => s.department === schedule.department);
+        return {
+          ...schedule,
+          is_open: status ? status.is_open : false
+        };
+      });
+    } catch (statusError) {
+      console.error('Failed to fetch queue statuses:', statusError);
+    }
+    
+    // Update current schedule to selected department match, else first
+    const dept = queueForm.value.department;
+    const match = dept ? schedules.value.find((s) => s.department === dept) : schedules.value[0];
+    currentSchedule.value = match
+      ? {
+          id: match.id,
+          department: match.department,
+          start_time: match.start_time,
+          end_time: match.end_time,
+          days_of_week: match.days_of_week,
+          is_active: match.is_active,
+          is_open: match.is_open || false,
+        }
+      : null;
+  } catch (error) {
+    console.error('Failed to load schedules:', error);
+    schedules.value = [];
+  } finally {
+    schedulesLoading.value = false;
   }
 };
 
@@ -1165,21 +1365,355 @@ const loadCompletedAssessments = () => {
 };
 
 // Queue management methods
-const callNextPatient = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Calling next patient...',
-    position: 'top',
-  });
+const callNextPatient = async () => {
+  try {
+    const dept = selectedDepartment.value || 'OPD'
+    const resp = await api.post('/operations/queue/start-processing/', { department: dept })
+    const data = resp?.data
+    $q.notify({
+      type: 'positive',
+      message: data?.patient ? `Started processing: ${data.patient.name} (#${data.current_serving}).` : 'Started processing next patient.',
+      position: 'top'
+    })
+    await loadQueueData()
+  } catch (error) {
+    console.error('Failed to start queue processing:', error)
+    $q.notify({ type: 'negative', message: 'Failed to start next patient', position: 'top' })
+  }
 };
 
-const manageQueue = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Opening queue management...',
-    position: 'top',
-  });
+const manageQueue = async () => {
+  await loadAllSchedules();
+  isEditingSchedule.value = false;
+  editingScheduleId.value = null;
+  showQueueScheduleDialog.value = true;
 };
+
+const convertTo12Hour = (time24: string): string => {
+  const [hours = '00', minutes = '00'] = time24.split(':');
+  const h = parseInt(hours, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12.toString().padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
+const editSchedule = (s: { id: number; department: DepartmentValue; start_time: string; end_time: string; days_of_week: number[]; is_active: boolean; is_open?: boolean; }) => {
+  isEditingSchedule.value = true;
+  editingScheduleId.value = s.id;
+  queueForm.value = {
+    department: s.department,
+    start_time: convertTo12Hour(s.start_time),
+    end_time: convertTo12Hour(s.end_time),
+    days_of_week: [...s.days_of_week],
+    is_active: s.is_active
+  };
+  currentSchedule.value = {
+    id: s.id,
+    department: s.department,
+    start_time: s.start_time,
+    end_time: s.end_time,
+    days_of_week: s.days_of_week,
+    is_active: s.is_active,
+    is_open: s.is_open || false
+  };
+  showQueueScheduleDialog.value = true;
+};
+
+const deleteSchedule = async (s: { id: number; department: DepartmentValue; }) => {
+  const confirm = window.confirm(`Delete schedule for ${getDepartmentLabel(s.department)}?`);
+  if (!confirm) return;
+  try {
+    await api.delete(`/operations/queue/schedules/${s.id}/`);
+    $q.notify({ type: 'positive', message: 'Schedule deleted' });
+    await loadAllSchedules();
+  } catch (error) {
+    console.error('Failed to delete schedule:', error);
+    $q.notify({ type: 'negative', message: 'Failed to delete schedule' });
+  }
+};
+
+const saveQueueSchedule = async () => {
+  if (!queueForm.value.department) {
+    $q.notify({ type: 'negative', message: 'Please select a department' })
+    return
+  }
+  
+  // Validate time format
+  if (!queueForm.value.start_time || !queueForm.value.end_time) {
+    $q.notify({ type: 'negative', message: 'Please enter both start and end times' })
+    return
+  }
+  
+  // Validate days selection
+  if (!queueForm.value.days_of_week || queueForm.value.days_of_week.length === 0) {
+    $q.notify({ type: 'negative', message: 'Please select at least one day of the week' })
+    return
+  }
+  
+  savingSchedule.value = true
+  
+  // Convert 12-hour format to 24-hour format for backend
+  const convertTo24Hour = (time12: string): string => {
+    const parts = time12.split(' ')
+    if (parts.length !== 2) {
+      throw new Error('Invalid time format. Expected "HH:MM AM/PM"')
+    }
+    
+    const [time, period] = parts
+    if (!time || !period) {
+      throw new Error('Invalid time format. Expected "HH:MM AM/PM"')
+    }
+    
+    const timeParts = time.split(':')
+    if (timeParts.length !== 2) {
+      throw new Error('Invalid time format. Expected "HH:MM"')
+    }
+    
+    const [hours, minutes] = timeParts
+    if (!hours || !minutes) {
+      throw new Error('Invalid time format. Expected "HH:MM"')
+    }
+    
+    let hour24 = parseInt(hours)
+    
+    if (period === 'PM' && hour24 !== 12) {
+      hour24 += 12
+    } else if (period === 'AM' && hour24 === 12) {
+      hour24 = 0
+    }
+    
+    return `${hour24.toString().padStart(2, '0')}:${minutes}`
+  }
+
+  // Prepare the request data - ensure proper format
+  const requestData = {
+    department: queueForm.value.department,
+    start_time: convertTo24Hour(queueForm.value.start_time), // Convert to 24-hour format
+    end_time: convertTo24Hour(queueForm.value.end_time),     // Convert to 24-hour format
+    days_of_week: queueForm.value.days_of_week.map(day => Number(day)), // Ensure integers
+    is_active: true // Always set to true since we removed the toggle
+  }
+  
+  console.log('User profile:', userProfile.value)
+  console.log('Sending queue schedule request:', requestData)
+  
+  try {
+    const response = isEditingSchedule.value && editingScheduleId.value != null
+      ? await api.put(`/operations/queue/schedules/${editingScheduleId.value}/`, requestData)
+      : await api.post('/operations/queue/schedules/', requestData)
+    console.log('Queue schedule saved successfully:', response.data)
+    $q.notify({ type: 'positive', message: isEditingSchedule.value ? 'Queue schedule updated successfully' : 'Queue schedule created successfully' })
+    await loadAllSchedules(); // Refresh schedules and current schedule display
+    showQueueScheduleDialog.value = false
+    // Reset form and editing state
+    isEditingSchedule.value = false;
+    editingScheduleId.value = null;
+    queueForm.value = { 
+      department: 'OPD', 
+      start_time: '08:00 AM', 
+      end_time: '05:00 PM', 
+      days_of_week: [0,1,2,3,4], 
+      is_active: true 
+    }
+  } catch (error: unknown) {
+    console.error('Failed to save queue schedule:', error)
+    let errorMessage = 'Failed to save queue schedule'
+    
+    // Type guard for axios error
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
+      console.error('Error response data:', axiosError.response?.data)
+      console.error('Error status:', axiosError.response?.status)
+
+      const data = axiosError.response?.data
+      if (data && typeof data === 'object' && data !== null) {
+        const obj = data as Record<string, unknown>
+        console.error('Error object keys:', Object.keys(obj))
+        console.error('Full error object:', obj)
+        
+        // Handle specific error cases
+        if (obj.error && typeof obj.error === 'string') {
+          errorMessage = obj.error
+        } else if (obj.non_field_errors && Array.isArray(obj.non_field_errors)) {
+          errorMessage = obj.non_field_errors.join(', ')
+        } else {
+          // Handle field-specific validation errors
+          const errorFields = Object.entries(obj).filter(([, value]) => Array.isArray(value) && value.length > 0)
+          if (errorFields.length > 0) {
+            const firstErrorField = errorFields[0]
+            if (firstErrorField) {
+              const [field, errors] = firstErrorField
+              errorMessage = `${field}: ${Array.isArray(errors) ? errors[0] : errors}`
+            }
+          } else {
+            const [firstKey, value] = Object.entries(obj)[0] ?? ['error', 'Failed to create queue schedule']
+            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+              errorMessage = `${firstKey}: ${value[0]}`
+            } else if (typeof value === 'string') {
+              errorMessage = `${firstKey}: ${value}`
+            }
+          }
+        }
+      } else if (axiosError.message) {
+        errorMessage = axiosError.message
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
+    $q.notify({ type: 'negative', message: errorMessage })
+  } finally {
+    savingSchedule.value = false
+  }
+};
+
+// Fetch current schedule for the nurse
+const fetchCurrentSchedule = async () => {
+  try {
+    const response = await api.get('/operations/queue/schedules/')
+    if (response.data && response.data.length > 0) {
+      // Get the first (most recent) schedule
+      const schedule = response.data[0]
+      
+      // Fetch actual queue status to get real is_open state
+      let actualIsOpen = schedule.is_open || false
+      try {
+        const statusResponse = await api.get(`/operations/queue/status/?department=${schedule.department}`)
+        if (statusResponse.data) {
+          actualIsOpen = statusResponse.data.is_open || false
+        }
+      } catch (statusError) {
+        console.warn('Failed to fetch queue status, using schedule data:', statusError)
+      }
+      
+      currentSchedule.value = {
+        id: schedule.id,
+        department: schedule.department,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        days_of_week: schedule.days_of_week,
+        is_active: schedule.is_active,
+        is_open: actualIsOpen
+      }
+    } else {
+      currentSchedule.value = null
+    }
+  } catch (error) {
+    console.error('Failed to fetch current schedule:', error)
+    currentSchedule.value = null
+  }
+};
+
+// Toggle queue status (open/close)
+const toggleQueueStatus = async () => {
+  if (!currentSchedule.value) return
+  
+  togglingQueue.value = true
+  const newStatus = !currentSchedule.value.is_open
+  
+  const requestData = {
+    department: currentSchedule.value.department,
+    is_open: newStatus
+  }
+  
+  console.log('Toggling queue status:', requestData)
+  
+  try {
+    const response = await api.post('/operations/queue/status/', requestData)
+    console.log('Queue status updated successfully:', response.data)
+    
+    // Update the local state
+    if (currentSchedule.value) {
+      currentSchedule.value.is_open = newStatus
+      const idx = schedules.value.findIndex(s => s.id === currentSchedule.value!.id)
+      if (idx !== -1) {
+        const item = schedules.value[idx]
+        if (item) item.is_open = newStatus
+      }
+    }
+    
+    // Use the message from the backend if available, otherwise use default
+    const message = response.data?.message || (newStatus 
+      ? 'Queue is now OPEN! Patients have been notified.' 
+      : 'Queue is now CLOSED.')
+    
+    $q.notify({ 
+      type: 'positive', 
+      message,
+      position: 'top',
+      timeout: 4000
+    })
+    
+  } catch (error: unknown) {
+    console.error('Failed to toggle queue status:', error)
+    let errorMessage = 'Failed to update queue status'
+    
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { data?: unknown; status?: number }; message?: string }
+      console.error('Error response data:', axiosError.response?.data)
+      console.error('Error status:', axiosError.response?.status)
+      
+      const data = axiosError.response?.data
+      if (data && typeof data === 'object' && data !== null) {
+        const obj = data as Record<string, unknown>
+        console.error('Error object keys:', Object.keys(obj))
+        console.error('Full error object:', obj)
+        
+        if (obj.error && typeof obj.error === 'string') {
+          errorMessage = obj.error
+        } else if (obj.non_field_errors && Array.isArray(obj.non_field_errors)) {
+          errorMessage = obj.non_field_errors.join(', ')
+        } else {
+          // Handle field-specific validation errors
+          const errorFields = Object.entries(obj).filter(([, value]) => Array.isArray(value) && value.length > 0)
+          if (errorFields.length > 0) {
+            const firstErrorField = errorFields[0]
+            if (firstErrorField) {
+              const [field, errors] = firstErrorField
+              errorMessage = `${field}: ${Array.isArray(errors) ? errors[0] : errors}`
+            }
+          } else {
+            const [firstKey, value] = Object.entries(obj)[0] ?? ['error', 'Failed to update queue status']
+            if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+              errorMessage = `${firstKey}: ${value[0]}`
+            } else if (typeof value === 'string') {
+              errorMessage = `${firstKey}: ${value}`
+            }
+          }
+        }
+      } else if (axiosError.message) {
+        errorMessage = axiosError.message
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
+    $q.notify({ type: 'negative', message: errorMessage })
+  } finally {
+    togglingQueue.value = false
+  }
+};
+
+// Helper functions for formatting
+const getDepartmentLabel = (value: DepartmentValue): string => {
+  const option = departmentOptions.find(opt => opt.value === value)
+  return option ? option.label : value
+};
+
+const formatTimeDisplay = (time24: string): string => {
+  const [hours, minutes] = time24.split(':')
+  if (!hours || !minutes) return time24
+  const hour = parseInt(hours)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${minutes} ${ampm}`
+};
+
+const formatDays = (days: number[]): string => {
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  return days.map(day => dayNames[day]).join(', ')
+};
+
 
 // Notification functions
 const unreadNotificationsCount = computed(() => {
@@ -1239,10 +1773,10 @@ const loadSystemNotifications = async (): Promise<Notification[]> => {
   try {
     // Check for low medicine stock
     const medicineResponse = await api.get('/operations/medicine-inventory/');
-    const medicines = medicineResponse.data || [];
+    const medicines = (medicineResponse.data || []) as Array<{ stock_quantity?: number; minimum_stock?: number }>;
 
     const lowStockMedicines = medicines.filter(
-      (med: MedicineData) => med.stock_quantity <= med.minimum_stock,
+      (med) => Number(med.stock_quantity ?? 0) <= Number(med.minimum_stock ?? 0),
     );
 
     if (lowStockMedicines.length > 0) {
@@ -1260,6 +1794,141 @@ const loadSystemNotifications = async (): Promise<Notification[]> => {
   }
 
   return systemNotifications;
+};
+
+// Stock Alerts types and state
+ type StockSeverity = 'low' | 'critical' | 'expiry';
+ interface StockAlert {
+   id: string | number;
+   title: string;
+   message: string;
+   severity: StockSeverity;
+   color: string;
+   created_at: string;
+   isRead: boolean;
+ }
+
+ const stockAlerts = ref<StockAlert[]>([]);
+ const READ_STOCK_KEY = 'read_stock_alert_ids';
+ const loadReadStockAlertIds = (): Set<string> => {
+   try {
+     const raw = localStorage.getItem(READ_STOCK_KEY);
+     const arr = raw ? (JSON.parse(raw) as string[]) : [];
+     return new Set(Array.isArray(arr) ? arr : []);
+   } catch {
+     return new Set<string>();
+   }
+ };
+ const persistReadStockAlertIds = (ids: Set<string>) => {
+   try {
+     localStorage.setItem(READ_STOCK_KEY, JSON.stringify(Array.from(ids)));
+   } catch {
+     // ignore
+   }
+ };
+ const readStockAlertIds = ref<Set<string>>(loadReadStockAlertIds());
+
+ const getStockAlertIcon = (severity: StockSeverity) => {
+   if (severity === 'critical') return 'error';
+   if (severity === 'low') return 'warning_amber';
+   return 'schedule';
+ };
+
+ const loadStockAlerts = async (): Promise<void> => {
+   try {
+     const res = await api.get('/operations/medicine-inventory/');
+     const list = Array.isArray(res.data?.results) ? res.data.results : res.data;
+     const medicines: MedicineData[] = Array.isArray(list) ? list : [] as unknown as MedicineData[];
+
+     const alerts: StockAlert[] = [];
+     const now = new Date();
+     const soonThresholdDays = 30;
+
+     for (const med of medicines) {
+       const name = med.medicine_name ?? 'Unknown Medicine';
+       const current = Number(med.current_stock ?? med.stock_quantity ?? 0);
+       const minLevel = Number(med.minimum_stock_level ?? med.minimum_stock ?? 0);
+       const expiryStr = med.expiry_date ?? undefined;
+
+       if (current === 0) {
+         const id = `out-${med.id}`;
+         alerts.push({
+           id,
+           title: `${name} is out of stock`,
+           message: 'Please restock immediately.',
+           severity: 'critical',
+           color: 'negative',
+           created_at: new Date().toISOString(),
+           isRead: readStockAlertIds.value.has(String(id)),
+         });
+         continue;
+       }
+ 
+       if (!Number.isNaN(minLevel) && current <= minLevel) {
+         const id = `low-${med.id}`;
+         alerts.push({
+           id,
+           title: `${name} is running low on stock`,
+           message: `Current quantity: ${current} units`,
+           severity: 'low',
+           color: 'warning',
+           created_at: new Date().toISOString(),
+           isRead: readStockAlertIds.value.has(String(id)),
+         });
+       }
+ 
+       if (expiryStr) {
+         const expiry = new Date(expiryStr);
+         const diffDays = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+         if (diffDays >= 0 && diffDays <= soonThresholdDays && current > 0) {
+           const id = `exp-${med.id}`;
+           alerts.push({
+             id,
+             title: `${name} will expire in ${diffDays} days`,
+             message: `Current quantity: ${current} units`,
+             severity: 'expiry',
+             color: 'orange',
+             created_at: new Date().toISOString(),
+             isRead: readStockAlertIds.value.has(String(id)),
+           });
+         }
+       }
+     }
+
+     stockAlerts.value = alerts.sort(
+       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+     );
+   } catch (error) {
+     console.error('Failed to load stock alerts:', error);
+     stockAlerts.value = [];
+     $q.notify({ type: 'negative', message: 'Failed to load stock alerts' });
+   }
+ };
+
+ watch(showStockAlerts, (val) => {
+  if (val) {
+    void loadStockAlerts();
+  }
+});
+
+// Mark stock alerts as read
+const markStockAlertRead = (id: string | number): void => {
+  const key = String(id);
+  if (!readStockAlertIds.value.has(key)) {
+    readStockAlertIds.value.add(key);
+    persistReadStockAlertIds(readStockAlertIds.value);
+  }
+  stockAlerts.value = stockAlerts.value.map((a) => (
+    a.id === id ? { ...a, isRead: true } : a
+  ));
+};
+
+const markAllStockAlertsRead = (): void => {
+  for (const a of stockAlerts.value) {
+    readStockAlertIds.value.add(String(a.id));
+  }
+  persistReadStockAlertIds(readStockAlertIds.value);
+  stockAlerts.value = stockAlerts.value.map((a) => ({ ...a, isRead: true }));
 };
 
 const handleNotificationClick = (notification: Notification): void => {
@@ -1408,6 +2077,7 @@ onMounted(() => {
 
   // Load queue and medicine data
   void loadQueueData();
+  setupQueueWebSocket();
   void loadMedicineData();
 
   // Load task and assessment data
@@ -1416,6 +2086,12 @@ onMounted(() => {
 
   // Load notifications
   void loadNotifications();
+
+  // Load existing queue schedules
+  void loadAllSchedules();
+  
+  // Ensure current schedule is available for toggling
+  void fetchCurrentSchedule();
 
   // Initialize real-time features
   updateTime(); // Set initial time
@@ -1444,25 +2120,13 @@ onMounted(() => {
   }, 10000);
 });
 
-// Storage event handler for profile picture sync
-const handleStorageChange = (e: StorageEvent) => {
-  if (e.key === 'profile_picture' && e.newValue) {
-    userProfile.value.profile_picture = e.newValue;
-    console.log('Profile picture updated from storage event:', e.newValue);
-  }
-};
-
-// Listen for storage changes to sync profile picture across components
-window.addEventListener('storage', handleStorageChange);
+// Removed profile picture storage sync: initials-only avatar
 
 // Cleanup on component unmount
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
   }
-
-  // Clean up storage event listener
-  window.removeEventListener('storage', handleStorageChange);
 });
 </script>
 
@@ -1818,12 +2482,16 @@ onUnmounted(() => {
   overflow: hidden !important;
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+.clickable-avatar {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
+.clickable-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(30, 118, 104, 0.3);
+}
+
 
 .profile-placeholder {
   width: 100%;
@@ -1840,26 +2508,6 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-  border: 2px solid white !important;
-  transition: all 0.3s ease !important;
-}
-
-.upload-btn:hover {
-  background: #286660 !important;
-  transform: scale(1.1) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
 
 .user-info {
   margin-top: 10px;
@@ -1870,6 +2518,15 @@ onUnmounted(() => {
   color: #333;
   font-size: 18px;
   font-weight: 600;
+}
+
+.clickable-name {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable-name:hover {
+  color: #1e7668;
 }
 
 .user-specialization {
@@ -2152,12 +2809,6 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  transform: translate(10%, 10%);
-}
 
 .verified-badge {
   position: absolute;
@@ -2960,6 +3611,142 @@ onUnmounted(() => {
 
   .modal-close-btn:hover {
     background: rgba(0, 0, 0, 0.2) !important;
+  }
+}
+
+/* Queue Schedule Modal Styles */
+.centered-dialog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-card {
+  min-width: 480px;
+  max-width: 600px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+
+.dialog-header {
+  border-bottom: 1px solid var(--q-separator-color);
+  padding-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-body {
+  padding: 24px 24px 16px 24px;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-field {
+  width: 100%;
+}
+
+.toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--q-separator-color);
+  margin-bottom: 16px;
+}
+
+.dialog-actions {
+  padding: 16px 24px;
+  border-top: 1px solid var(--q-separator-color);
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.save-btn {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+/* Current Schedule Styles */
+.current-schedule-container {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.schedule-info {
+  flex: 1;
+}
+
+.schedule-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.schedule-title {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.schedule-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.schedule-label {
+  font-weight: 500;
+  color: #6c757d;
+  min-width: 80px;
+}
+
+.schedule-value {
+  color: #495057;
+}
+
+.schedule-actions {
+  display: flex;
+  align-items: center;
+}
+
+.queue-toggle-btn {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .current-schedule-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .schedule-actions {
+    justify-content: center;
+    margin-top: 12px;
+  }
+  
+  .queue-toggle-btn {
+    width: 100%;
   }
 }
 </style>

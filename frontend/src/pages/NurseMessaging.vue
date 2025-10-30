@@ -14,132 +14,9 @@
       :get-search-result-subtitle="getSearchResultSubtitle"
     />
 
-    <q-drawer
-      v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <!-- Logo Section -->
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
+    <NurseSidebar v-model="rightDrawerOpen" :activeRoute="'nurse-messaging'" />
 
-        <!-- User Profile Section -->
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img
-                v-if="displayProfilePictureUrl"
-                :src="displayProfilePictureUrl"
-                alt="Profile Picture"
-              />
-              <div v-else class="profile-placeholder">
-                {{ displayUserInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="profileFileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">Nurse</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <!-- Navigation Menu -->
-        <q-list class="navigation-menu">
-          <q-item clickable v-ripple @click="navigateTo('nurse-dashboard')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-messaging')" class="nav-item active">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patient-assessment')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="assignment" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('nurse-medicine-inventory')"
-            class="nav-item"
-          >
-            <q-item-section avatar>
-              <q-icon name="medication" />
-            </q-item-section>
-            <q-item-section>Medicine Inventory</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('nurse-settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <!-- Logout Section -->
-        <div class="logout-section">
-          <q-btn color="negative" label="Logout" icon="logout" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
-
-    <q-page-container class="page-container-with-fixed-header">
+    <q-page-container class="page-container-with-fixed-header role-body-bg">
       <!-- Main Content -->
       <div class="messaging-content">
         <!-- Header Section -->
@@ -167,11 +44,19 @@
                 <h4 class="verification-title">Account Verification Required</h4>
                 <p class="verification-message">
                   Your account needs to be verified before you can access messaging functionality.
-                  Please contact your administrator to complete the verification process.
+                  Please upload your verification document to complete the process.
                 </p>
                 <q-chip color="negative" text-color="white" size="lg" icon="cancel">
                   Not Verified
                 </q-chip>
+                <q-btn
+                  color="primary"
+                  label="Upload Verification Document"
+                  icon="upload_file"
+                  @click="$router.push('/verification')"
+                  class="q-mt-md"
+                  unelevated
+                />
               </q-card-section>
             </q-card>
           </div>
@@ -203,61 +88,64 @@
                 <p class="empty-text">No users available</p>
               </div>
 
-              <div v-else class="users-carousel">
-                <q-carousel
-                  v-model="currentSlide"
-                  swipeable
-                  animated
-                  infinite
-                  autoplay
-                  :autoplay-interval="4000"
-                  arrows
-                  navigation
-                  class="users-slider"
-                >
-                  <q-carousel-slide
-                    v-for="(userGroup, index) in userGroups"
-                    :key="index"
-                    :name="`slide-${index}`"
-                    class="slide-content"
-                  >
-                    <div class="users-row">
-                      <div
-                        v-for="user in userGroup"
-                        :key="user.id"
-                        class="user-avatar-card"
-                        @click="startConversation(user)"
-                      >
-                        <div class="avatar-container">
-                          <q-avatar size="80px" class="user-avatar">
-                            <img
-                              v-if="user.profile_picture"
-                              :src="
-                                user.profile_picture.startsWith('http')
-                                  ? user.profile_picture
-                                  : `http://localhost:8000${user.profile_picture}`
-                              "
-                              :alt="user.full_name"
-                            />
-                            <q-icon
-                              v-else
-                              :name="user.role === 'doctor' ? 'medical_services' : 'local_hospital'"
-                              size="40px"
-                              color="white"
-                            />
-                          </q-avatar>
-                        </div>
-
-                        <div class="avatar-info">
-                          <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
-                          <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
-                        </div>
-
-                        <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
+              <div v-else class="users-scroll">
+                <div class="scroll-actions">
+                  <q-btn round dense icon="chevron_left" @click="scrollUsers('left')" aria-label="Scroll left" />
+                  <q-btn round dense icon="chevron_right" @click="scrollUsers('right')" aria-label="Scroll right" />
+                </div>
+                <div class="users-scroll-viewport" ref="usersScrollEl">
+                  <div class="users-row">
+                    <div
+                      v-for="user in availableUsers"
+                      :key="user.id"
+                      class="user-item"
+                      @click="startConversation(user)"
+                    >
+                      <div class="avatar-container">
+                        <q-avatar size="80px" class="user-avatar">
+                          <img
+                            v-if="user.profile_picture"
+                            :src="
+                              user.profile_picture.startsWith('http')
+                                ? user.profile_picture
+                                : `http://localhost:8000${user.profile_picture}`
+                            "
+                            :alt="user?.full_name || 'User'"
+                            @error="user.profile_picture = ''"
+                          />
+                          <div v-else class="avatar-initials">{{ getInitials(user?.full_name || '') }}</div>
+                        </q-avatar>
+                        
+                        <q-badge
+                          v-if="user.verification_status === 'approved'"
+                          floating
+                          color="positive"
+                          class="verification-badge"
+                        >
+                          <q-icon name="verified" size="16px" />
+                        </q-badge>
                       </div>
+
+                      <div class="avatar-info">
+                        <h6 class="avatar-name">{{ user.full_name || 'User' }}</h6>
+                        <p class="avatar-role">{{ user.role === 'doctor' ? 'Dr.' : 'Nurse' }}</p>
+                        
+                        <q-chip
+                          v-if="user.verification_status === 'approved'"
+                          color="positive"
+                          text-color="white"
+                          size="xs"
+                          icon="verified_user"
+                          class="verification-chip"
+                        >
+                          Verified
+                        </q-chip>
+                      </div>
+
+                      <q-btn flat round icon="chat" color="primary" size="sm" class="chat-btn" />
                     </div>
-                  </q-carousel-slide>
-                </q-carousel>
+                  </div>
+                </div>
               </div>
             </q-card-section>
 
@@ -305,23 +193,15 @@
                     <q-avatar size="45px">
                       <img
                         v-if="conversation.other_participant?.profile_picture"
-                        :src="
+                      :src="
                           conversation.other_participant.profile_picture.startsWith('http')
                             ? conversation.other_participant.profile_picture
                             : `http://localhost:8000${conversation.other_participant.profile_picture}`
                         "
-                        :alt="conversation.other_participant.full_name"
+                        :alt="conversation.other_participant?.full_name || 'User'"
+                        @error="conversation.other_participant && (conversation.other_participant.profile_picture = '')"
                       />
-                      <q-icon
-                        v-else
-                        :name="
-                          conversation.other_participant?.role === 'doctor'
-                            ? 'medical_services'
-                            : 'local_hospital'
-                        "
-                        size="22px"
-                        color="white"
-                      />
+                      <div v-else class="avatar-initials">{{ getInitials(conversation.other_participant?.full_name || '') }}</div>
                     </q-avatar>
                   </div>
 
@@ -366,6 +246,7 @@
                       : `http://localhost:8000${selectedUser.profile_picture}`
                   "
                   :alt="selectedUser.full_name"
+                  @error="selectedUser && (selectedUser.profile_picture = '')"
                 />
                 <q-icon
                   v-else
@@ -409,16 +290,10 @@
                           ? message.sender.profile_picture
                           : `http://localhost:8000${message.sender.profile_picture}`
                       "
-                      :alt="message.sender.full_name"
+                      :alt="message.sender?.full_name || 'User'"
+                      @error="message.sender.profile_picture = ''"
                     />
-                    <q-icon
-                      v-else
-                      :name="
-                        message.sender.role === 'doctor' ? 'medical_services' : 'local_hospital'
-                      "
-                      size="16px"
-                      color="white"
-                    />
+                    <div v-else class="avatar-initials">{{ getInitials(message.sender?.full_name || '') }}</div>
                   </q-avatar>
                   <span class="message-sender text-white-7">
                     {{ message.sender.full_name }}
@@ -516,11 +391,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useQuasar } from 'quasar';
 import { useRouter } from 'vue-router';
 import { api } from 'boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
+import NurseSidebar from 'src/components/NurseSidebar.vue';
 
 // Types
 interface User {
@@ -529,6 +405,8 @@ interface User {
   role: string;
   profile_picture?: string;
   is_active?: boolean;
+  verification_status?: string;
+  is_verified?: boolean;
 }
 
 interface Message {
@@ -600,8 +478,8 @@ const selectedConversation = ref<Conversation | null>(null);
 const showChatModal = ref(false);
 const showNewConversationDialog = ref(false);
 const newMessage = ref('');
-const profileFileInput = ref<HTMLInputElement | null>(null);
-const currentSlide = ref(0);
+// Horizontal scroll ref for available users list
+const usersScrollEl = ref<HTMLElement | null>(null);
 
 // Search functionality
 // Search result interfaces
@@ -667,50 +545,28 @@ const userProfile = ref<{
 });
 
 // Computed
-const displayUserInitials = computed(() => {
-  // Use userProfile.full_name as primary source, fallback to currentUser
-  const name = userProfile.value.full_name || currentUser.value.full_name || '';
-  if (!name || name === 'Loading...') {
-    return 'NU'; // Default for Nurse User
-  }
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
-});
 
 const unreadNotificationsCount = computed(() => {
   return notifications.value.filter((n) => !n.isRead).length;
 });
 
-const displayProfilePictureUrl = computed(() => {
-  // Use userProfile.profile_picture as primary source, fallback to currentUser
-  const profilePicture = userProfile.value.profile_picture || currentUser.value.profile_picture;
+// Smooth horizontal scrolling controls for users list
+const scrollUsers = (dir: 'left' | 'right'): void => {
+  const el = usersScrollEl.value;
+  if (!el) return;
+  const amount = Math.round(el.clientWidth * 0.8);
+  el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+};
 
-  if (!profilePicture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (profilePicture.startsWith('http')) {
-    return profilePicture;
-  }
-
-  // Otherwise, construct the full URL
-  return `http://localhost:8000${profilePicture}`;
-});
-
-const userGroups = computed(() => {
-  const groups = [];
-  const usersPerSlide = 6; // Show 6 users per slide
-
-  for (let i = 0; i < availableUsers.value.length; i += usersPerSlide) {
-    groups.push(availableUsers.value.slice(i, i + usersPerSlide));
-  }
-
-  return groups;
-});
+// Helper: derive initials from a full name
+const getInitials = (name: string): string => {
+  const safe = (name || '').trim();
+  if (!safe) return 'U';
+  const parts = safe.split(/\s+/);
+  const initials = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  // Use charAt to avoid undefined when string is empty; final fallback 'U'
+  return initials || (safe ? safe.charAt(0).toUpperCase() : 'U');
+};
 
 // Methods
 const getCurrentUser = (): void => {
@@ -761,115 +617,58 @@ const fetchUserProfile = async () => {
   }
 };
 
-// Profile picture upload functions
-const triggerFileUpload = () => {
-  profileFileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      // Update both currentUser and userProfile for immediate display
-      const newProfilePicture = response.data.user.profile_picture;
-      currentUser.value.profile_picture = newProfilePicture;
-      userProfile.value.profile_picture = newProfilePicture;
-
-      // Store the updated profile picture in localStorage for cross-page sync
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      storedUser.profile_picture = newProfilePicture;
-      localStorage.setItem('user', JSON.stringify(storedUser));
-
-      // Force reactivity update by creating new object references
-      currentUser.value = { ...currentUser.value, profile_picture: newProfilePicture };
-      userProfile.value = { ...userProfile.value, profile_picture: newProfilePicture };
-
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: { data?: { profile_picture?: string[]; detail?: string } };
-        };
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 4000,
-      });
-    }
-  }
-};
 
 const loadAvailableUsers = async (): Promise<void> => {
   try {
     loading.value = true;
     console.log('📞 Loading available users...');
 
-    const response = await api.get('/operations/messaging/available-users/');
-    availableUsers.value = response.data;
-    console.log('✅ Available users loaded:', availableUsers.value);
-    console.log('📊 Total users found:', availableUsers.value.length);
+    const response = await api.get('/api/operations/messaging/available-users/');
+    
+    // Handle new API response format
+    if (response.data.users) {
+      availableUsers.value = response.data.users;
+      console.log('✅ Available users loaded:', availableUsers.value);
+      console.log('📊 Total verified users found:', response.data.total_count);
+      console.log('🔒 Security message:', response.data.message);
+      
+      // Show success notification with verification info
+      $q.notify({
+        type: 'positive',
+        message: response.data.message || `Found ${response.data.total_count} verified users`,
+        timeout: 3000
+      });
+    } else {
+      // Fallback for old API format
+      availableUsers.value = response.data;
+      console.log('Available users loaded (legacy format):', availableUsers.value);
+    }
 
     // Log each user's verification status
     availableUsers.value.forEach((user: User) => {
-      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Active: ${user.is_active}`);
+      console.log(`👤 User: ${user.full_name}, Role: ${user.role}, Verified: ${user.verification_status === 'approved'}`);
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Error loading available users:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to load users',
-    });
+    
+    // Type guard for Axios errors
+    const isAxiosError = (err: unknown): err is { response: { status: number } } => {
+      return err !== null && typeof err === 'object' && 'response' in err;
+    };
+    
+    // Handle specific verification errors
+    if (isAxiosError(error) && error.response?.status === 403) {
+      $q.notify({
+        type: 'negative',
+        message: 'Access denied: Your account must be verified to access messaging',
+        timeout: 5000
+      });
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to load users',
+      });
+    }
   } finally {
     loading.value = false;
   }
@@ -1027,37 +826,7 @@ const toggleRightDrawer = (): void => {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 };
 
-const navigateTo = (route: string): void => {
-  rightDrawerOpen.value = false;
 
-  switch (route) {
-    case 'nurse-dashboard':
-      void router.push('/nurse-dashboard');
-      break;
-    case 'patient-assessment':
-      void router.push('/nurse-patient-assessment');
-      break;
-    case 'nurse-messaging':
-      // Already on messaging page
-      break;
-    case 'nurse-medicine-inventory':
-      void router.push('/nurse-medicine-inventory');
-      break;
-    case 'nurse-analytics':
-      void router.push('/nurse-analytics');
-      break;
-    case 'nurse-settings':
-      void router.push('/nurse-settings');
-      break;
-  }
-};
-
-const logout = (): void => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
-};
 
 const updateTime = (): void => {
   const now = new Date();
@@ -1388,21 +1157,7 @@ onMounted(() => {
   }, 10000);
 });
 
-// Storage event handler for profile picture sync
-const handleStorageChange = (e: StorageEvent) => {
-  if (e.key === 'profile_picture' && e.newValue) {
-    userProfile.value.profile_picture = e.newValue;
-    console.log('Profile picture updated from storage event:', e.newValue);
-  }
-};
-
-// Listen for storage changes to sync profile picture across components
-window.addEventListener('storage', handleStorageChange);
-
-onUnmounted(() => {
-  // Clean up storage event listener
-  window.removeEventListener('storage', handleStorageChange);
-});
+// Removed profile picture storage sync: initials-only avatar
 </script>
 
 <style scoped>
@@ -1579,26 +1334,6 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
-.upload-btn {
-  position: absolute;
-  bottom: 0px;
-  right: 0px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 28px !important;
-  height: 28px !important;
-  min-height: 28px !important;
-  padding: 0 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
-  border: 2px solid white !important;
-  transition: all 0.3s ease !important;
-}
-
-.upload-btn:hover {
-  background: #286660 !important;
-  transform: scale(1.1) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
 
 /* Responsive design for different screen sizes */
 @media (max-width: 768px) {
@@ -1652,12 +1387,6 @@ onUnmounted(() => {
   overflow: hidden !important;
 }
 
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
 
 .profile-placeholder {
   width: 100%;
@@ -2276,53 +2005,52 @@ onUnmounted(() => {
   color: white;
 }
 
-/* Carousel Styles */
-.users-carousel {
+/* Horizontal Users Scroll Styles */
+.users-scroll {
   margin: 20px 0;
+  position: relative;
 }
 
-.users-slider {
-  height: 200px;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.slide-content {
-  padding: 20px;
-  height: 100%;
+.scroll-actions {
+  position: absolute;
+  right: 10px;
+  top: -8px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 8px;
+}
+
+.users-scroll-viewport {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 8px 24px rgba(40, 102, 96, 0.12);
+  padding: 16px;
 }
 
 .users-row {
   display: flex;
   gap: 20px;
-  justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
-  width: 100%;
+  width: max-content;
 }
 
-.user-avatar-card {
+.user-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 10px;
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 120px;
   position: relative;
 }
 
-.user-avatar-card:hover {
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+.user-item:hover {
+  transform: scale(1.05);
 }
 
 .avatar-container {
@@ -2537,9 +2265,9 @@ onUnmounted(() => {
     gap: 15px;
   }
 
-  .user-avatar-card {
+  .user-item {
     min-width: 100px;
-    padding: 12px;
+    padding: 8px;
   }
 
   .user-avatar {
@@ -2559,5 +2287,39 @@ onUnmounted(() => {
   .avatar-status {
     font-size: 10px;
   }
+}
+
+/* Verification Badge Styles */
+.verification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.verification-chip {
+  margin-top: 4px;
+  font-size: 10px;
+  height: 18px;
+}
+
+.avatar-container {
+  position: relative;
+}
+
+/* Initials fallback for avatars */
+.avatar-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #286660; /* matches theme */
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  border-radius: 50%;
 }
 </style>

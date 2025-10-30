@@ -155,7 +155,7 @@ const onResetPassword = async () => {
 <style scoped>
 .reset-password-page {
   min-height: 100vh;
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   display: flex;
   align-items: center;

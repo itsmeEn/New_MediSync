@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediSync Admin Dashboard</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #286660;
+            --secondary-color: #1e7668;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+        }
+
+        body {
+            background: linear-gradient(180deg, #f0f2f5 0%, #e9ecef 100%) !important;
+            background-size: cover !important;
+            background-attachment: fixed !important;
+            position: relative !important;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(248, 249, 250, 0.2) 50%, rgba(240, 242, 245, 0.1) 100%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .navbar {
+            background-color: var(--primary-color) !important;
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+        }
+
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+
+        .nav-link:hover {
+            color: white !important;
+        }
+
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+
+        .table {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .btn-action {
+            margin: 2px;
+            border-radius: 20px;
+        }
+
+        .status-badge {
+            border-radius: 20px;
+            padding: 5px 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .login-page {
+            min-height: 100vh !important;
+            background: transparent !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header h2 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .login-header p {
+            margin: 0;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .login-form {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #1e7668;
+            box-shadow: 0 0 0 2px rgba(30, 118, 104, 0.2);
+        }
+
+        .forgot-password {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        .forgot-btn {
+            background: none;
+            border: none;
+            color: #1e7668;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+        }
+
+        .forgot-btn:hover {
+            color: #5a6fd8;
+        }
+
+        .form-group button {
+            margin-top: 8px;
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: #1e7668;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .login-btn:hover:not(:disabled) {
+            background: #6ca299;
+        }
+
+        .login-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .login-footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .login-footer p {
+            margin: 0;
+            color: #666;
+        }
+
+        .link-btn {
+            background: none;
+            border: none;
+            color: #1e7668;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+        }
+
+        .link-btn:hover {
+            color: #6ca299;
+        }
+
+        .modal-header {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .document-preview {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .admin-header {
+            background: #286660;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        .header-toolbar {
+            padding: 0 24px;
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+        }
+
+        .menu-toggle-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            margin-right: 16px;
+            cursor: pointer;
+        }
+
+        .header-left {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .search-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+        }
+
+        .notification-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .time-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .admin-name {
+            color: white;
+            font-weight: 500;
+        }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Sidebar Styles */
+        .admin-sidebar {
+            position: fixed;
+            top: 64px;
+            left: -280px;
+            width: 280px;
+            height: calc(100vh - 64px);
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            transition: left 0.3s ease;
+            z-index: 999;
+        }
+
+        .admin-sidebar.open {
+            left: 0;
+        }
+
+        .sidebar-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-section {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-image {
+            height: 32px;
+            width: auto;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            font-weight: 700;
+            color: #286660;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .navigation-menu {
+            flex: 1;
+            padding: 16px 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            margin: 4px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .nav-item.active {
+            background: #286660;
+            color: white;
+        }
+
+        .nav-item:hover:not(.active) {
+            background: #f5f5f5;
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-top: 64px;
+            padding: 24px;
+            background: #f8f9fa;
+            min-height: calc(100vh - 64px);
+            position: relative;
+        }
+
+        .main-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(248, 249, 250, 0.15) 50%, rgba(240, 242, 245, 0.08) 100%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .main-content > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Greeting Section */
+        .greeting-section {
+            margin-bottom: 24px;
+        }
+
+        .greeting-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            overflow: hidden;
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .greeting-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .greeting-content {
+            padding: 24px;
+        }
+
+        .greeting-text {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+            margin: 0 0 8px 0;
+        }
+
+        .greeting-subtitle {
+            font-size: 16px;
+            color: #666;
+            margin: 0;
+        }
+
+        /* Dashboard Cards Section */
+        .dashboard-cards-section {
+            margin-bottom: 24px;
+        }
+
+        .dashboard-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Glassmorphism Dashboard Cards */
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            overflow: hidden;
+            position: relative;
+            min-height: 140px;
+        }
+
+        .dashboard-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+            border-radius: 16px 16px 0 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        .dashboard-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-content {
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+        }
+
+        .card-text {
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #286660;
+            line-height: 1;
+            margin-top: 8px;
+        }
+
+        .card-icon {
+            margin-left: 16px;
+            color: #286660;
+            opacity: 0.8;
+            transition: all 0.3s ease;
+            font-size: 2.5rem;
+        }
+
+        .dashboard-card:hover .card-icon {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        /* Card-specific colors */
+        .pending-card .card-icon { color: #ff9800; }
+        .pending-card .card-value { color: #ff9800; }
+
+        .approved-card .card-icon { color: #4caf50; }
+        .approved-card .card-value { color: #4caf50; }
+
+        .declined-card .card-icon { color: #f44336; }
+        .declined-card .card-value { color: #f44336; }
+
+        .archived-card .card-icon { color: #9c27b0; }
+        .archived-card .card-value { color: #9c27b0; }
+
+        /* Verifications Section */
+        .verifications-section {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .verifications-card {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .card-filters {
+            display: flex;
+            gap: 12px;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            font-size: 14px;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .verifications-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .verifications-table th {
+            background: rgba(40, 102, 96, 0.1);
+            color: #286660;
+            font-weight: 600;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid rgba(40, 102, 96, 0.2);
+        }
+
+        .verifications-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .verifications-table tbody tr:hover {
+            background: rgba(40, 102, 96, 0.05);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .dashboard-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 16px;
+            }
+            
+            .greeting-text {
+                font-size: 24px;
+            }
+            
+            .card-content {
+                padding: 20px;
+            }
+            
+            .card-title {
+                font-size: 16px;
+            }
+            
+            .card-description {
+                font-size: 13px;
+            }
+
+            .admin-sidebar {
+                width: 100%;
+                left: -100%;
+            }
+        }
+
+        /* Dashboard Grid (avoid Bootstrap row/col conflicts) */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            align-items: start;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        @media (max-width: 820px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-cards-grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+            
+            .greeting-text {
+                font-size: 20px;
+            }
+            
+            .card-content {
+                padding: 16px;
+            }
+            
+            .card-title {
+                font-size: 15px;
+            }
+            
+            .card-description {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-page">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h2>Welcome to MediSync</h2>
+                    <p>Administrator Login</p>
+                </div>
+
+                <div class="login-form">
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input id="email" name="email" type="email" required placeholder="Enter your email" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input id="password" name="password" type="password" required placeholder="Enter your password" />
+                            <button type="button" id="passwordToggleBtn">Show</button>
+                        </div>
+
+                        <button type="submit" class="login-btn">Sign In</button>
+                    </form>
+                </div>
+
+                <div class="login-footer">
+                    <p>
+                        Don't have an admin account?
+                        <a href="register.html" class="link-btn">Create Admin Account</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" style="display: none;">
+        <!-- Header -->
+        <div class="admin-header">
+            <div class="header-toolbar">
+                <!-- Sidebar removed: menu toggle button no longer needed -->
+                
+                <!-- Left side - Search bar -->
+                <div class="header-left">
+                    <div class="search-container">
+                        <input 
+                            type="text" 
+                            id="searchInput"
+                            placeholder="Search by name or email..."
+                            class="search-input"
+                        />
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                </div>
+                
+                <!-- Right side - Notifications, Time, Admin Info -->
+                <div class="header-right">
+                    <!-- Time Display -->
+                    <div class="time-display">
+                        <i class="fas fa-clock"></i>
+                        <span class="time-text" id="currentTime"></span>
+                    </div>
+                    
+                    <!-- Admin Info -->
+                    <div class="admin-info">
+                        <span class="admin-name" id="adminName">Admin</span>
+                        <button class="logout-btn" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar removed -->
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div id="dashboardSection">
+            <!-- Greeting Section -->
+            <div class="greeting-section">
+                <div class="greeting-card">
+                    <div class="greeting-content">
+                        <h2 class="greeting-text" id="greetingText">Welcome to MediSync Admin</h2>
+                        <p class="greeting-subtitle" id="greetingSubtitle">Manage your healthcare platform</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Cards Section -->
+            <div class="dashboard-cards-section">
+                <div class="dashboard-cards-grid">
+                    <!-- Pending Verifications Card -->
+                    <div class="dashboard-card pending-card" onclick="showPendingVerifications()">
+                        <div class="card-content">
+                            <div class="card-text">
+                                <div class="card-title">Pending Verifications</div>
+                                <div class="card-description">Awaiting admin review</div>
+                                <div class="card-value" id="pendingCount">0</div>
+                            </div>
+                            <div class="card-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Approved Card -->
+                    <div class="dashboard-card approved-card" onclick="showApprovedVerifications()">
+                        <div class="card-content">
+                            <div class="card-text">
+                                <div class="card-title">Approved</div>
+                                <div class="card-description">Successfully verified users</div>
+                                <div class="card-value" id="approvedCount">0</div>
+                            </div>
+                            <div class="card-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Declined Card -->
+                    <div class="dashboard-card declined-card" onclick="showDeclinedVerifications()">
+                        <div class="card-content">
+                            <div class="card-text">
+                                <div class="card-title">Declined</div>
+                                <div class="card-description">Rejected verification requests</div>
+                                <div class="card-value" id="declinedCount">0</div>
+                            </div>
+                            <div class="card-icon">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Archived Card -->
+                    <div class="dashboard-card archived-card" onclick="showArchivedVerifications()">
+                        <div class="card-content">
+                            <div class="card-text">
+                                <div class="card-title">Archived</div>
+                                <div class="card-description">Stored verification records</div>
+                                <div class="card-value" id="archivedCount">0</div>
+                            </div>
+                            <div class="card-icon">
+                                <i class="fas fa-archive"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+            <!-- Dashboard Grid: Verifications + Bottlenecks Analytics -->
+            <div class="dashboard-grid" id="dashboardGrid">
+                <div>
+                    <!-- Verifications Table Section -->
+                    <div class="verifications-section" id="verificationsSection">
+                        <div class="verifications-card">
+                            <div class="card-header">
+                                <h5 class="card-title">Verification Requests</h5>
+                                <div class="card-filters">
+                                    <select id="statusFilter" class="filter-select">
+                                        <option value="">All Status</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="approved">Approved</option>
+                                        <option value="declined">Declined</option>
+                                        <option value="archived">Archived</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="verifications-table">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Email</th>
+                                                <th>Role</th>
+                                                <th>Status</th>
+                                                <th>Submitted</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="verificationsTable">
+                                            <!-- Data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <!-- Bottlenecks Analytics Panel -->
+                    <div class="verifications-card" id="bottlenecksSection">
+                        <div class="card-header">
+                            <h5 class="card-title">Module Performance</h5>
+                            <div class="card-filters">
+                                <button id="analyzeBottlenecksBtn" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-chart-line"></i> Analyze
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div style="margin-bottom: 12px; color: #666; font-size: 13px;">
+                                Visualizes doctor, nurse, and patient module latency and reliability.
+                            </div>
+                            <canvas id="latencyChart" height="140"></canvas>
+                            <div style="height: 12px"></div>
+                            <canvas id="successChart" height="140"></canvas>
+                            <div id="bottlenecksSummary" class="mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Section: System Performance -->
+            <div id="analyticsSection" style="display: none;">
+                <div class="greeting-card" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="greeting-content">
+                        <h2 class="greeting-text">System Performance</h2>
+                        <p class="greeting-subtitle">Analytics tools and stress testing utilities.</p>
+                    </div>
+                </div>
+
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Detailed Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Platform:</strong> <span id="platformInfo">–</span></p>
+                                <p><strong>PSUtil Available:</strong> <span id="psutilAvailable">–</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Process:</strong> PID <span id="procPid">–</span>, Threads <span id="procThreads">–</span></p>
+                                <p><strong>Process RSS:</strong> <span id="procRss">–</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Section: Frontend Stress Test -->
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Frontend Stress Test (Doctor, Nurse, Patient)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label for="stressGroup" class="form-label">Target</label>
+                                <select id="stressGroup" class="form-select">
+                                    <option value="all" selected>All (Doctor, Nurse, Patient)</option>
+                                    <option value="doctor">Doctor</option>
+                                    <option value="nurse">Nurse</option>
+                                    <option value="patient">Patient</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="stressConcurrency" class="form-label">Concurrency</label>
+                                <input id="stressConcurrency" type="number" class="form-control" value="8" min="1" max="64">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="stressRequests" class="form-label">Requests per endpoint</label>
+                                <input id="stressRequests" type="number" class="form-control" value="30" min="1" max="1000">
+                            </div>
+                            <div class="col-md-3">
+                                <button id="runStressTestBtn" class="btn btn-primary w-100">
+                                    <i class="fas fa-bolt"></i> Run Stress Test
+                                </button>
+                            </div>
+                        </div>
+                        <div id="stressResultsContainer" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Section (placeholder) -->
+            <div id="settingsSection" style="display: none;">
+                <div class="greeting-card" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="greeting-content">
+                        <h2 class="greeting-text">Settings</h2>
+                        <p class="greeting-subtitle">Configure admin preferences and platform settings here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decline Modal -->
+    <div class="modal fade" id="declineModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Decline Verification</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="declineReason" class="form-label">Reason for declining</label>
+                        <textarea class="form-control" id="declineReason" rows="3" required></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="sendEmail" checked>
+                        <label class="form-check-label" for="sendEmail">
+                            Send email notification to user
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmDecline()">Decline</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Viewer Modal -->
+    <div class="modal fade" id="documentModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #286660; color: white;">
+                    <h5 class="modal-title">Verification Document</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="documentInfo"></div>
+                    <div class="document-preview mt-3" style="min-height: 500px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                        <iframe id="documentFrame" width="100%" height="500" frameborder="0" style="border: none;"></iframe>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        <div id="toast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage"></div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div class="loading" id="loading">
+        <div class="d-flex justify-content-center align-items-center" style="height: 100vh;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="admin.js?v=20251027"></script>
+</body>
+</html>

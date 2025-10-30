@@ -1,5 +1,5 @@
 import { defineBoot } from '#q-app/wrappers';
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { getPlatformInfo, getTimeoutConfig } from 'src/utils/asyncErrorHandler';
 
 declare module 'vue' {
@@ -7,6 +7,14 @@ declare module 'vue' {
     $axios: AxiosInstance;
     $api: AxiosInstance;
   }
+}
+
+// Helper to read cookies (for CSRF)
+function getCookie(name: string): string | null {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()!.split(';').shift() || null;
+  return null;
 }
 
 // Initial endpoint resolution (synchronous for boot)
@@ -21,67 +29,106 @@ const resolveBaseURL = (): string => {
   if (platform.isCapacitor) {
     // For mobile devices, use primary endpoint initially
     const mobileEndpoints = [
-      'http://192.168.55.101:8000/api', // Primary development IP
-      'http://192.168.1.100:8000/api', // Alternative common IP
+      'http://172.20.29.202:8000/api', // Current network IP
       'http://10.0.2.2:8000/api', // Android emulator
+      'http://192.168.55.101:8000/api', // Alternative development IP
+      'http://192.168.1.100:8000/api', // Alternative common IP
       'http://localhost:8000/api', // Fallback
     ];
 
     return mobileEndpoints[0] || 'http://localhost:8000/api';
   }
 
-  // For web browsers, use the current hostname
+  // For web browsers, use the current hostname and prefer port 8000
   const host = window.location?.hostname || 'localhost';
   const webEndpoint = `http://${host}:8000/api`;
   return webEndpoint;
 };
 
-// Async endpoint testing for mobile optimization (called after boot)
-export const optimizeEndpointForMobile = async (): Promise<void> => {
-  const platform = getPlatformInfo();
-
-  if (!platform.isCapacitor) {
-    return; // Only optimize for mobile
-  }
-
-  const mobileEndpoints = [
-    'http://192.168.55.101:8000/api',
-    'http://192.168.1.100:8000/api',
-    'http://10.0.2.2:8000/api',
-    'http://localhost:8000/api',
-  ];
-
+// Connectivity test helper: probes a stable PUBLIC endpoint and treats 404 as NOT reachable
+const testConnectivity = async (endpoint: string): Promise<boolean> => {
   try {
-    const workingEndpoint = await testMobileEndpoints(mobileEndpoints);
-    if (workingEndpoint !== api.defaults.baseURL) {
-      api.defaults.baseURL = workingEndpoint;
-      localStorage.setItem('API_BASE_URL', workingEndpoint);
-    }
+    // Probe a public UI config endpoint with GET; should respond 200
+    const probeUrl = `${endpoint}/operations/ui-config/`;
+    const testResponse = await axios.get(probeUrl, {
+      // Use a short timeout to avoid hanging when port is closed
+      timeout: 2500,
+      validateStatus: () => true,
+    });
+    // Consider 2xx as reachable; 404 means wrong baseURL
+    return (testResponse.status >= 200 && testResponse.status < 300);
   } catch {
-    // Endpoint optimization failed silently
+    // Network errors (like ECONNREFUSED) will land here
+    return false;
   }
 };
 
-// Test mobile endpoints for connectivity
-const testMobileEndpoints = async (endpoints: string[]): Promise<string> => {
-  for (const endpoint of endpoints) {
-    try {
-      // Quick connectivity test with short timeout
-      const testResponse = await axios.get(`${endpoint}/health/`, {
-        timeout: 3000,
-        validateStatus: () => true, // Accept any status for connectivity test
-      });
+// Mobile endpoints to probe when running under Capacitor
+const MOBILE_ENDPOINTS = [
+  'http://172.20.29.202:8000/api', // Current network IP
+  'http://10.0.2.2:8000/api', // Android emulator
+  'http://192.168.55.101:8000/api', // Alternative development IP
+  'http://192.168.1.100:8000/api', // Alternative common IP
+  'http://localhost:8000/api', // Fallback
+];
 
-      if (testResponse.status < 500) {
-        return endpoint;
-      }
-    } catch {
-      // Endpoint test failed silently
+// Web fallback testing: prefer :8000, optionally try :8001 for legacy setups
+const resolveWebEndpointWithFallback = async (): Promise<string> => {
+  const host = window.location?.hostname || 'localhost';
+  const primary = `http://${host}:8000/api`;
+  const enable8001 = localStorage.getItem('ENABLE_8001_FALLBACK') === 'true';
+  if (!enable8001) {
+    return primary;
+  }
+  const fallback = `http://${host}:8001/api`;
+
+  // Test :8000 first
+  const okPrimary = await testConnectivity(primary);
+  if (okPrimary) {
+    return primary;
+  }
+  // Then try :8001 as a secondary option (only if enabled)
+  const okFallback = await testConnectivity(fallback);
+  if (okFallback) {
+    return fallback;
+  }
+  // As last resort, return primary to avoid undefined baseURL
+  return primary;
+};
+
+// Test a list of mobile endpoints and pick the first reachable
+const resolveMobileEndpointWithFallback = async (): Promise<string> => {
+  for (const endpoint of MOBILE_ENDPOINTS) {
+    const ok = await testConnectivity(endpoint);
+    if (ok) {
+      return endpoint;
     }
   }
+  return MOBILE_ENDPOINTS[0] || 'http://localhost:8000/api';
+};
 
-  // Fallback to first endpoint if none are reachable
-  return endpoints[0] || 'http://localhost:8000/api';
+// Unified async optimizer: works for both web and mobile
+export const optimizeEndpoint = async (): Promise<void> => {
+  const platform = getPlatformInfo();
+
+  try {
+    let workingEndpoint: string | null = null;
+
+    if (platform.isCapacitor) {
+      workingEndpoint = await resolveMobileEndpointWithFallback();
+    } else {
+      workingEndpoint = await resolveWebEndpointWithFallback();
+    }
+
+    if (workingEndpoint && workingEndpoint !== api.defaults.baseURL) {
+      api.defaults.baseURL = workingEndpoint;
+      localStorage.setItem('API_BASE_URL', workingEndpoint);
+      console.log('API base URL optimized to:', workingEndpoint);
+    }
+  } catch (e) {
+    // Fail silently to avoid blocking app startup
+    console.warn('Endpoint optimization failed:', e);
+  }
 };
 
 // Create axios instance with platform-specific configuration
@@ -91,9 +138,9 @@ const api = axios.create({
   timeout: timeoutConfig.timeout,
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and CSRF
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem('access_token');
 
     // Avoid attaching tokens to auth-related endpoints
@@ -105,19 +152,36 @@ api.interceptors.request.use(
       url.includes('/users/reset-password') ||
       url.includes('/users/token/refresh/');
 
+    // Public endpoints that do not require auth; suppress missing-token warnings
+    const isPublicEndpoint =
+      url.includes('/admin/hospitals/') ||
+      url.includes('/admin/config/') ||
+      url.includes('/admin/csrf-token/') ||
+      url.includes('/operations/ui-config/');
+
     if (token && !isAuthEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
       console.log('Adding auth token to request:', config.url);
-    } else if (!token) {
+    } else if (!token && !isAuthEndpoint && !isPublicEndpoint) {
+      // Only warn for endpoints that are expected to be authenticated
       console.warn('No access token found for request:', config.url);
     } else if (isAuthEndpoint) {
-      console.log('Skipping auth header for auth endpoint:', config.url);
+      // No token expected for auth endpoints like register/login
+      // console.log('Skipping auth header for auth endpoint:', config.url);
+    }
+
+    // Add CSRF header for unsafe methods if cookie exists
+    const unsafeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes((config.method || 'GET').toUpperCase());
+    const csrf = getCookie('csrftoken');
+    if (unsafeMethod && csrf) {
+      (config.headers as Record<string, string>)['X-CSRFToken'] = csrf;
     }
 
     return config;
   },
-  (error) => {
-    return Promise.reject(new Error(error.message || 'Request failed'));
+  (error: Error) => {
+    // Preserve original Axios error to keep response/details for downstream handlers
+    return Promise.reject(error);
   },
 );
 
@@ -126,8 +190,8 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined;
 
     // Do not attempt refresh on auth endpoints
     const url = originalRequest?.url || '';
@@ -138,7 +202,7 @@ api.interceptors.response.use(
       url.includes('/users/reset-password') ||
       url.includes('/users/token/refresh/');
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthEndpoint) {
       console.log('401 Unauthorized detected, attempting token refresh...');
       originalRequest._retry = true;
 
@@ -154,7 +218,7 @@ api.interceptors.response.use(
           localStorage.setItem('access_token', access);
           console.log('Token refreshed successfully');
 
-          originalRequest.headers.Authorization = `Bearer ${access}`;
+          // Retry the original request; request interceptor will attach the new token
           return api(originalRequest);
         } else {
           console.warn('No refresh token found');
@@ -167,22 +231,25 @@ api.interceptors.response.use(
         localStorage.removeItem('user');
         window.location.href = '/login';
       }
-    }
+      }
 
-    return Promise.reject(new Error(error.message || 'Response failed'));
+    // Preserve original Axios error so callers can inspect status and response body
+    return Promise.reject(error);
   },
 );
 
-export default defineBoot(({ app }) => {
-  // for use inside Vue files (Options API) through this.$axios and this.$api
-
+export default defineBoot(async ({ app }) => {
   app.config.globalProperties.$axios = axios;
-  // ^ ^ ^ this will allow to use this.$axios (for Vue Options API form)
-  //       so you won't necessarily have to import axios in each vue file
-
   app.config.globalProperties.$api = api;
-  // ^ ^ ^ this will allow to use this.$api (for Vue Options API form)
-  //       so you can easily perform requests against your app's API
+
+  // Skip endpoint probe on the landing route to avoid noisy network errors
+  const hash = window.location?.hash || '';
+  const onLanding = hash.includes('/landing');
+  const disableProbe = localStorage.getItem('DISABLE_ENDPOINT_PROBE') === 'true';
+
+  if (!onLanding && !disableProbe) {
+    await optimizeEndpoint();
+  }
 });
 
 export { api };

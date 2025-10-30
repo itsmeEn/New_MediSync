@@ -5,6 +5,16 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from scipy.stats import chi2_contingency
 from django.db.models import QuerySet
+import warnings
+import base64
+import io
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import os
+
+# Consistent train/test split for predictive analytics
+DEFAULT_TRAIN_RATIO = 0.7
 
 def get_data_from_queryset(queryset: QuerySet):
     """
@@ -15,6 +25,65 @@ def get_data_from_queryset(queryset: QuerySet):
     
     # Efficiently load data into a DataFrame
     return pd.DataFrame.from_records(queryset.values())
+
+def normalize_date_range(df: pd.DataFrame, date_col: str, start: str | None = None, end: str | None = None) -> pd.DataFrame:
+    """
+    Clip a DataFrame to a consistent date range for comparability across analyses.
+
+    - Converts `date_col` to datetime
+    - Applies inclusive filtering between `start` and `end` (if provided)
+    """
+    df = df.copy()
+    df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+    df = df.dropna(subset=[date_col])
+    if start is not None:
+        df = df[df[date_col] >= pd.to_datetime(start)]
+    if end is not None:
+        df = df[df[date_col] <= pd.to_datetime(end)]
+    return df
+
+def strip_pii_columns(df: pd.DataFrame, pii_columns: list[str] | None = None) -> pd.DataFrame:
+    """
+    Remove personally identifiable information columns to support data privacy compliance.
+
+    Default PII columns can be expanded based on the dataset.
+    """
+    if pii_columns is None:
+        pii_columns = ['patient_name', 'full_name', 'address', 'phone', 'email']
+    return df.drop(columns=[c for c in pii_columns if c in df.columns], errors='ignore')
+
+def export_analysis_to_csv(outputs: dict, output_dir: str) -> dict:
+    """
+    Export analysis outputs to CSV files in `output_dir`.
+
+    - Supports values that are: pandas DataFrame, list[dict], or simple dicts with 'records'
+    - Returns a dict mapping keys to written file paths
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    written = {}
+    for key, value in outputs.items():
+        try:
+            df = None
+            if isinstance(value, pd.DataFrame):
+                df = value
+            elif isinstance(value, list):
+                if len(value) > 0 and isinstance(value[0], dict):
+                    df = pd.DataFrame(value)
+                else:
+                    df = pd.DataFrame({key: value})
+            elif isinstance(value, dict) and 'records' in value and isinstance(value['records'], list):
+                df = pd.DataFrame(value['records'])
+            elif isinstance(value, dict):
+                df = pd.DataFrame([value])
+
+            if df is not None:
+                file_path = os.path.join(output_dir, f"{key}.csv")
+                df.to_csv(file_path, index=False)
+                written[key] = file_path
+        except Exception:
+            # Skip values that cannot be serialized to CSV
+            continue
+    return written
 
 def perform_patient_health_trends(df):
     """Analyzes and returns the top 5 medical conditions per week."""
@@ -95,8 +164,8 @@ def predict_patient_volume(df):
     monthly_volumes = df.groupby('month_year').size()
     monthly_volumes.index = monthly_volumes.index.to_timestamp()
 
-    # Split the data
-    train_size = int(len(monthly_volumes) * 0.7)
+    # Split the data (70-30)
+    train_size = int(len(monthly_volumes) * DEFAULT_TRAIN_RATIO)
     train_data = monthly_volumes[:train_size]
     test_data = monthly_volumes[train_size:]
     
@@ -125,6 +194,318 @@ def predict_patient_volume(df):
     except Exception as e:
         return {"error": f"Patient volume prediction failed: {str(e)}"}
 
+
+def _preprocess_daily_series(
+    df: pd.DataFrame,
+    date_col: str,
+    count_col: str,
+    fill_method: str = 'time'
+) -> pd.Series:
+    """
+    Preprocess input DataFrame into a clean daily time series.
+
+    - Ensures datetime index
+    - Sorts chronologically
+    - Resamples to daily frequency, summing if multiple entries per day
+    - Fills missing days via interpolation or forward/backfill
+    """
+    ts = df[[date_col, count_col]].copy()
+    ts[date_col] = pd.to_datetime(ts[date_col], errors='coerce')
+    ts.dropna(subset=[date_col], inplace=True)
+    ts = ts.sort_values(by=date_col)
+    ts = ts.set_index(date_col)[count_col]
+
+    # Resample to daily frequency
+    ts_daily = ts.resample('D').sum()
+
+    # Fill missing values
+    try:
+        if fill_method == 'time':
+            ts_filled = ts_daily.interpolate(method='time')
+        elif fill_method == 'ffill':
+            ts_filled = ts_daily.ffill().bfill()
+        else:
+            ts_filled = ts_daily.fillna(0)
+    except Exception:
+        ts_filled = ts_daily.ffill().bfill()
+
+    # Ensure non-negative and reasonable type
+    ts_filled = ts_filled.clip(lower=0)
+    return ts_filled.astype(float)
+
+
+def _sarima_grid_search(
+    ts: pd.Series,
+    seasonal_period: int = 7,
+    p_values = (0, 1, 2),
+    d_values = (0, 1),
+    q_values = (0, 1, 2),
+    P_values = (0, 1),
+    D_values = (0, 1),
+    Q_values = (0, 1),
+    max_models: int = 200
+):
+    """
+    Simple SARIMA grid search selecting the configuration with lowest AIC.
+    Returns (order, seasonal_order, best_aic).
+    """
+    best_cfg = None
+    best_aic = np.inf
+    tried = 0
+
+    # Suppress common convergence warnings during search
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        for p in p_values:
+            for d in d_values:
+                for q in q_values:
+                    for P in P_values:
+                        for D in D_values:
+                            for Q in Q_values:
+                                if tried >= max_models:
+                                    break
+                                order = (p, d, q)
+                                seasonal_order = (P, D, Q, seasonal_period)
+                                try:
+                                    model = SARIMAX(
+                                        ts,
+                                        order=order,
+                                        seasonal_order=seasonal_order,
+                                        enforce_stationarity=False,
+                                        enforce_invertibility=False,
+                                    )
+                                    res = model.fit(disp=False)
+                                    aic = res.aic
+                                    if aic < best_aic:
+                                        best_aic = aic
+                                        best_cfg = (order, seasonal_order)
+                                except Exception:
+                                    pass
+                                tried += 1
+
+    # Fallback if search failed
+    if best_cfg is None:
+        best_cfg = ((1, 1, 1), (1, 1, 1, seasonal_period))
+        best_aic = np.nan
+    return best_cfg[0], best_cfg[1], best_aic
+
+
+def _walk_forward_validate(ts: pd.Series, order, seasonal_order, test_size: int = 28):
+    """
+    Walk-forward validation (expanding window) performing 1-step ahead forecasts.
+    Returns metrics and per-step predictions with confidence intervals.
+    """
+    n = len(ts)
+    if n < (test_size + 14):
+        # Ensure enough history for reasonable training
+        test_size = max(7, min(test_size, n // 3))
+
+    train_end = n - test_size
+    predictions = []
+    actuals = []
+    lowers = []
+    uppers = []
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        for i in range(train_end, n):
+            train_series = ts.iloc[:i]
+            try:
+                model = SARIMAX(
+                    train_series,
+                    order=order,
+                    seasonal_order=seasonal_order,
+                    enforce_stationarity=False,
+                    enforce_invertibility=False,
+                )
+                res = model.fit(disp=False)
+                fc = res.get_forecast(steps=1)
+                mean = float(fc.predicted_mean.iloc[-1])
+                ci = fc.conf_int().iloc[-1]
+                lower = float(ci.min())
+                upper = float(ci.max())
+            except Exception:
+                mean = train_series.iloc[-1]
+                lower = max(0.0, mean - 1.0)
+                upper = mean + 1.0
+
+            predictions.append(mean)
+            lowers.append(lower)
+            uppers.append(upper)
+            actuals.append(float(ts.iloc[i]))
+
+    mae = mean_absolute_error(actuals, predictions)
+    rmse = np.sqrt(mean_squared_error(actuals, predictions))
+
+    index = ts.index[-test_size:]
+    per_step = [
+        {
+            'date': idx.strftime('%Y-%m-%d'),
+            'actual': round(act, 2),
+            'predicted': round(pred, 2),
+            'confidence_lower': round(lo, 2),
+            'confidence_upper': round(up, 2),
+        }
+        for idx, act, pred, lo, up in zip(index, actuals, predictions, lowers, uppers)
+    ]
+
+    return {
+        'mae': round(mae, 2),
+        'rmse': round(rmse, 2),
+        'per_step': per_step,
+    }
+
+
+def _plot_history_vs_forecast(ts: pd.Series, forecast_df: pd.DataFrame) -> str:
+    """
+    Plot historical series and forecast horizon; return base64 PNG.
+    forecast_df expects columns: 'date', 'predicted', 'confidence_lower', 'confidence_upper'.
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(ts.index, ts.values, label='Historical', color='#286660')
+
+    # Forecast horizon
+    dates = pd.to_datetime(forecast_df['date'])
+    ax.plot(dates, forecast_df['predicted'], label='Forecast', color='#1976d2')
+    ax.fill_between(
+        dates,
+        forecast_df['confidence_lower'],
+        forecast_df['confidence_upper'],
+        color='#1976d2', alpha=0.15, label='Confidence Interval'
+    )
+
+    ax.set_title('Daily Patient Volume: History vs Forecast')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Patients')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.25)
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    fig.savefig(buf, format='png')
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode('utf-8')
+
+
+def forecast_patient_volumes_sarima(
+    df: pd.DataFrame,
+    date_col: str = 'date',
+    count_col: str = 'patient_count',
+    seasonal_period: int = 7,
+    test_size_days: int = 28,
+    weekly_horizon_weeks: int = 4,
+):
+    """
+    End-to-end SARIMA forecasting pipeline for daily patient volumes.
+
+    Input Requirements:
+    - df must contain daily patient totals with columns [date_col, count_col]
+    - Data is assumed to be chronological or will be sorted
+
+    Output:
+    - Next-day forecast with CI
+    - Weekly forecasts (sum over upcoming 7-day periods) with CI (approximate)
+    - Walk-forward validation metrics (MAE, RMSE) and per-step predictions
+    - Visualization (base64 PNG) comparing history vs forecast horizon
+    - Documentation of assumptions and limitations
+    """
+    if df is None or len(df) == 0:
+        return {'error': 'No data provided'}
+
+    ts = _preprocess_daily_series(df, date_col, count_col)
+    if len(ts) < 14:
+        return {'error': 'Insufficient data for SARIMA (need at least 14 days)'}
+
+    # Parameter search (AIC-based)
+    order, seasonal_order, best_aic = _sarima_grid_search(ts, seasonal_period=seasonal_period)
+
+    # Walk-forward validation
+    validation = _walk_forward_validate(ts, order, seasonal_order, test_size=test_size_days)
+
+    # Fit on full series with best parameters
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        try:
+            model = SARIMAX(
+                ts,
+                order=order,
+                seasonal_order=seasonal_order,
+                enforce_stationarity=False,
+                enforce_invertibility=False,
+            )
+            res = model.fit(disp=False)
+        except Exception as e:
+            return {'error': f'Failed to fit final model: {str(e)}'}
+
+    # Next-day forecast
+    next_fc = res.get_forecast(steps=1)
+    next_mean = float(next_fc.predicted_mean.iloc[-1])
+    next_ci = next_fc.conf_int().iloc[-1]
+    next_lower = float(next_ci.min())
+    next_upper = float(next_ci.max())
+    next_date = (ts.index[-1] + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # Multi-day horizon for weekly aggregation
+    horizon_days = weekly_horizon_weeks * 7
+    multi_fc = res.get_forecast(steps=horizon_days)
+    multi_mean = multi_fc.predicted_mean
+    multi_ci = multi_fc.conf_int()
+
+    # Build daily forecast dataframe for plotting
+    daily_forecast_df = pd.DataFrame({
+        'date': [ (ts.index[-1] + pd.Timedelta(days=i+1)).strftime('%Y-%m-%d') for i in range(horizon_days) ],
+        'predicted': [ float(x) for x in multi_mean.values ],
+        'confidence_lower': [ float(row.min()) for _, row in multi_ci.iterrows() ],
+        'confidence_upper': [ float(row.max()) for _, row in multi_ci.iterrows() ],
+    })
+
+    # Aggregate upcoming days into weekly sums (approximate CI aggregation via summation)
+    weekly_forecasts = []
+    for w in range(weekly_horizon_weeks):
+        start_idx = w * 7
+        end_idx = start_idx + 7
+        week_slice = daily_forecast_df.iloc[start_idx:end_idx]
+        if week_slice.empty:
+            break
+        week_label_start = week_slice['date'].iloc[0]
+        week_label_end = week_slice['date'].iloc[-1]
+        weekly_forecasts.append({
+            'week_range': f"{week_label_start} to {week_label_end}",
+            'predicted_total_patients': round(float(week_slice['predicted'].sum()), 2),
+            'confidence_lower_sum': round(float(week_slice['confidence_lower'].sum()), 2),
+            'confidence_upper_sum': round(float(week_slice['confidence_upper'].sum()), 2),
+        })
+
+    # Visualization
+    plot_png_b64 = _plot_history_vs_forecast(ts, daily_forecast_df)
+
+    return {
+        'model': {
+            'order': order,
+            'seasonal_order': seasonal_order,
+            'seasonal_period': seasonal_period,
+            'best_aic': None if np.isnan(best_aic) else round(float(best_aic), 2)
+        },
+        'validation': validation,
+        'next_day_forecast': {
+            'date': next_date,
+            'predicted_patients': round(next_mean, 2),
+            'confidence_lower': round(next_lower, 2),
+            'confidence_upper': round(next_upper, 2),
+        },
+        'weekly_forecasts': weekly_forecasts,
+        'daily_forecast_horizon': daily_forecast_df.to_dict('records'),
+        'visualization_png_b64': plot_png_b64,
+        'assumptions_and_limitations': [
+            'Daily seasonality assumed with period s=7 (weekly pattern).',
+            'Missing days are interpolated; extreme gaps may affect accuracy.',
+            'Weekly confidence interval sums are approximate (sum of daily bounds).',
+            'Grid search selects parameters by AIC; alternate criteria may yield different models.',
+            'Walk-forward validation uses 1-step refits; computationally intensive for very long series.'
+        ],
+    }
+
 def predict_illness_surge(df):
     """Predicts illness surge for each medical condition using SARIMA."""
     df['date_of_admission'] = pd.to_datetime(df['date_of_admission'], errors='coerce')
@@ -140,7 +521,7 @@ def predict_illness_surge(df):
 
     for medical_condition in df_monthly.columns:
         ts = df_monthly[medical_condition]
-        train_size = int(len(ts) * 0.8)
+        train_size = int(len(ts) * DEFAULT_TRAIN_RATIO)
         train = ts[:train_size]
         test = ts[train_size:]
         
@@ -196,7 +577,7 @@ def predict_weekly_illness_forecast(df):
         if len(ts) < 4:  # Need at least 4 weeks of data
             continue
             
-        train_size = int(len(ts) * 0.8)
+        train_size = int(len(ts) * DEFAULT_TRAIN_RATIO)
         train = ts[:train_size]
         test = ts[train_size:]
         
@@ -278,7 +659,7 @@ def predict_monthly_illness_forecast(df):
         if len(ts) < 3:  # Need at least 3 months of data
             continue
             
-        train_size = int(len(ts) * 0.8)
+        train_size = int(len(ts) * DEFAULT_TRAIN_RATIO)
         train = ts[:train_size]
         test = ts[train_size:]
         

@@ -67,6 +67,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
+import type { AxiosError } from 'axios';
 
 const router = useRouter();
 const $q = useQuasar();
@@ -142,16 +143,20 @@ const verifyNow = async () => {
     const formData = new FormData();
     formData.append('verification_document', verificationDocument.value);
 
-    // Upload verification document
-    await api.post('/users/verification/upload/', formData, {
+    // Upload verification document and capture updated user
+    const uploadRes = await api.post('/users/verification/upload/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
         Authorization: `Bearer ${localStorage.getItem('access_token')}`,
       },
     });
+    const uploadedUser = (uploadRes?.data && uploadRes.data.user) ? uploadRes.data.user : null;
+    if (uploadedUser) {
+      localStorage.setItem('user', JSON.stringify(uploadedUser));
+    }
 
-    // Mark as verified
-    await api.post(
+    // Submit verification request (may return 200 or 400 if already exists)
+    const verifyRes = await api.post(
       '/users/verification/verify-now/',
       {},
       {
@@ -160,6 +165,10 @@ const verifyNow = async () => {
         },
       },
     );
+    const verifiedUser = (verifyRes?.data && verifyRes.data.user) ? verifyRes.data.user : null;
+    if (verifiedUser) {
+      localStorage.setItem('user', JSON.stringify(verifiedUser));
+    }
 
     $q.notify({
       type: 'info',
@@ -175,8 +184,45 @@ const verifyNow = async () => {
     }
   } catch (error: unknown) {
     console.error('Verification error:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Verification failed. Please try again.';
+    // Try to surface server-provided error details without using 'any'
+    const axiosErr = error as AxiosError;
+    const data = axiosErr.response?.data as Record<string, unknown> | undefined;
+    let serverMsg: string | undefined;
+    if (data) {
+      const maybeError = data['error'];
+      const maybeMessage = data['message'];
+      if (typeof maybeError === 'string') serverMsg = maybeError;
+      else if (typeof maybeMessage === 'string') serverMsg = maybeMessage;
+    }
+    const errorMessage = serverMsg || (axiosErr.message || 'Verification failed. Please try again.');
+
+    // If duplicate request exists, treat as success and redirect
+    if (serverMsg && /already exists/i.test(serverMsg)) {
+      $q.notify({
+        type: 'info',
+        message: 'A verification request is already pending. We will redirect you now.',
+        position: 'top',
+        timeout: 3000,
+      });
+      // Optionally refresh profile to persist latest status
+      try {
+        const profileRes = await api.get('/users/profile/', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
+        });
+        const refreshedUser = (profileRes?.data && profileRes.data.user) ? profileRes.data.user : null;
+        if (refreshedUser) {
+          localStorage.setItem('user', JSON.stringify(refreshedUser));
+        }
+      } catch (e) {
+        console.warn('Profile refresh failed:', e);
+      }
+      const user = getCurrentUser();
+      if (user) {
+        redirectToDashboard(user.role);
+      }
+      return;
+    }
+
     $q.notify({
       type: 'negative',
       message: `Error: ${errorMessage}`,
@@ -196,12 +242,16 @@ const verifyLater = async () => {
       const formData = new FormData();
       formData.append('verification_document', verificationDocument.value);
 
-      await api.post('/users/verification/upload/', formData, {
+      const uploadRes = await api.post('/users/verification/upload/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
+      const uploadedUser = (uploadRes?.data && uploadRes.data.user) ? uploadRes.data.user : null;
+      if (uploadedUser) {
+        localStorage.setItem('user', JSON.stringify(uploadedUser));
+      }
     }
 
     $q.notify({
@@ -217,8 +267,16 @@ const verifyLater = async () => {
     }
   } catch (error: unknown) {
     console.error('Verification error:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to save document. Please try again.';
+    const axiosErr = error as AxiosError;
+    const data = axiosErr.response?.data as Record<string, unknown> | undefined;
+    let serverMsg: string | undefined;
+    if (data) {
+      const maybeError = data['error'];
+      const maybeMessage = data['message'];
+      if (typeof maybeError === 'string') serverMsg = maybeError;
+      else if (typeof maybeMessage === 'string') serverMsg = maybeMessage;
+    }
+    const errorMessage = serverMsg || (axiosErr.message || 'Failed to save document. Please try again.');
     $q.notify({
       type: 'negative',
       message: `Error: ${errorMessage}`,
@@ -234,7 +292,7 @@ const verifyLater = async () => {
 <style scoped>
 .verification-page {
   min-height: 100vh;
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
   display: flex;
   align-items: center;

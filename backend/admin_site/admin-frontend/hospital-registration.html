@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Registration - MediSync Admin</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #286660;
+            --secondary-color: #1e7668;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+        }
+
+        body {
+            background: linear-gradient(180deg, #f0f2f5 0%, #e9ecef 100%) !important;
+            background-size: cover !important;
+            background-attachment: fixed !important;
+            position: relative !important;
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(248, 249, 250, 0.2) 50%, rgba(240, 242, 245, 0.1) 100%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .registration-container {
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .registration-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .registration-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+            border-radius: 16px 16px 0 0;
+        }
+
+        .registration-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .registration-header h2 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 28px;
+        }
+
+        .registration-header p {
+            margin: 0;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(40, 102, 96, 0.2);
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-upload-label {
+            display: block;
+            padding: 12px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-upload-label:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(40, 102, 96, 0.05);
+        }
+
+        .file-upload-label.has-file {
+            border-color: var(--success-color);
+            background-color: rgba(40, 167, 69, 0.05);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 8px;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: #ddd;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .step.active .step-number {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .step-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .step.active .step-text {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .verification-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .verification-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .data-review {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .data-review .row {
+            margin-bottom: 10px;
+        }
+
+        .data-review .col-4 {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .terms-checkbox {
+            margin: 20px 0;
+        }
+
+        .terms-checkbox input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .alert {
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <div class="registration-container">
+        <div class="registration-card">
+            <!-- Progress Steps -->
+            <div class="progress-steps">
+                <div class="step active" id="step1">
+                    <div class="step-number">1</div>
+                    <div class="step-text">Registration</div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-number">2</div>
+                    <div class="step-text">Verification</div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-number">3</div>
+                    <div class="step-text">Activation</div>
+                </div>
+            </div>
+
+            <!-- Registration Header -->
+            <div class="registration-header">
+                <h2>Hospital Registration</h2>
+                <p>Complete your hospital registration to access admin functions</p>
+            </div>
+
+            <!-- Registration Form -->
+            <div id="registrationForm" class="registration-form">
+                <form id="hospitalForm">
+                    <div class="form-group">
+                        <label for="officialName">Official Hospital Name *</label>
+                        <input type="text" id="officialName" name="official_name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">Primary Address *</label>
+                        <textarea id="address" name="address" required placeholder="Enter complete hospital address"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="licenseId">National License ID *</label>
+                        <input type="text" id="licenseId" name="license_id" required placeholder="Enter unique license identifier">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="licenseDocument">License Document *</label>
+                        <div class="file-upload">
+                            <input type="file" id="licenseDocument" name="license_document" accept=".pdf,.jpg,.jpeg,.png" required>
+                            <label for="licenseDocument" class="file-upload-label">
+                                <i class="fas fa-upload"></i>
+                                <span class="upload-text">Click to upload license document</span>
+                                <small class="d-block text-muted mt-1">Supported formats: PDF, JPG, PNG (Max: 5MB)</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary" onclick="goBack()">
+                            <i class="fas fa-arrow-left"></i> Back to Login
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Continue to Verification <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Verification Section -->
+            <div id="verificationSection" class="verification-section" style="display: none;">
+                <h4><i class="fas fa-check-circle"></i> Review & Verify Hospital Information</h4>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    Please carefully review the information below and confirm its accuracy before activating your hospital.
+                </div>
+
+                <div class="data-review" id="dataReview">
+                    <!-- Data will be populated here -->
+                </div>
+
+                <div class="terms-checkbox">
+                    <label>
+                        <input type="checkbox" id="acceptTerms" required>
+                        I confirm that all the information provided is accurate and I accept the terms and conditions for hospital registration.
+                    </label>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary" onclick="goBackToForm()">
+                        <i class="fas fa-arrow-left"></i> Edit Information
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="activateHospital()" id="activateBtn" disabled>
+                        <i class="fas fa-check"></i> Activate Hospital
+                    </button>
+                </div>
+            </div>
+
+            <!-- Success Section -->
+            <div id="successSection" class="text-center" style="display: none;">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle fa-3x mb-3"></i>
+                    <h4>Hospital Activated Successfully!</h4>
+                    <p>Your hospital has been activated and you now have full admin access.</p>
+                </div>
+                
+                <button type="button" class="btn btn-primary btn-lg" onclick="goToDashboard()">
+                    <i class="fas fa-tachometer-alt"></i> Go to Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div class="loading" id="loadingSpinner">
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                <!-- Toast message will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="hospital-registration.js"></script>
+</body>
+</html>

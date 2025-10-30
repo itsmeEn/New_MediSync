@@ -62,6 +62,22 @@
           >
         </q-btn>
 
+        <!-- Stock Alerts -->
+        <q-btn
+          flat
+          round
+          icon="warning"
+          class="stock-alert-btn"
+          @click="$emit('show-stock-alerts')"
+        >
+          <q-badge
+            color="orange"
+            floating
+            v-if="stockAlertsCount > 0"
+            >{{ stockAlertsCount }}</q-badge
+          >
+        </q-btn>
+
         <!-- Time Display -->
         <div class="time-display">
           <q-icon name="schedule" size="md" />
@@ -150,10 +166,14 @@ interface MedicineData {
   medicine_name?: string;
   name?: string;
   stock_quantity?: number;
+  current_stock?: number;
+  minimum_stock?: number;
+  minimum_stock_level?: number;
+  expiry_date?: string;
 }
 
 // Define emits
-defineEmits(['toggle-drawer', 'show-notifications']);
+defineEmits(['toggle-drawer', 'show-notifications', 'show-stock-alerts']);
 
 // Define props
 interface Props {
@@ -169,6 +189,7 @@ const searchResults = ref<SearchResult[]>([]);
 // Time functionality
 const currentTime = ref('');
 let timeInterval: NodeJS.Timeout | null = null;
+let stockInterval: NodeJS.Timeout | null = null;
 
 // Weather functionality
 const weatherData = ref<WeatherData | null>(null);
@@ -179,6 +200,56 @@ const weatherError = ref(false);
 const locationData = ref<LocationData | null>(null);
 const locationLoading = ref(false);
 const locationError = ref(false);
+
+// Stock alerts count
+const stockAlertsCount = ref(0);
+const READ_STOCK_KEY = 'read_stock_alert_ids';
+
+const refreshStockAlertsCount = async () => {
+  try {
+    const res = await api.get('/operations/medicine-inventory/');
+    const list = Array.isArray(res.data?.results) ? res.data.results : res.data;
+    const items: MedicineData[] = Array.isArray(list) ? list : [] as unknown as MedicineData[];
+
+    const raw = localStorage.getItem(READ_STOCK_KEY);
+    const arr = raw ? (JSON.parse(raw) as string[]) : [];
+    const readSet = new Set(Array.isArray(arr) ? arr : []);
+
+    let lowStock = 0;
+    let expiringSoon = 0;
+    const now = new Date();
+    const soonThresholdDays = 30;
+
+    for (const m of items) {
+      const current = Number(m.current_stock ?? m.stock_quantity ?? 0);
+      const minLevel = Number(m.minimum_stock_level ?? m.minimum_stock ?? 0);
+
+      if (!Number.isNaN(current) && !Number.isNaN(minLevel) && current <= minLevel) {
+        const id = `low-${m.id}`;
+        if (!readSet.has(String(id))) {
+          lowStock += 1;
+        }
+      }
+
+      const expiryStr = m.expiry_date ?? undefined;
+      if (expiryStr) {
+        const expiry = new Date(expiryStr);
+        const diffDays = Math.round((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays <= soonThresholdDays && current > 0) {
+          const id = `exp-${m.id}`;
+          if (!readSet.has(String(id))) {
+            expiringSoon += 1;
+          }
+        }
+      }
+    }
+
+    stockAlertsCount.value = lowStock + expiringSoon;
+  } catch (error) {
+    console.error('Stock alerts count error:', error);
+    stockAlertsCount.value = 0;
+  }
+};
 
 // Search functionality
 const onSearchInput = async () => {
@@ -237,7 +308,7 @@ const onSearchInput = async () => {
           data: {
             name: item.medicine_name || item.name || 'Unknown Medicine',
             id: item.id,
-            stock: item.stock_quantity || 0,
+            stock: item.current_stock ?? item.stock_quantity ?? 0,
           },
         })),
       );
@@ -289,11 +360,11 @@ const getSearchResultIcon = (type: string) => {
 const getSearchResultTitle = (result: SearchResult) => {
   switch (result.type) {
     case 'patient':
-      return result.data.name;
+      return result.data.name as string;
     case 'doctor':
-      return result.data.name;
+      return result.data.name as string;
     case 'medicine':
-      return result.data.name;
+      return result.data.name as string;
     default:
       return 'Unknown';
   }
@@ -306,7 +377,7 @@ const getSearchResultSubtitle = (result: SearchResult) => {
     case 'doctor':
       return `${result.data.specialization || 'Doctor'} • ID: ${result.data.id}`;
     case 'medicine':
-      return `Stock: ${result.data.stock || 'N/A'} • ID: ${result.data.id}`;
+      return `Stock: ${(result.data.stock || 'N/A')}`;
     default:
       return '';
   }
@@ -389,11 +460,18 @@ onMounted(() => {
   // Fetch weather and location
   void fetchWeather();
   void fetchLocation();
+
+  // Stock alerts count
+  void refreshStockAlertsCount();
+  stockInterval = setInterval(() => { void refreshStockAlertsCount(); }, 60000);
 });
 
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval);
+  }
+  if (stockInterval) {
+    clearInterval(stockInterval);
   }
 });
 </script>
@@ -439,6 +517,10 @@ onUnmounted(() => {
 }
 
 .notification-btn {
+  color: white;
+}
+
+.stock-alert-btn {
   color: white;
 }
 

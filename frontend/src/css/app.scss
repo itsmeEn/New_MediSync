@@ -8,6 +8,34 @@
   --safe-area-inset-left: env(safe-area-inset-left);
 }
 
+// Default text color for patient-facing UI
+// Keeps accessibility high by ensuring baseline text is black.
+html, body {
+  color: #000000;
+}
+
+// Ensure common content containers inherit default text color
+.q-page,
+.q-card,
+.q-item-label,
+.q-banner,
+.q-dialog,
+.q-list,
+.q-menu {
+  color: inherit;
+}
+
+// Patient UI background utility
+.patient-bg {
+  background-color: #bbdbd8;
+}
+
+// Role pages body/background utility (nurse & doctor)
+.role-body-bg {
+  background-color: #a9aaab;
+  min-height: 100vh;
+}
+
 // Global safe area utility classes
 .safe-area-top {
   padding-top: var(--safe-area-inset-top);

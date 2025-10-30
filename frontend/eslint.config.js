@@ -41,6 +41,15 @@ export default defineConfigWithVueTs(
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
     },
   },
+  {
+    // In Vue SFCs, variables used in <template> are not seen by
+    // @typescript-eslint/no-unused-vars. Rely on vue/no-unused-vars instead.
+    files: ['**/*.vue'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      'vue/no-unused-vars': 'error',
+    },
+  },
   // https://github.com/vuejs/eslint-config-typescript
   vueTsConfigs.recommendedTypeChecked,
 
@@ -67,6 +76,9 @@ export default defineConfigWithVueTs(
 
       // allow debugger during development only
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
+
+      // Ensure multi-word names; allow imports using single-word component file names
+      'vue/multi-word-component-names': ['error', { ignores: ['Navbar', 'Download', 'Features', 'Contact'] }],
     },
   },
 

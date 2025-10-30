@@ -7,6 +7,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 import base64
 import json
+from django.db import transaction
 
 
 # Custom User Model
@@ -24,10 +25,40 @@ Users = get_user_model()
 class Notification(models.Model):
     """
     Notifies the users about their queue status, appointment reminders, etc.
+    Includes delivery tracking with timestamps and channels.
     """
+    CHANNEL_WEBSOCKET = 'websocket'
+    CHANNEL_EMAIL = 'email'
+    CHANNEL_SMS = 'sms'
+    CHANNEL_PUSH = 'push'
+
+    CHANNEL_CHOICES = [
+        (CHANNEL_WEBSOCKET, 'WebSocket'),
+        (CHANNEL_EMAIL, 'Email'),
+        (CHANNEL_SMS, 'SMS'),
+        (CHANNEL_PUSH, 'Push Notification'),
+    ]
+
+    DELIVERY_PENDING = 'pending'
+    DELIVERY_SENT = 'sent'
+    DELIVERY_DELIVERED = 'delivered'
+    DELIVERY_FAILED = 'failed'
+
+    DELIVERY_STATUS_CHOICES = [
+        (DELIVERY_PENDING, 'Pending'),
+        (DELIVERY_SENT, 'Sent'),
+        (DELIVERY_DELIVERED, 'Delivered'),
+        (DELIVERY_FAILED, 'Failed'),
+    ]
+
     user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="notifications")
     message = models.TextField(help_text="Notification message.")
     is_read = models.BooleanField(default=False, help_text="Indicates if the notification has been read.")
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default=CHANNEL_WEBSOCKET)
+    delivery_status = models.CharField(max_length=20, choices=DELIVERY_STATUS_CHOICES, default=DELIVERY_PENDING)
+    sent_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the notification was sent.")
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the notification was delivered.")
+    delivery_attempts = models.PositiveIntegerField(default=0, help_text="Number of delivery attempts.")
     created_at = models.DateTimeField(auto_now_add=True, help_text="Timestamp when the notification was created.")
     updated_at = models.DateTimeField(auto_now=True, help_text="Timestamp when the notification was last updated.")
 
@@ -55,10 +86,9 @@ class QueueManagement(models.Model):
     expected_patients = models.PositiveIntegerField(default=0, help_text="Expected number of patients in the queue.")   
     actual_wait_time = models.DurationField(null=True, blank=True, help_text="Actual wait time for the patient.")
     finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the queue finished.")
-    #department queues like OPD, Billing, Buying Medicines, Appointment 
+    #department queues like OPD, Pharmacy, Appointment 
     department = models.CharField (max_length=100,choices=[
         ("OPD", "Out Patient Department"),
-        ("Billing", "Billing"),
         ("Pharmacy", "Pharmacy"),
         ("Appointment", "Appointment"),
     ], help_text="Department for which the queue is managed.")
@@ -88,25 +118,33 @@ class QueueManagement(models.Model):
         
     #fifo implementtion
     def save(self, *args, **kwargs):
-        #auto sign the queueung number in each patients
-        if not self.position_in_queue_number:
-            last_position = QueueManagement.objects.filter(
-                department=self.department, status_in_queue =[
-                    'waiting', 'in_progress', 'cancelled'
-                ]).aggregate(
-                    maximum_position = models.Max("position_in_queue", default=0
-                )["position" + 1]
-            )
-        
-        #automaticall assigns the patient queue number
-        if not self.queue_number:
-            last_queue_number = QueueManagement.objects.filter(
-                department=self.department).aggregate(
-                    maximum_queue_number = models.Max("queue_number", default=0)
-            )
-        super().save(*args, **kwargs)
-        self.update_queue_positions()
-    
+        """
+        Assign a globally unique queue_number and per-department FIFO position_on_queue
+        in a safe way, then persist and normalize positions.
+        """
+        creating = self.pk is None
+        with transaction.atomic():
+            # Assign queue number globally unique across all departments
+            if creating and not self.queue_number:
+                last_queue_number = QueueManagement.objects.aggregate(
+                    maximum_queue_number=models.Max("queue_number")
+                )["maximum_queue_number"] or 0
+                self.queue_number = last_queue_number + 1
+
+            # Assign FIFO position per department for waiting/in_progress entries
+            if creating and not self.position_in_queue:
+                last_position = QueueManagement.objects.filter(
+                    department=self.department,
+                    status__in=["waiting", "in_progress"]
+                ).aggregate(
+                    maximum_position=models.Max("position_in_queue")
+                )["maximum_position"] or 0
+                self.position_in_queue = last_position + 1
+
+            super().save(*args, **kwargs)
+            # Normalize positions of waiting patients by enqueue_time (FIFO)
+            self.update_queue_positions()
+
     #update the queueu 
     def update_queue_positions(self):
         """
@@ -127,6 +165,20 @@ class QueueManagement(models.Model):
         """
         calculate the estimated waiting time for each patient in the queue.
         """
+
+    @classmethod
+    def update_queue_positions_for_department(cls, department: str):
+        """
+        Recalculate FIFO positions for all waiting normal-queue entries in a department.
+        Safe for use after deletions, cancellations, or bulk updates.
+        """
+        waiting_patients = cls.objects.filter(
+            department=department, status="waiting"
+        ).order_by("enqueue_time")
+        for index, patient in enumerate(waiting_patients, start=1):
+            if patient.position_in_queue != index:
+                cls.objects.filter(id=patient.id).update(position_in_queue=index)
+
     def get_estimated_wait_time(self):
         if self.status != "waiting":
             return None
@@ -153,25 +205,26 @@ class QueueManagement(models.Model):
         
         return avg_service_time * patients_ahead_count
     
-    def started_at(self):
+    def mark_started(self):
         """
-        The time where the service actually started.
+        Mark this queue entry as started and set timestamp.
         """
         self.status = "in_progress"
         self.started_at = timezone.now()
         self.save()
-        
+
+    def mark_completed(self):
         """
-        time when the service is completed
+        Mark this queue entry as completed and set completion timestamp.
+        Also updates actual_wait_time if start time was recorded.
         """
-    def completed_at(self):
         self.status = "completed"
-        self.completed_at = timezone.now()
-        
+        # Use finished_at as the completion timestamp field
+        self.finished_at = timezone.now()
         if self.started_at:
-            self.actual_wait_time = self.started_at - self.enqueue_time
+            self.actual_wait_time = self.finished_at - self.enqueue_time
         self.save()
-        #update the patients wueue positions or number 
+        # Update subsequent queue positions after completion
         self.update_queue_positions()
         
     def get_next_in_queue(self):
@@ -188,6 +241,7 @@ class QueueManagement(models.Model):
         Get the queue for a specific department.
         """
         queue = cls.objects.filter(department=department).order_by("position_in_queue")
+        return queue
         
     def __str__(self):
         return f"Queue {self.queue_number} - Patient: {self.patient.full_name}"
@@ -261,10 +315,13 @@ class AppointmentManagement(models.Model):
     #status of the appointment like scheduled, completed, cancelled, no show
     status = models.CharField(max_length=50, choices=[
         ("scheduled", "Scheduled"),
+        ("rescheduled", "Rescheduled"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
         ("no_show", "No Show"),
     ], default="scheduled")
+    cancellation_reason = models.TextField(blank=True, null=True, help_text="Reason for cancellation.")
+    reschedule_reason = models.TextField(blank=True, null=True, help_text="Reason for rescheduling.")
 
     class Meta:
         ordering = ["appointment_date"]
@@ -276,8 +333,14 @@ class AppointmentManagement(models.Model):
         return f"Appointment {self.id} - Patient: {self.patient.user.full_name} with Dr. {self.doctor.user.full_name}"
     
     def save(self, *args, **kwargs):
-        if self.appointment_date < timezone.now():
-            raise ValueError("Appointment date cannot be in the past.")
+        # Only enforce future dates when scheduling or rescheduling
+        try:
+            status_requires_future = self.status in ["scheduled", "rescheduled"]
+        except Exception:
+            status_requires_future = True
+
+        if status_requires_future and self.appointment_date < timezone.now():
+            raise ValueError("Appointment date cannot be in the past for scheduled/rescheduled appointments.")
         super().save(*args, **kwargs)
         # This ensures that the appointment date is not in the past.
         # This can be used to check if the appointment is valid or not.
@@ -287,23 +350,35 @@ class AppointmentManagement(models.Model):
 # no show.
 class PriorityQueue(models.Model):
     """Priority queue model for handling patients with special needs or conditions or age. """
-    appointment_id = models.ForeignKey(AppointmentManagement, on_delete=models.CASCADE, related_name="priority_queue")
+    appointment_id = models.ForeignKey(AppointmentManagement, on_delete=models.CASCADE, related_name="priority_queue", null=True, blank=True)
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name="priority_queue")
     notification = models.ForeignKey(Notification, on_delete=models.SET_NULL, null=True, blank=True, related_name="priority_queue")
     #prioritty level based on age, condition, or other factors
     priority_level = models.CharField(
         max_length=50, choices=[
             ("pwd", "Person With Disability"),
+            ("pregnant", "Pregnant"),
             ("senior", "Senior Citizen"),
+            ("with_child", "Accompanying a Child"),
         ], default="senior", help_text="Priority level of the patient in the queue."
     )
     department = models.CharField(max_length=100, choices =[
         ("OPD", "Out Patient Department"),
-        ("Billing", "Billing"),
         ("Pharmacy", "Pharmacy"),
         ("Appointment", "Appointment"),
     ], help_text="Department for which the queue is managed.", 
                                   default="OPD")
+    
+    # Status and timestamps for queue lifecycle
+    status = models.CharField(max_length=50, choices=[
+        ("waiting", "Waiting"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("cancelled", "Cancelled"),
+    ], default="waiting")
+    enqueue_time = models.DateTimeField(default=timezone.now, help_text="Timestamp when the patient was added to the priority queue.")
+    started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the priority processing started.")
+    finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the priority processing finished.")
     
     actual_wait_time = models.DurationField(null=True, blank=True, help_text="Actual wait time for the patient.")
     estimated_wait_time = models.DurationField(null=True, blank=True, help_text="Estimated wait time for the patient.")
@@ -315,35 +390,40 @@ class PriorityQueue(models.Model):
     skip_normal_queues = models.BooleanField(default=False, help_text="Indicates if the patient should be skipped from the FIFO queue.")
 
     class Meta:
-        ordering = ["-priority_level", "priority_position", "created_at"]
+        ordering = ["enqueue_time", "priority_position", "created_at"]
         db_table = "priority_queue"
         verbose_name = "Priority Queue"
         verbose_name_plural = "Priority Queues"
         
     def save(self, *args, **kwargs):
-        #auto assign queue number
+        #auto assign queue number per department
         if not self.queue_number:
             self.queue_number = PriorityQueue.objects.filter(
                 department=self.department
             ).aggregate(
-                maximum_queue_number = models.Max("queue_number", default=0)
-            )['maximum_queue_number'] + 1
+                maximum_queue_number = models.Max("queue_number")
+            )['maximum_queue_number'] or 0
+            self.queue_number += 1
             
-        #auto assign priority positions
+        #auto assign priority positions (FIFO within priority queue)
         if not self.priority_position:
-            self.priority_position = PriorityQueue.objects.filter(
-                department=self.department, priority_level=self.priority_level
-            ).count() + 1
+            last_position = PriorityQueue.objects.filter(
+                department=self.department,
+                status__in=["waiting", "in_progress"]
+            ).aggregate(
+                maximum_position=models.Max("priority_position")
+            )["maximum_position"] or 0
+            self.priority_position = last_position + 1
         super().save(*args, **kwargs)
        
     """
-    Calculate the estimated waiting time priority lists
+    Calculate the estimated waiting time for priority lists
     """ 
     def get_estimated_wait_time(self):
         if self.status != "waiting":
             return None
         
-        # Calculate average service time
+        # Calculate average service time based on completed normal queues
         completed_queues = QueueManagement.objects.filter(
             department=self.department, status="completed",
             started_at__isnull=False, finished_at__isnull=False
@@ -354,27 +434,28 @@ class PriorityQueue(models.Model):
             avg_service_time = total_service_time / completed_queues.count()
         else:
             # Use a default value if no one has completed yet
-            avg_service_time = timedelta(minutes=15) 
+            avg_service_time = timedelta(minutes=15)
             
-        #count the patients in higher priority like seniors, pwd something like that
-        higher_priority_count = PriorityQueue.objects.filter(
-            department=self.department,status_in=[
-                "waitng", "in_progress"],
-            priority_level__in=["pwd", "senior"],
-            priority_position__lt=self.priority_position
+        # Count priority patients ahead in the same department
+        patients_ahead_count = PriorityQueue.objects.filter(
+            department=self.department,
+            status__in=["waiting", "in_progress"],
+            enqueue_time__lt=self.enqueue_time
         ).count()
         
-        if self.priority_level == "senior":
-            patients_ahead = higher_priority_count
-        elif self.priority_level == "pwd":
-            patients_ahead = higher_priority_count
-        else: #low priority or just the people in normal queues
-            low_priority_count = PriorityQueue.objects.filter(
-                department=self.department,status_in=[
-                "waitng", "in_progress"]
-            ).count()
-        
-        return avg_service_time * patients_ahead
+        return avg_service_time * patients_ahead_count
+
+    def mark_started(self):
+        self.status = "in_progress"
+        self.started_at = timezone.now()
+        self.save()
+
+    def mark_completed(self):
+        self.status = "completed"
+        self.finished_at = timezone.now()
+        if self.started_at:
+            self.actual_wait_time = self.finished_at - self.enqueue_time
+        self.save()
 
     def __str__(self):
         return f"Priority Queue - Patient: {self.patient.user.full_name} ({self.priority_level})"
@@ -709,3 +790,395 @@ class ConsultationNotes(models.Model):
 
     def __str__(self):
         return f"Consultation notes for {self.patient.user.full_name} by Dr. {self.doctor.user.full_name}"
+
+
+class QueueSchedule(models.Model):
+    """
+    Model for managing queue activation schedules set by nurses
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        help_text="Department for which the schedule is set"
+    )
+    nurse = models.ForeignKey(
+        NurseProfile, 
+        on_delete=models.CASCADE, 
+        related_name="queue_schedules",
+        help_text="Nurse who set the schedule"
+    )
+    
+    # Schedule settings
+    start_time = models.TimeField(help_text="Time when queue should open")
+    end_time = models.TimeField(help_text="Time when queue should close")
+    days_of_week = models.JSONField(
+        default=list,
+        help_text="List of days when queue is active (0=Monday, 6=Sunday)"
+    )
+    
+    # Status and control
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this schedule is currently active"
+    )
+    manual_override = models.BooleanField(
+        default=False,
+        help_text="Manual override by nurse (overrides time-based activation)"
+    )
+    override_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('enabled', 'Manually Enabled'),
+            ('disabled', 'Manually Disabled'),
+            ('auto', 'Automatic'),
+        ],
+        default='auto',
+        help_text="Current override status"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-updated_at"]
+        db_table = "queue_schedules"
+        verbose_name = "Queue Schedule"
+        verbose_name_plural = "Queue Schedules"
+        unique_together = ['department', 'nurse']
+    
+    def is_queue_open(self):
+        """
+        Check if queue should be open based on schedule and manual override
+        """
+        if self.manual_override:
+            return self.override_status == 'enabled'
+        
+        if not self.is_active:
+            return False
+        
+        now = timezone.now()
+        current_time = now.time()
+        current_day = now.weekday()  # 0=Monday, 6=Sunday
+        
+        # Check if today is in the scheduled days
+        if current_day not in self.days_of_week:
+            return False
+        
+        # Check if current time is within schedule
+        return self.start_time <= current_time <= self.end_time
+    
+    def __str__(self):
+        return f"{self.department} Queue Schedule by {self.nurse.user.full_name}"
+
+
+class QueueStatus(models.Model):
+    """
+    Model for tracking real-time queue status and broadcasting changes
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        unique=True,
+        help_text="Department for which status is tracked"
+    )
+    
+    # Current status
+    current_schedule = models.ForeignKey(
+        'QueueSchedule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Currently active schedule for this department"
+    )
+    is_open = models.BooleanField(
+        default=False,
+        help_text="Whether the queue is currently open for new patients"
+    )
+    current_serving = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Queue number currently being served"
+    )
+    total_waiting = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of patients currently waiting"
+    )
+    estimated_wait_time = models.DurationField(
+        null=True,
+        blank=True,
+        help_text="Estimated wait time for new patients"
+    )
+    
+    # Status message for patients
+    status_message = models.CharField(
+        max_length=200,
+        default="Queue Closed",
+        help_text="Current status message displayed to patients"
+    )
+    
+    # Last update info
+    last_updated_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who last updated the status"
+    )
+    last_updated_at = models.DateTimeField(auto_now=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = "queue_status"
+        verbose_name = "Queue Status"
+        verbose_name_plural = "Queue Statuses"
+    
+    def update_status_message(self):
+        """
+        Update status message based on current queue state
+        """
+        if self.is_open:
+            if self.total_waiting == 0:
+                self.status_message = "Queue Open - No Wait"
+            else:
+                wait_msg = f"Estimated wait: {self.estimated_wait_time}" if self.estimated_wait_time else ""
+                self.status_message = f"Queue Open - {self.total_waiting} waiting {wait_msg}".strip()
+        else:
+            self.status_message = "Queue Closed"
+    
+    def should_auto_close(self):
+        """
+        Check if queue should be automatically closed based on schedule.
+        Returns True if current time is past the scheduled end time.
+        """
+        if not self.current_schedule or not self.is_open:
+            return False
+        
+        current_time = timezone.now().time()
+        schedule = self.current_schedule
+        
+        # Check if we're past the end time
+        if current_time > schedule.end_time:
+            return True
+        
+        # Check if manual override is preventing auto-close
+        if schedule.manual_override and schedule.override_status == 'enabled':
+            return False
+        
+        return False
+    
+    def auto_close_if_needed(self):
+        """
+        Automatically close the queue if past scheduled time.
+        Returns True if queue was closed, False otherwise.
+        """
+        if self.should_auto_close():
+            self.is_open = False
+            self.update_status_message()
+            self.save()
+            return True
+        return False
+    
+    def __str__(self):
+        return f"{self.department} Queue Status: {'Open' if self.is_open else 'Closed'}"
+
+
+class QueueStatusLog(models.Model):
+    """
+    Model for logging queue status changes for audit and analytics
+    """
+    department = models.CharField(
+        max_length=100,
+        choices=[
+            ("OPD", "Out Patient Department"),
+            ("Pharmacy", "Pharmacy"),
+            ("Appointment", "Appointment"),
+        ],
+        help_text="Department for which status changed"
+    )
+    
+    # Status change details
+    previous_status = models.BooleanField(help_text="Previous queue open/closed status")
+    new_status = models.BooleanField(help_text="New queue open/closed status")
+    change_reason = models.CharField(
+        max_length=50,
+        choices=[
+            ('schedule', 'Scheduled Time'),
+            ('manual', 'Manual Override'),
+            ('system', 'System Update'),
+        ],
+        help_text="Reason for status change"
+    )
+    
+    # Change metadata
+    changed_by = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who triggered the change"
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+    additional_notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about the status change"
+    )
+    
+    class Meta:
+        ordering = ["-changed_at"]
+        db_table = "queue_status_logs"
+        verbose_name = "Queue Status Log"
+        verbose_name_plural = "Queue Status Logs"
+    
+    def __str__(self):
+        status_change = "Opened" if self.new_status else "Closed"
+        return f"{self.department} Queue {status_change} at {self.changed_at}"
+
+
+class PatientAssessmentArchive(models.Model):
+    user = models.ForeignKey(Users, on_delete=models.CASCADE, related_name="patient_archives")
+    patient_profile = models.ForeignKey(PatientProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name="archives")
+    assessment_type = models.CharField(max_length=100, blank=True)
+    medical_condition = models.CharField(max_length=200, blank=True)
+    medical_history_summary = models.TextField(blank=True)
+    assessment_data = models.JSONField(default=dict, help_text="Complete patient assessment data (unencrypted copy for development)")
+    encrypted_assessment_data = models.TextField(blank=True, help_text="Base64 encoded encrypted assessment data")
+    diagnostics = models.JSONField(default=dict, blank=True, help_text="Relevant diagnostic information")
+    last_assessed_at = models.DateTimeField(null=True, blank=True)
+    hospital_name = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_assessed_at", "-updated_at"]
+        db_table = "patient_assessment_archives"
+        verbose_name = "Patient Assessment Archive"
+        verbose_name_plural = "Patient Assessment Archives"
+
+    def __str__(self):
+        name = getattr(self.user, 'full_name', '') or str(self.user_id)
+        return f"Archive for {name} - {self.medical_condition or self.assessment_type}"
+
+    def _get_encryption_key(self):
+        key = getattr(settings, 'ARCHIVE_ENCRYPTION_KEY', None) or getattr(settings, 'MESSAGE_ENCRYPTION_KEY', None)
+        if isinstance(key, str):
+            key = key.encode()
+        return key
+
+    def encrypt_payload(self, payload: dict) -> str:
+        try:
+            key = self._get_encryption_key()
+            if not key:
+                # Fallback for development when key is missing
+                key = Fernet.generate_key()
+            f = Fernet(key)
+            raw = json.dumps(payload or {}, ensure_ascii=False)
+            encrypted = f.encrypt(raw.encode())
+            return base64.b64encode(encrypted).decode()
+        except Exception:
+            # Fallback to plain JSON to avoid data loss in development
+            return json.dumps(payload or {}, ensure_ascii=False)
+
+    def decrypt_payload(self) -> dict:
+        try:
+            if not self.encrypted_assessment_data:
+                return self.assessment_data or {}
+            key = self._get_encryption_key()
+            if not key:
+                return self.assessment_data or {}
+            f = Fernet(key)
+            encrypted_data = base64.b64decode(self.encrypted_assessment_data.encode())
+            decrypted = f.decrypt(encrypted_data).decode()
+            return json.loads(decrypted)
+        except Exception:
+            return self.assessment_data or {}
+
+    def save(self, *args, **kwargs):
+        # Ensure encrypted payload is populated
+        if (self.assessment_data or {}) and not self.encrypted_assessment_data:
+            self.encrypted_assessment_data = self.encrypt_payload(self.assessment_data)
+        # Normalize hospital name from related profile or user
+        if not self.hospital_name:
+            self.hospital_name = getattr(self.user, 'hospital_name', '') or (getattr(getattr(self.patient_profile, 'user', None), 'hospital_name', '') if self.patient_profile else '')
+        super().save(*args, **kwargs)
+
+
+class ArchiveAccessLog(models.Model):
+    ACTION_CHOICES = [
+        ('view', 'View'),
+        ('export', 'Export'),
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('search', 'Search'),
+    ]
+
+    user = models.ForeignKey(Users, on_delete=models.SET_NULL, null=True, related_name="archive_access_logs")
+    record = models.ForeignKey(PatientAssessmentArchive, on_delete=models.CASCADE, related_name="access_logs", null=True, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    accessed_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.CharField(max_length=64, blank=True)
+    query_params = models.TextField(blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-accessed_at"]
+        db_table = "archive_access_logs"
+        verbose_name = "Archive Access Log"
+        verbose_name_plural = "Archive Access Logs"
+
+    def __str__(self):
+        rid = getattr(self.record, 'id', None)
+        return f"Archive access: {self.action} by {getattr(self.user, 'email', 'system')} on {rid}"
+
+
+class SecureKey(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='secure_keys')
+    public_key_pem = models.TextField()
+    algorithm = models.CharField(max_length=64, default='RSA-OAEP-2048-SHA256')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class SecureTransmission(models.Model):
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='sent_secure_transmissions')
+    receiver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='received_secure_transmissions')
+    patient = models.ForeignKey(PatientProfile, on_delete=models.PROTECT, related_name='secure_transmissions')
+    ciphertext_b64 = models.TextField()
+    iv_b64 = models.CharField(max_length=64)
+    encrypted_key_b64 = models.TextField()
+    signature_b64 = models.TextField()
+    signing_public_key_pem = models.TextField()
+    checksum_hex = models.CharField(max_length=128)
+    encryption_alg = models.CharField(max_length=64, default='AES-256-GCM')
+    signature_alg = models.CharField(max_length=64, default='ECDSA-P256-SHA256')
+    status = models.CharField(max_length=32, default='pending', choices=[('pending','pending'),('received','received'),('decrypted','decrypted'),('failed','failed')])
+    created_at = models.DateTimeField(auto_now_add=True)
+    accessed_at = models.DateTimeField(null=True, blank=True)
+    breach_flag = models.BooleanField(default=False)
+    breach_notified_at = models.DateTimeField(null=True, blank=True)
+
+
+class TransmissionAudit(models.Model):
+    transmission = models.ForeignKey('SecureTransmission', on_delete=models.CASCADE, related_name='audits')
+    event = models.CharField(max_length=64)
+    detail = models.TextField(blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MFAChallenge(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mfa_challenges')
+    code = models.CharField(max_length=12)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

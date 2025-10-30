@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">MediSync Frontend</string>
-    <string name="title_activity_main">MediSync Frontend</string>
-    <string name="package_name">com.medisync.app</string>
-    <string name="custom_url_scheme">com.medisync.app</string>
-</resources>

@@ -12,7 +12,7 @@ sqlparse==0.5.3
 # Analytics and Async Processing Dependencies
 celery==5.3.4
 redis==5.0.1
-django-celery-beat==2.5.0
+django-celery-beat>=2.6.0
 django-celery-results==2.5.1
 
 # Data Science and Analytics - Updated for Python 3.13 compatibility
@@ -26,7 +26,15 @@ scipy>=1.11.0
 asyncio-mqtt==0.16.1
 channels==4.0.0
 channels-redis==4.1.0
+daphne==4.0.0
 
 # PDF generation and visualization
 reportlab==4.0.7
 matplotlib>=3.8.0
+
+# HTTP client for stress-test analytics
+requests>=2.31.0
+
+# Two-Factor Authentication
+pyotp==2.9.0
+qrcode==7.4.2

@@ -44,7 +44,7 @@ const meta = ref<Meta>({
 
 <style scoped>
 .q-page {
-  background: url('/background.png') no-repeat center center;
+  background-color: white;
   background-size: cover;
 }
 </style>

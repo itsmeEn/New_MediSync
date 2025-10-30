@@ -23,24 +23,29 @@ export interface MobileEndpoint {
  */
 const MOBILE_ENDPOINTS: MobileEndpoint[] = [
   {
-    url: 'http://192.168.55.101:8000/api',
-    description: 'Primary development IP (192.168.55.101)',
+    url: 'http://172.20.29.202:8000/api',
+    description: 'Current network IP (172.20.29.202)',
     priority: 1,
-  },
-  {
-    url: 'http://192.168.1.100:8000/api',
-    description: 'Alternative common IP (192.168.1.100)',
-    priority: 2,
   },
   {
     url: 'http://10.0.2.2:8000/api',
     description: 'Android emulator host',
+    priority: 2,
+  },
+  {
+    url: 'http://192.168.55.101:8000/api',
+    description: 'Alternative development IP (192.168.55.101)',
     priority: 3,
+  },
+  {
+    url: 'http://192.168.1.100:8000/api',
+    description: 'Alternative common IP (192.168.1.100)',
+    priority: 4,
   },
   {
     url: 'http://localhost:8000/api',
     description: 'Localhost fallback',
-    priority: 4,
+    priority: 5,
   },
 ];
 
@@ -57,8 +62,10 @@ export async function testEndpoint(endpoint: string): Promise<ConnectivityTestRe
       timeout: 5000, // 5 second timeout
     });
 
-    // Test with a simple GET request
-    await testApi.get('/users/');
+    // Test with a simple GET request to an existing endpoint
+    await testApi.get('/users/profile/', {
+      validateStatus: (status) => status < 500, // Accept any status < 500 as working
+    });
     const responseTime = Date.now() - startTime;
 
     console.log(`✅ Endpoint ${endpoint} is reachable (${responseTime}ms)`);

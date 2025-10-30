@@ -2,7 +2,13 @@
   "extends": "./.quasar/tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": true,
-    "strict": true
+    "strict": true,
+    "moduleResolution": "bundler"
   },
-  "include": ["src/**/*", "src/**/*.vue", "capacitor.config.ts", "quasar.config.ts"]
+  "include": [
+    ".quasar/**/*.d.ts",
+    "src/**/*",
+    "src/**/*.vue",
+    "quasar.config.ts"
+  ]
 }

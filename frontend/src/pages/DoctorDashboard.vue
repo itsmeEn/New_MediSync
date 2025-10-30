@@ -1,272 +1,30 @@
 <template>
   <q-layout view="hHh Lpr fFf">
-    <q-header elevated class="prototype-header safe-area-top">
-      <q-toolbar class="header-toolbar">
-        <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
+    <DoctorHeader 
+      @toggle-drawer="toggleRightDrawer"
+      @show-notifications="showNotifications = true"
+    />
 
-        <div class="header-left">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="text"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-              </template>
-            </q-input>
-
-            <div v-if="searchResults.length > 0" class="search-results">
-              <q-list dense>
-                <q-item
-                  v-for="result in searchResults"
-                  :key="`${result.type}-${result.data.id}`"
-                  clickable
-                >
-                  <q-item-section avatar>
-                    <q-icon :name="getSearchResultIcon(result.type)" />
-                  </q-item-section>
-                  <q-item-section>
-                    <q-item-label>{{ getSearchResultTitle(result) }}</q-item-label>
-                    <q-item-label caption>{{ getSearchResultSubtitle(result) }}</q-item-label>
-                  </q-item-section>
-                </q-item>
-              </q-list>
-            </div>
-          </div>
-        </div>
-
-        <div class="header-right">
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-
-          <div class="time-display">
-            <q-icon name="schedule" size="md" />
-            <span class="time-text">{{ currentTime }}</span>
-          </div>
-
-          <div class="weather-display" v-if="weatherData">
-            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-            <span class="weather-text">{{ weatherData.temperature }}°C</span>
-            <span class="weather-location">{{ weatherData.location }}</span>
-          </div>
-
-          <div class="weather-loading" v-else-if="weatherLoading">
-            <q-spinner size="sm" />
-            <span class="weather-text">Loading weather...</span>
-          </div>
-
-          <div class="weather-error" v-else-if="weatherError">
-            <q-icon name="error" size="sm" />
-            <span class="weather-text">Weather Update and Place</span>
-          </div>
-        </div>
-      </q-toolbar>
-
-      <div class="mobile-header-layout">
-        <div class="header-top-row">
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-toggle-btn" />
-
-          <div class="header-info">
-            <div class="time-display">
-              <q-icon name="schedule" size="sm" />
-              <span class="time-text">{{ currentTime }}</span>
-            </div>
-
-            <div class="weather-display" v-if="weatherData">
-              <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" />
-              <span class="weather-text">{{ weatherData.temperature }}°C</span>
-              <span class="weather-location">{{ weatherData.location }}</span>
-            </div>
-
-            <div class="weather-loading" v-else-if="weatherLoading">
-              <q-spinner size="sm" />
-              <span class="weather-text">Loading...</span>
-            </div>
-
-            <div class="weather-error" v-else-if="weatherError">
-              <q-icon name="error" size="sm" />
-              <span class="weather-text">Weather Update</span>
-            </div>
-          </div>
-
-          <q-btn
-            flat
-            round
-            icon="notifications"
-            class="notification-btn"
-            @click="showNotifications = true"
-          >
-            <q-badge color="red" floating v-if="unreadNotificationsCount > 0">{{
-              unreadNotificationsCount
-            }}</q-badge>
-          </q-btn>
-        </div>
-
-        <div class="header-bottom-row">
-          <div class="search-container">
-            <q-input
-              outlined
-              dense
-              v-model="text"
-              placeholder="Search Patient, symptoms and Appointments"
-              class="search-input"
-              bg-color="white"
-            >
-              <template v-slot:prepend>
-                <q-icon name="search" color="grey-6" />
-              </template>
-              <template v-slot:append v-if="text">
-                <q-icon name="clear" class="cursor-pointer" @click="text = ''" />
-              </template>
-            </q-input>
-          </div>
-        </div>
-      </div>
-    </q-header>
-
-    <q-drawer
+    <DoctorSidebar 
       v-model="rightDrawerOpen"
-      side="left"
-      overlay
-      bordered
-      class="prototype-sidebar"
-      :width="280"
-    >
-      <div class="sidebar-content">
-        <div class="logo-section">
-          <div class="logo-container">
-            <q-avatar size="40px" class="logo-avatar">
-              <img src="../assets/logo.png" alt="MediSync Logo" />
-            </q-avatar>
-            <span class="logo-text">MediSync</span>
-          </div>
-          <q-btn dense flat round icon="menu" @click="toggleRightDrawer" class="menu-btn" />
-        </div>
+      @toggle-drawer="toggleRightDrawer"
+      active-route="doctor-dashboard"
+    />
 
-        <div class="sidebar-user-profile">
-          <div class="profile-picture-container">
-            <q-avatar size="80px" class="profile-avatar">
-              <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-              <div v-else class="profile-placeholder">
-                {{ userInitials }}
-              </div>
-            </q-avatar>
-            <q-btn
-              round
-              color="primary"
-              icon="camera_alt"
-              size="sm"
-              class="upload-btn"
-              @click="triggerFileUpload"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="image/*"
-              style="display: none"
-              @change="handleProfilePictureUpload"
-            />
-            <q-icon
-              :name="userProfile.verification_status === 'approved' ? 'check_circle' : 'cancel'"
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              class="verified-badge"
-            />
-          </div>
-
-          <div class="user-info">
-            <h6 class="user-name">{{ userProfile.full_name || 'Loading...' }}</h6>
-            <p class="user-role">{{ userProfile.specialization || 'Loading specialization...' }}</p>
-            <q-chip
-              :color="userProfile.verification_status === 'approved' ? 'positive' : 'negative'"
-              text-color="white"
-              size="sm"
-            >
-              {{ userProfile.verification_status === 'approved' ? 'Verified' : 'Not Verified' }}
-            </q-chip>
-          </div>
-        </div>
-
-        <q-list class="navigation-menu">
-          <q-item
-            clickable
-            v-ripple
-            @click="navigateTo('doctor-dashboard')"
-            class="nav-item active"
-          >
-            <q-item-section avatar>
-              <q-icon name="dashboard" />
-            </q-item-section>
-            <q-item-section>Dashboard</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('appointments')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="event" />
-            </q-item-section>
-            <q-item-section>Appointments</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('messaging')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="message" />
-            </q-item-section>
-            <q-item-section>Messaging</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('patients')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="people" />
-            </q-item-section>
-            <q-item-section>Patient Management</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('analytics')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="analytics" />
-            </q-item-section>
-            <q-item-section>Analytics</q-item-section>
-          </q-item>
-
-          <q-item clickable v-ripple @click="navigateTo('settings')" class="nav-item">
-            <q-item-section avatar>
-              <q-icon name="settings" />
-            </q-item-section>
-            <q-item-section>Settings</q-item-section>
-          </q-item>
-        </q-list>
-
-        <div class="logout-section">
-          <q-btn color="negative" icon="logout" label="LOGOUT" class="logout-btn" @click="logout" />
-        </div>
-      </div>
-    </q-drawer>
-
-    <q-page-container class="page-container-with-fixed-header safe-area-bottom">
+    <q-page-container class="page-container-with-fixed-header safe-area-bottom role-body-bg">
       <div class="greeting-section">
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
-            <h2 class="greeting-text">
-              Good {{ getTimeOfDay() }},
-              {{ userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) }}
-              {{ userProfile.full_name }}
-            </h2>
-            <p class="greeting-subtitle">See what's happening today - {{ currentDate }}</p>
+            <div class="greeting-main">
+              <div class="greeting-text-section">
+                <h2 class="greeting-text">
+                  Good {{ getTimeOfDay() }},
+                  {{ userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1) }}
+                  {{ userProfile.full_name }}
+                </h2>
+                <p class="greeting-subtitle">See what's happening today - {{ currentDate }}</p>
+              </div>
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -339,6 +97,138 @@
             </q-card-section>
           </q-card>
         </div>
+      </div>
+
+
+
+      <!-- Upcoming Appointments Section -->
+      <div class="upcoming-appointments-section q-mt-xl q-pa-lg">
+        <q-card>
+          <q-card-section>
+            <div class="section-header">
+              <h3 class="section-title">Upcoming Appointments</h3>
+              <div class="filter-controls">
+                <q-btn-group flat class="status-filter">
+                  <q-btn
+                    flat
+                    label="All"
+                    :class="{ 'active-filter': selectedStatus === 'all' }"
+                    @click="filterByStatus('all')"
+                  />
+                  <q-btn
+                    flat
+                    label="Confirmed"
+                    :class="{ 'active-filter': selectedStatus === 'confirmed' }"
+                    @click="filterByStatus('confirmed')"
+                  />
+                  <q-btn
+                    flat
+                    label="Pending"
+                    :class="{ 'active-filter': selectedStatus === 'pending' }"
+                    @click="filterByStatus('pending')"
+                  />
+                  <q-btn
+                    flat
+                    label="Completed"
+                    :class="{ 'active-filter': selectedStatus === 'completed' }"
+                    @click="filterByStatus('completed')"
+                  />
+                  <q-btn
+                    flat
+                    label="Cancelled"
+                    :class="{ 'active-filter': selectedStatus === 'cancelled' }"
+                    @click="filterByStatus('cancelled')"
+                  />
+                </q-btn-group>
+              </div>
+            </div>
+
+            <!-- Appointments List -->
+            <div class="appointments-list">
+              <q-card
+                v-for="appointment in filteredAppointments"
+                :key="appointment.id"
+                class="appointment-card q-mb-md"
+              >
+                <q-card-section>
+                  <div class="appointment-header">
+                    <div class="patient-info">
+                      <div class="patient-name">{{ appointment.patient_name }}</div>
+                      <div class="appointment-details">
+                        <q-icon name="schedule" size="sm" />
+                        <span>{{
+                          formatAppointmentDateTime(
+                            appointment.appointment_date,
+                            appointment.appointment_time,
+                          )
+                        }}</span>
+                        <q-chip
+                          :color="getStatusColor(appointment.status)"
+                          :label="appointment.status"
+                          size="sm"
+                          class="q-ml-sm"
+                        />
+                      </div>
+                    </div>
+                    <div class="appointment-actions">
+                      <q-btn
+                        round
+                        flat
+                        icon="visibility"
+                        color="primary"
+                        @click="viewMedicalAssessment(appointment)"
+                        class="q-mr-sm"
+                      >
+                        <q-tooltip>View Medical Assessment</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        round
+                        flat
+                        icon="check_circle"
+                        color="positive"
+                        @click="markAsCompleted(appointment)"
+                        v-if="appointment.status === 'confirmed'"
+                        class="q-mr-sm"
+                      >
+                        <q-tooltip>Mark as Completed</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        round
+                        flat
+                        icon="schedule"
+                        color="warning"
+                        @click="scheduleFollowUp(appointment)"
+                        v-if="appointment.status === 'confirmed'"
+                        class="q-mr-sm"
+                      >
+                        <q-tooltip>Schedule Follow-up</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        round
+                        flat
+                        icon="cancel"
+                        color="negative"
+                        @click="cancelAppointment(appointment)"
+                        v-if="
+                          appointment.status === 'confirmed' || appointment.status === 'pending'
+                        "
+                      >
+                        <q-tooltip>Cancel Appointment</q-tooltip>
+                      </q-btn>
+                    </div>
+                  </div>
+                </q-card-section>
+              </q-card>
+
+              <!-- Empty State -->
+              <div v-if="filteredAppointments.length === 0" class="empty-state">
+                <q-icon name="event_busy" size="4rem" color="grey-4" />
+                <h4>No appointments found</h4>
+                <p>No appointments match the selected filter criteria.</p>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
       </div>
 
       <q-dialog v-model="todayAppointmentsModal" persistent>
@@ -554,6 +444,88 @@
         </q-card>
       </q-dialog>
 
+      <!-- Follow-up Scheduling Dialog -->
+      <q-dialog v-model="showFollowUpDialog" persistent>
+        <q-card style="min-width: 400px">
+          <q-card-section>
+            <div class="text-h6">Schedule Follow-up</div>
+          </q-card-section>
+
+          <q-form @submit="confirmFollowUp">
+            <q-card-section class="q-pt-none">
+              <q-input
+                filled
+                v-model="followUpData.date"
+                label="Follow-up Date"
+                type="date"
+                :rules="[(val) => !!val || 'Date is required']"
+              />
+              <q-input
+                filled
+                v-model="followUpData.time"
+                label="Follow-up Time"
+                type="time"
+                :rules="[(val) => !!val || 'Time is required']"
+              />
+              <q-input
+                filled
+                v-model="followUpData.notes"
+                label="Follow-up Notes"
+                type="textarea"
+                rows="3"
+                placeholder="Reason for follow-up, instructions, etc."
+              />
+            </q-card-section>
+
+            <q-card-actions align="right">
+              <q-btn flat label="Cancel" color="grey" v-close-popup />
+              <q-btn label="Schedule Follow-up" type="submit" color="primary" />
+            </q-card-actions>
+          </q-form>
+        </q-card>
+      </q-dialog>
+
+      <!-- Medical Assessment Dialog -->
+      <q-dialog v-model="showMedicalAssessmentDialog" maximized>
+        <q-card class="medical-assessment-dialog">
+          <q-card-section class="row items-center q-pb-none">
+            <div class="text-h6">Medical Assessment - {{ selectedAppointment?.patient?.name || selectedAppointment?.patient_name }}</div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup />
+          </q-card-section>
+
+          <q-card-section>
+            <div v-if="selectedAppointment" class="medical-assessment-content">
+              <div class="row q-gutter-md">
+                <div class="col-md-6 col-12">
+                  <q-card flat bordered>
+                    <q-card-section>
+                      <h6>Patient Information</h6>
+                      <p><strong>Name:</strong> {{ selectedAppointment.patient?.name || selectedAppointment.patient_name }}</p>
+                      <p><strong>Date:</strong> {{ selectedAppointment.appointment_date }}</p>
+                      <p><strong>Time:</strong> {{ selectedAppointment.appointment_time }}</p>
+                      <p><strong>Status:</strong> {{ selectedAppointment.status }}</p>
+                    </q-card-section>
+                  </q-card>
+                </div>
+                <div class="col-md-6 col-12">
+                  <q-card flat bordered>
+                    <q-card-section>
+                      <h6>Assessment Details</h6>
+                      <div class="text-center q-pa-lg">
+                        <q-icon name="assignment" size="4rem" color="grey-5" />
+                        <h4>No Medical Assessment Available</h4>
+                        <p>No medical assessment has been completed for this patient yet.</p>
+                      </div>
+                    </q-card-section>
+                  </q-card>
+                </div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
+      </q-dialog>
+
       <router-view />
     </q-page-container>
   </q-layout>
@@ -561,10 +533,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import { useRouter } from 'vue-router';
 import { api } from '../boot/axios';
 import { useIntervalManager } from '../utils/intervalManager';
+import DoctorHeader from '../components/DoctorHeader.vue';
+import DoctorSidebar from '../components/DoctorSidebar.vue';
 
 // Type definitions
 interface Patient {
@@ -582,6 +556,7 @@ interface Nurse {
 interface Appointment {
   id: number;
   patient?: Patient;
+  patient_name?: string;
   appointment_time?: string;
   appointment_date?: string;
   status: string;
@@ -599,15 +574,10 @@ interface Assessment {
   [key: string]: unknown;
 }
 
-const router = useRouter();
 const $q = useQuasar();
+const router = useRouter();
 
 const rightDrawerOpen = ref(false);
-const text = ref('');
-
-// Carousel variables (removed but keeping for potential future use)
-// const slide = ref(1)
-// const autoplay = ref(true)
 
 // Dashboard statistics
 const dashboardStats = ref({
@@ -633,6 +603,18 @@ const totalPatients = ref<Assessment[]>([]);
 const completedAppointments = ref<Appointment[]>([]);
 const pendingAssessments = ref<Assessment[]>([]);
 
+// Upcoming appointments data
+const appointments = ref<Appointment[]>([]);
+const selectedStatus = ref<'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled'>('all');
+const showMedicalAssessmentDialog = ref(false);
+const showFollowUpDialog = ref(false);
+const selectedAppointment = ref<Appointment | null>(null);
+const followUpData = ref({
+  date: '',
+  time: '',
+  notes: '',
+});
+
 // Loading states for modals
 const modalLoading = ref(false);
 
@@ -654,19 +636,7 @@ interface Notification {
   created_at: string;
 }
 
-// Search functionality
-interface SearchResult {
-  type: string;
-  data: {
-    id: number;
-    name?: string;
-    title?: string;
-    description?: string;
-    details?: string;
-  };
-}
 
-const searchResults = ref<SearchResult[]>([]);
 
 // Real-time features
 const currentTime = ref('');
@@ -680,6 +650,8 @@ const weatherError = ref(false);
 
 // Initialize interval manager
 const { createTimeInterval, createNotificationInterval } = useIntervalManager();
+
+
 
 // User profile data - fetched from API
 const userProfile = ref<{
@@ -695,18 +667,6 @@ const userProfile = ref<{
   role: 'doctor',
   profile_picture: null,
   verification_status: 'not_submitted',
-});
-
-// File input reference for profile picture upload
-const fileInput = ref<HTMLInputElement | null>(null);
-
-const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U';
-  return userProfile.value.full_name
-    .split(' ')
-    .map((name) => name.charAt(0))
-    .join('')
-    .toUpperCase();
 });
 
 // Get time of day for greeting
@@ -727,54 +687,6 @@ const currentDate = computed(() => {
     day: 'numeric',
   });
 });
-
-// Format profile picture URL
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // Otherwise, construct the full URL
-  return `http://localhost:8000${userProfile.value.profile_picture}`;
-});
-
-// Time is now updated via interval manager
-
-// Weather icon mapping
-const getWeatherIcon = (condition: string) => {
-  const iconMap: { [key: string]: string } = {
-    sunny: 'wb_sunny',
-    cloudy: 'cloud',
-    rainy: 'grain',
-    stormy: 'thunderstorm',
-    snowy: 'ac_unit',
-    foggy: 'foggy',
-  };
-  return iconMap[condition.toLowerCase()] || 'wb_sunny';
-};
-
-// Search helper functions
-const getSearchResultIcon = (type: string) => {
-  const iconMap: { [key: string]: string } = {
-    patient: 'person',
-    symptom: 'local_hospital',
-    appointment: 'event',
-  };
-  return iconMap[type.toLowerCase()] || 'search';
-};
-
-const getSearchResultTitle = (result: SearchResult) => {
-  return result.data.name || result.data.title || 'Unknown';
-};
-
-const getSearchResultSubtitle = (result: SearchResult) => {
-  return result.data.description || result.data.details || '';
-};
 
 // Fetch weather data
 const fetchWeatherData = async () => {
@@ -801,111 +713,34 @@ const toggleRightDrawer = () => {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 };
 
-// Profile picture upload functions
-const triggerFileUpload = () => {
-  fileInput.value?.click();
-};
-
-const handleProfilePictureUpload = async (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    const file = target.files[0];
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      $q.notify({
-        type: 'negative',
-        message: 'Please select a valid image file (JPG, PNG)',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      $q.notify({
-        type: 'negative',
-        message: 'File size must be less than 5MB',
-        position: 'top',
-        timeout: 3000,
-      });
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('profile_picture', file);
-
-      const response = await api.post('/users/profile/update/picture/', formData);
-
-      userProfile.value.profile_picture = response.data.user.profile_picture;
-
-      // Store the updated profile picture in localStorage for cross-page sync
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      currentUser.profile_picture = response.data.user.profile_picture;
-      localStorage.setItem('user', JSON.stringify(currentUser));
-
-      // Show success toast
-      $q.notify({
-        type: 'positive',
-        message: 'Profile picture updated successfully!',
-        position: 'top',
-        timeout: 3000,
-      });
-
-      // Clear the file input
-      target.value = '';
-    } catch (error: unknown) {
-      console.error('Profile picture upload failed:', error);
-
-      let errorMessage = 'Failed to upload profile picture. Please try again.';
-
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as {
-          response?: {
-            data?: { profile_picture?: string[]; detail?: string; error?: string };
-            status?: number;
-          };
-        };
-        console.error('Upload error response:', axiosError.response?.data);
-
-        if (axiosError.response?.data?.profile_picture?.[0]) {
-          errorMessage = axiosError.response.data.profile_picture[0];
-        } else if (axiosError.response?.data?.detail) {
-          errorMessage = axiosError.response.data.detail;
-        } else if (axiosError.response?.data?.error) {
-          errorMessage = axiosError.response.data.error;
-        } else if (axiosError.response?.status === 413) {
-          errorMessage = 'File too large. Please select a smaller image.';
-        } else if (axiosError.response?.status === 400) {
-          errorMessage = 'Invalid file format. Please select a valid image file.';
-        } else if (axiosError.response?.status === 500) {
-          errorMessage = 'Server error. Please try again later.';
-        }
-      } else if (error && typeof error === 'object' && 'message' in error) {
-        const errorMsg = (error as { message: string }).message;
-        if (errorMsg.includes('Network Error')) {
-          errorMessage = 'Network error. Please check your connection and try again.';
-        }
-      }
-
-      $q.notify({
-        type: 'negative',
-        message: errorMessage,
-        position: 'top',
-        timeout: 5000,
-      });
-    }
-  }
-};
-
 // Fetch user profile data
 const fetchUserProfile = async () => {
   try {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
+
+    // Role verification - ensure only doctors can access this dashboard
+    if (userData.role !== 'doctor') {
+      $q.notify({
+        type: 'negative',
+        message: 'Access denied. This dashboard is only available for doctors.',
+        timeout: 3000,
+      });
+      
+      // Redirect based on user role
+      switch (userData.role) {
+        case 'patient':
+          await router.push('/patient-dashboard');
+          break;
+        case 'nurse':
+          await router.push('/nurse-dashboard');
+          break;
+        default:
+          await router.push('/login');
+          break;
+      }
+      return;
+    }
 
     // Check localStorage for updated profile picture
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
@@ -930,6 +765,30 @@ const fetchUserProfile = async () => {
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
+      
+      // Role verification for localStorage fallback
+      if (user.role !== 'doctor') {
+        $q.notify({
+          type: 'negative',
+          message: 'Access denied. This dashboard is only available for doctors.',
+          timeout: 3000,
+        });
+        
+        // Redirect based on user role
+        switch (user.role) {
+          case 'patient':
+            await router.push('/patient-dashboard');
+            break;
+          case 'nurse':
+            await router.push('/nurse-dashboard');
+            break;
+          default:
+            await router.push('/login');
+            break;
+        }
+        return;
+      }
+
       userProfile.value = {
         id: user.id,
         full_name: user.full_name,
@@ -939,45 +798,19 @@ const fetchUserProfile = async () => {
         verification_status: user.verification_status || 'not_submitted',
       };
 
-      // Still try to fetch dashboard stats
+      // fetch dashboard stats
       await fetchDashboardStats();
     } else {
       $q.notify({
         type: 'negative',
-        message: 'Failed to load user profile',
+        message: 'Failed to load user profile. Please log in again.',
         position: 'top',
         timeout: 3000,
       });
+      
+      // Redirect to login if no user data is available
+      await router.push('/login');
     }
-  }
-};
-
-const navigateTo = (route: string) => {
-  // Close drawer first
-  rightDrawerOpen.value = false;
-
-  // Navigate to different sections
-  switch (route) {
-    case 'doctor-dashboard':
-      void router.push('/doctor-dashboard');
-      break;
-    case 'appointments':
-      void router.push('/doctor-appointments');
-      break;
-    case 'messaging':
-      void router.push('/doctor-messaging');
-      break;
-    case 'patients':
-      void router.push('/doctor-patient-management');
-      break;
-    case 'analytics':
-      void router.push('/doctor-predictive-analytics');
-      break;
-    case 'settings':
-      void router.push('/doctor-settings');
-      break;
-    default:
-      console.log('Navigation to:', route);
   }
 };
 
@@ -1095,6 +928,7 @@ const formatDateTime = (dateString?: string) => {
 const getStatusColor = (status?: string) => {
   switch (status?.toLowerCase()) {
     case 'scheduled':
+    case 'confirmed':
       return 'blue';
     case 'completed':
       return 'green';
@@ -1102,15 +936,154 @@ const getStatusColor = (status?: string) => {
       return 'red';
     case 'in_progress':
       return 'orange';
+    case 'pending':
+      return 'warning';
     default:
       return 'grey';
   }
 };
 
-// Notification functions
-const unreadNotificationsCount = computed(() => {
-  return notifications.value.filter((n) => !n.is_read).length;
+// Upcoming appointments functions
+const filteredAppointments = computed(() => {
+  if (selectedStatus.value === 'all') {
+    return appointments.value;
+  }
+  return appointments.value.filter((appointment) => appointment.status === selectedStatus.value);
 });
+
+function filterByStatus(status: 'all' | 'confirmed' | 'pending' | 'completed' | 'cancelled') {
+  selectedStatus.value = status;
+}
+
+function formatAppointmentDateTime(date?: string, time?: string): string {
+  if (!date || !time) return 'Date/Time not available';
+  
+  const dateObj = new Date(date);
+  const formattedDate = dateObj.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  return `${formattedDate} at ${time}`;
+}
+
+function viewMedicalAssessment(appointment: Appointment) {
+  selectedAppointment.value = appointment;
+  showMedicalAssessmentDialog.value = true;
+}
+
+async function markAsCompleted(appointment: Appointment) {
+  try {
+    await api.patch(`/operations/appointments/${appointment.id}/`, {
+      status: 'completed',
+    });
+
+    // Update local appointment
+    const index = appointments.value.findIndex((a) => a.id === appointment.id);
+    if (index !== -1 && appointments.value[index]) {
+      appointments.value[index].status = 'completed';
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Appointment marked as completed',
+      position: 'top',
+    });
+  } catch (error) {
+    console.error('Failed to mark appointment as completed:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update appointment status',
+      position: 'top',
+    });
+  }
+}
+
+function scheduleFollowUp(appointment: Appointment) {
+  selectedAppointment.value = appointment;
+  followUpData.value = {
+    date: '',
+    time: '',
+    notes: '',
+  };
+  showFollowUpDialog.value = true;
+}
+
+async function confirmFollowUp() {
+  if (!selectedAppointment.value) return;
+
+  try {
+    const followUpAppointment = {
+      patient_name: selectedAppointment.value.patient?.name,
+      appointment_date: followUpData.value.date,
+      appointment_time: followUpData.value.time,
+      appointment_type: 'follow_up',
+      notes: followUpData.value.notes,
+      original_appointment_id: selectedAppointment.value.id,
+    };
+
+    await api.post('/operations/create-appointment/', followUpAppointment);
+
+    showFollowUpDialog.value = false;
+    await fetchAppointments();
+
+    $q.notify({
+      type: 'positive',
+      message: 'Follow-up appointment scheduled successfully',
+      position: 'top',
+    });
+  } catch (error) {
+    console.error('Failed to schedule follow-up:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to schedule follow-up appointment',
+      position: 'top',
+    });
+  }
+}
+
+async function cancelAppointment(appointment: Appointment) {
+  try {
+    await api.patch(`/operations/appointments/${appointment.id}/`, {
+      status: 'cancelled',
+    });
+
+    // Update local appointment
+    const index = appointments.value.findIndex((a) => a.id === appointment.id);
+    if (index !== -1 && appointments.value[index]) {
+      appointments.value[index].status = 'cancelled';
+    }
+
+    $q.notify({
+      type: 'positive',
+      message: 'Appointment cancelled successfully',
+      position: 'top',
+    });
+  } catch (error) {
+    console.error('Failed to cancel appointment:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to cancel appointment',
+      position: 'top',
+    });
+  }
+}
+
+async function fetchAppointments() {
+  try {
+    const response = await api.get('/operations/appointments/');
+    appointments.value = response.data;
+  } catch (error) {
+    console.error('Failed to fetch appointments:', error);
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to load appointments',
+      position: 'top',
+    });
+  }
+}
+
+
 
 const loadNotifications = async (): Promise<void> => {
   try {
@@ -1119,9 +1092,9 @@ const loadNotifications = async (): Promise<void> => {
     const response = await api.get('/operations/notifications/');
     notifications.value = response.data || [];
 
-    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+    console.log('Doctor notifications loaded:', notifications.value.length);
   } catch (error: unknown) {
-    console.error('❌ Error loading doctor notifications:', error);
+    console.error('Error loading doctor notifications:', error);
     $q.notify({
       type: 'negative',
       message: 'Failed to load notifications',
@@ -1166,13 +1139,6 @@ const markAllNotificationsRead = async (): Promise<void> => {
       message: 'Failed to mark notifications as read',
     });
   }
-};
-
-const logout = () => {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  localStorage.removeItem('user');
-  void router.push('/login');
 };
 
 // Fetch dashboard statistics
@@ -1283,6 +1249,11 @@ onMounted(() => {
   // Load notifications
   void loadNotifications();
 
+  // Load upcoming appointments
+  void fetchAppointments();
+
+
+
   // Initialize real-time features with interval manager
   createTimeInterval('doctor-dashboard-time', (time) => {
     currentTime.value = time;
@@ -1302,6 +1273,8 @@ onUnmounted(() => {
   // Interval manager automatically cleans up intervals
   // No manual cleanup needed
 });
+
+
 </script>
 
 <style scoped>
@@ -1692,10 +1665,9 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-/* Page Container with Background */
+/* Page Container with Clean White Background */
 .page-container-with-fixed-header {
-  background: #f8f9fa;
-  background-size: cover;
+  background: #ffffff;
   min-height: 100vh;
   position: relative;
 }
@@ -1709,9 +1681,9 @@ onUnmounted(() => {
   height: 100%;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.25) 0%,
-    rgba(248, 249, 250, 0.15) 50%,
-    rgba(240, 242, 245, 0.08) 100%
+    rgba(248, 250, 252, 0.8) 0%,
+    rgba(241, 245, 249, 0.6) 50%,
+    rgba(248, 250, 252, 0.4) 100%
   );
   z-index: 0;
   pointer-events: none;
@@ -1722,23 +1694,31 @@ onUnmounted(() => {
   z-index: 1;
 }
 
-/* Greeting Section */
+/* Enhanced Greeting Section */
 .greeting-section {
-  padding: 24px;
+  padding: 32px 24px 24px 24px;
   background: transparent;
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.1);
+  box-shadow: 
+    0 10px 25px rgba(40, 102, 96, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  min-height: 160px;
 }
 
 .greeting-card::before {
@@ -1748,41 +1728,121 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
-  border-radius: 16px 16px 0 0;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
+}
+
+.greeting-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 
+    0 20px 40px rgba(40, 102, 96, 0.12),
+    0 8px 16px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border-color: rgba(40, 102, 96, 0.2);
 }
 
 .greeting-content {
   padding: 24px;
 }
 
+.greeting-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.greeting-text-section {
+  flex: 1;
+}
+
 .greeting-text {
   font-size: 28px;
   font-weight: 700;
-  color: #333;
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 50%, #286660 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin: 0 0 8px 0;
+  line-height: 1.2;
 }
 
 .greeting-subtitle {
   font-size: 16px;
-  color: #666;
-  margin: 0;
+  color: #64748b;
+  margin: 0 0 16px 0;
+  font-weight: 500;
+}
+
+.greeting-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #286660;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stat-item .q-icon {
+  color: #286660;
+}
+
+.greeting-avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.doctor-avatar {
+  border: 3px solid #286660;
+  box-shadow: 0 4px 16px rgba(40, 102, 96, 0.2);
+}
+
+.doctor-info {
+  text-align: center;
+}
+
+.doctor-specialty {
+  font-size: 14px;
+  font-weight: 600;
+  color: #286660;
+  margin-bottom: 4px;
+}
+
+.doctor-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #4caf50;
+  font-weight: 500;
 }
 
 /* Dashboard Cards Section */
 .dashboard-cards-section {
-  padding: 24px;
+  padding: 0 24px 24px;
+  background: transparent;
 }
 
 .dashboard-cards-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  max-width: 1200px;
+  gap: 26px;
   margin: 0 auto;
 }
 
-/* Glassmorphism Dashboard Cards */
 .dashboard-card {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(20px);
@@ -1793,7 +1853,7 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: hidden;
   position: relative;
-  min-height: 140px;
+  min-height: 240px;
 }
 
 .dashboard-card::before {
@@ -1817,6 +1877,30 @@ onUnmounted(() => {
 
 .dashboard-card:hover::before {
   opacity: 1;
+}
+
+/* Enhanced Card Styling with Medical Theme */
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .card-content {
@@ -1866,33 +1950,171 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
-/* Card-specific colors */
-.appointments-card .card-icon {
-  color: #2196f3;
+.filter-controls {
+  display: flex;
+  gap: 8px;
 }
+
+.status-filter .q-btn {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #333;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.status-filter .q-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+
+.status-filter .q-btn.active-filter {
+  background: #286660;
+  color: white;
+  border-color: #286660;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #666;
+}
+
+.empty-state h4 {
+  margin: 16px 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Card-specific gradient backgrounds and colors */
+.appointments-card::before {
+  background: linear-gradient(90deg, #2196f3, #42a5f5, #90caf9);
+}
+
+.patients-card::before {
+  background: linear-gradient(90deg, #4caf50, #66bb6a, #a5d6a7);
+}
+
+.completed-card::before {
+  background: linear-gradient(90deg, #ff9800, #ffb74d, #ffcc80);
+}
+
+.assessment-card::before {
+  background: linear-gradient(90deg, #9c27b0, #ba68c8, #e1bee7);
+}
+
+/* Enhanced Card Backgrounds with Medical Theme */
+.appointments-card {
+  background: linear-gradient(135deg, 
+    rgba(33, 150, 243, 0.15) 0%, 
+    rgba(66, 165, 245, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.appointments-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(33, 150, 243, 0.25) 0%, 
+    rgba(66, 165, 245, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.5);
+}
+
+.patients-card {
+  background: linear-gradient(135deg, 
+    rgba(76, 175, 80, 0.15) 0%, 
+    rgba(102, 187, 106, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.patients-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(76, 175, 80, 0.25) 0%, 
+    rgba(102, 187, 106, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.completed-card {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.15) 0%, 
+    rgba(255, 183, 77, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.completed-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(255, 152, 0, 0.25) 0%, 
+    rgba(255, 183, 77, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.5);
+}
+
+.assessment-card {
+  background: linear-gradient(135deg, 
+    rgba(156, 39, 176, 0.15) 0%, 
+    rgba(186, 104, 200, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.3);
+}
+
+.assessment-card:hover {
+  background: linear-gradient(135deg, 
+    rgba(156, 39, 176, 0.25) 0%, 
+    rgba(186, 104, 200, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.5);
+}
+
+/* Card-specific value colors with text shadows */
 .appointments-card .card-value {
   color: #2196f3;
+  text-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.patients-card .card-value {
+  color: #4caf50;
+  text-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+}
+
+.completed-card .card-value {
+  color: #ff9800;
+  text-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+}
+
+.assessment-card .card-value {
+  color: #9c27b0;
+  text-shadow: 0 2px 4px rgba(156, 39, 176, 0.3);
+}
+
+/* Card-specific icon colors with drop shadows */
+.appointments-card .card-icon {
+  color: #2196f3;
+  filter: drop-shadow(0 2px 4px rgba(33, 150, 243, 0.4));
 }
 
 .patients-card .card-icon {
   color: #4caf50;
-}
-.patients-card .card-value {
-  color: #4caf50;
+  filter: drop-shadow(0 2px 4px rgba(76, 175, 80, 0.4));
 }
 
 .completed-card .card-icon {
   color: #ff9800;
-}
-.completed-card .card-value {
-  color: #ff9800;
+  filter: drop-shadow(0 2px 4px rgba(255, 152, 0, 0.4));
 }
 
 .assessment-card .card-icon {
   color: #9c27b0;
-}
-.assessment-card .card-value {
-  color: #9c27b0;
+  filter: drop-shadow(0 2px 4px rgba(156, 39, 176, 0.4));
 }
 
 /* Responsive Design */
@@ -1990,6 +2212,22 @@ onUnmounted(() => {
     gap: 16px;
   }
 
+  .additional-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .greeting-main {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .greeting-stats {
+    justify-content: center;
+    gap: 16px;
+  }
+
   .greeting-text {
     font-size: 24px;
   }
@@ -2022,6 +2260,70 @@ onUnmounted(() => {
     margin-left: 0;
     align-self: flex-end;
   }
+
+  /* Enhanced mobile card styling */
+  .dashboard-card {
+    min-height: 200px;
+    border-radius: 20px;
+  }
+
+  .dashboard-card:hover {
+    transform: translateY(-4px) scale(1.01);
+  }
+}
+
+/* Mobile Portrait - Single Column */
+@media (max-width: 480px) {
+  .dashboard-cards-section {
+    padding: 0 12px 12px;
+  }
+
+  .dashboard-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .card-content {
+    padding: 16px;
+  }
+
+  .card-title {
+    font-size: 16px;
+  }
+
+  .card-description {
+    font-size: 12px;
+  }
+
+  .card-value {
+    font-size: 24px;
+  }
+
+  .dashboard-card {
+    min-height: 160px;
+    border-radius: 16px;
+  }
+
+  .upcoming-appointments-section {
+    margin: 16px 12px;
+  }
+
+  .upcoming-appointments-section .q-card {
+    border-radius: 20px;
+  }
+
+  .section-header {
+    padding: 20px 16px 12px 16px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+
+  .appointment-card {
+    margin: 6px 12px;
+    border-radius: 12px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2031,7 +2333,7 @@ onUnmounted(() => {
 
   .mobile-header-layout {
     padding: 6px 8px;
-    padding-top: max(env(safe-area-inset-top), 12px);
+    padding-top: max(env(safe-area-inset-top), 8px);
   }
 
   .header-top-row {
@@ -2124,6 +2426,14 @@ onUnmounted(() => {
     gap: 12px;
   }
 
+
+
+  .greeting-stats {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
   .greeting-text {
     font-size: 20px;
   }
@@ -2157,58 +2467,7 @@ onUnmounted(() => {
   }
 }
 
-/* Profile Avatar Styles - Circular Design */
-.profile-avatar {
-  border: 3px solid #1e7668 !important;
-  border-radius: 50% !important;
-  overflow: hidden !important;
-}
-
-.profile-avatar img {
-  border-radius: 50% !important;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-}
-
-.profile-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #1e7668;
-  color: white;
-  font-size: 24px;
-  font-weight: bold;
-  border-radius: 50%;
-}
-
-.upload-btn {
-  position: absolute;
-  bottom: -5px;
-  right: -5px;
-  background: #1e7668 !important;
-  border-radius: 50% !important;
-  width: 24px !important;
-  height: 24px !important;
-  min-height: 24px !important;
-  padding: 0 !important;
-}
-
-.verified-badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-}
+/* Profile avatar styles removed from greeting card */
 
 /* Modal Styles */
 .modal-card {
@@ -2328,12 +2587,13 @@ onUnmounted(() => {
     min-width: 44px !important;
     min-height: 44px !important;
     font-size: 20px !important;
-    background: rgba(0, 0, 0, 0.1) !important;
+    background: rgba(255, 255, 255, 0.25) !important;
     border-radius: 50% !important;
+    color: white !important;
   }
 
   .modal-close-btn:hover {
-    background: rgba(0, 0, 0, 0.2) !important;
+    background: rgba(255, 255, 255, 0.3) !important;
   }
 
   .notification-modal {
@@ -2346,30 +2606,74 @@ onUnmounted(() => {
   }
 
   .q-item {
-    padding: 12px 8px;
+    padding: 12px 12px;
+    min-height: 72px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    transition: background-color 0.2s ease;
+  }
+
+  .q-item:hover {
+    background-color: rgba(40, 102, 96, 0.04);
+  }
+
+  .q-item:last-child {
+    border-bottom: none;
   }
 
   .q-item__section--avatar {
-    min-width: 40px;
+    min-width: 48px;
+    padding-right: 12px;
   }
 
   .q-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 14px;
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .q-item__section--main {
+    flex: 1;
+    min-width: 0;
   }
 
   .q-item__label {
-    font-size: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    line-height: 1.3;
+    margin-bottom: 4px;
   }
 
   .q-item__label--caption {
-    font-size: 12px;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.3;
+    margin-bottom: 2px;
+  }
+
+  .q-item__section--side {
+    padding-left: 12px;
+    align-items: flex-start;
+    padding-top: 4px;
   }
 
   .q-chip {
-    font-size: 11px;
-    padding: 4px 8px;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-weight: 500;
+    min-height: 28px;
+  }
+
+  /* Empty state styling */
+  .text-center.q-pa-md.text-grey-6 {
+    padding: 40px 20px !important;
+    font-size: 16px;
+    color: #999 !important;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    margin: 16px;
   }
 }
 
@@ -2378,7 +2682,7 @@ onUnmounted(() => {
     width: 100%;
     max-width: 100%;
     margin: 0;
-    border-radius: 8px;
+    border-radius: 12px;
     max-height: calc(
       100vh - max(env(safe-area-inset-top), 24px) - max(env(safe-area-inset-bottom), 4px)
     );
@@ -2386,12 +2690,13 @@ onUnmounted(() => {
   }
 
   .modal-header {
-    padding: 12px;
-    padding-bottom: 0;
+    padding: 16px 12px 12px;
+    border-radius: 12px 12px 0 0;
   }
 
   .modal-title {
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 600;
   }
 
   .modal-close-btn {
@@ -2399,12 +2704,12 @@ onUnmounted(() => {
     min-width: 48px !important;
     min-height: 48px !important;
     font-size: 22px !important;
-    background: rgba(0, 0, 0, 0.1) !important;
+    background: rgba(255, 255, 255, 0.25) !important;
     border-radius: 50% !important;
   }
 
   .modal-close-btn:hover {
-    background: rgba(0, 0, 0, 0.2) !important;
+    background: rgba(255, 255, 255, 0.3) !important;
   }
 
   .notification-modal {
@@ -2417,27 +2722,257 @@ onUnmounted(() => {
   }
 
   .q-item {
-    padding: 8px 4px;
+    padding: 12px 8px;
+    min-height: 64px;
+  }
+
+  .q-item__section--avatar {
+    min-width: 44px;
+    padding-right: 10px;
   }
 
   .q-avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
   }
 
   .q-item__label {
+    font-size: 15px;
+    margin-bottom: 3px;
+  }
+
+  .q-item__label--caption {
+    font-size: 12px;
+    margin-bottom: 1px;
+  }
+
+  .q-item__section--side {
+    padding-left: 8px;
+  }
+
+  .q-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    min-height: 24px;
+  }
+
+  /* Empty state styling */
+  .text-center.q-pa-md.text-grey-6 {
+    padding: 32px 16px !important;
+    font-size: 15px;
+    margin: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .modal-card {
+    border-radius: 8px;
+    max-height: calc(
+      100vh - max(env(safe-area-inset-top), 20px) - max(env(safe-area-inset-bottom), 4px)
+    );
+  }
+
+  .modal-header {
+    padding: 12px 8px 8px;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .modal-title {
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .modal-close-btn {
+    padding: 8px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+  }
+
+  .q-card__section {
+    padding: 8px;
+  }
+
+  .q-item {
+    padding: 10px 6px;
+    min-height: 60px;
+  }
+
+  .q-item__section--avatar {
+    min-width: 40px;
+    padding-right: 8px;
+  }
+
+  .q-avatar {
+    width: 32px;
+    height: 32px;
     font-size: 13px;
+  }
+
+  .q-item__label {
+    font-size: 14px;
+    line-height: 1.2;
   }
 
   .q-item__label--caption {
     font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .q-item__section--side {
+    padding-left: 6px;
   }
 
   .q-chip {
     font-size: 10px;
-    padding: 2px 6px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    min-height: 22px;
   }
+
+  /* Empty state styling */
+  .text-center.q-pa-md.text-grey-6 {
+    padding: 24px 12px !important;
+    font-size: 14px;
+    margin: 8px;
+  }
+}
+
+/* Appointment status colors for better mobile visibility */
+.q-chip[color="primary"] {
+  background: #2196f3 !important;
+  color: white !important;
+}
+
+.q-chip[color="orange"] {
+  background: #ff9800 !important;
+  color: white !important;
+}
+
+.q-chip[color="purple"] {
+  background: #9c27b0 !important;
+  color: white !important;
+}
+
+.q-chip[color="green"] {
+  background: #4caf50 !important;
+  color: white !important;
+}
+
+.q-chip[color="red"] {
+  background: #f44336 !important;
+  color: white !important;
+}
+
+/* Loading spinner in modals */
+.q-spinner {
+  margin: 20px auto;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .q-spinner {
+    margin: 16px auto;
+  }
+}
+
+/* Upcoming Appointments Section - Enhanced Design */
+.upcoming-appointments-section .q-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.upcoming-appointments-section .q-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 24px 24px 0 0;
+  opacity: 1;
+}
+
+.section-header {
+  padding: 24px 24px 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  margin: 8px 16px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.appointment-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 
+    0 12px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.appointment-card .q-item-section--avatar .q-avatar {
+  border: 2px solid rgba(40, 102, 96, 0.3);
+  box-shadow: 0 2px 8px rgba(40, 102, 96, 0.2);
+}
+
+.appointment-card .q-chip {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.15) 0%, 
+    rgba(255, 255, 255, 0.2) 100%) !important;
+  color: #286660 !important;
+  border: 1px solid rgba(40, 102, 96, 0.3);
+  backdrop-filter: blur(10px);
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card .q-btn {
+  background: linear-gradient(135deg, 
+    rgba(40, 102, 96, 0.15) 0%, 
+    rgba(255, 255, 255, 0.2) 100%);
+  color: #286660;
+  border: 1px solid rgba(40, 102, 96, 0.3);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.appointment-card .q-btn:hover {
+  background: linear-gradient(135deg, #286660, #3d8b7c);
+  color: white;
+  border-color: #286660;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 102, 96, 0.3);
 }
 
 /* Notification styles */
@@ -2449,4 +2984,6 @@ onUnmounted(() => {
 .unread .q-item-label {
   font-weight: 600;
 }
+
+
 </style>
