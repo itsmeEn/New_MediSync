@@ -1657,6 +1657,7 @@ interface DoctorSummary {
   hospital_name?: string
 }
 const availableDoctors = ref<DoctorSummary[]>([])
+const doctorsCheckedAt = ref<string | null>(null)
 
 // Derive a best-guess specialization from patient's condition for outpatient matching
 function deriveSpecializationFromCondition(condition: string | null | undefined): string | null {
@@ -1725,42 +1726,28 @@ async function loadAvailableDoctors() {
   }
   
   try {
-    // Use the correct endpoint for fetching available users (doctors) in the same hospital
-    // The backend automatically filters by user.hospital_name for security
-    const url = '/api/operations/messaging/available-users/'
+    // New secured endpoint returns only free doctors with timestamp and count
+    const url = '/api/operations/availability/doctors/free/?include_email=true'
     const res = await api.get(url)
-    
-    type ApiUser = {
-      id?: number | string
-      full_name?: string
-      role?: string
-      verification_status?: string
-      email?: string
-      profile_picture?: string | null
-      doctor_profile?: { specialization?: string } | null
-      specialization?: string
-      hospital_name?: string
-    }
-    
-    // Extract users from response
-    const users: ApiUser[] = Array.isArray(res.data?.users) ? res.data.users : Array.isArray(res.data) ? res.data : []
-    
-    // Filter for doctors only (nurses are also returned by the endpoint)
-    const doctors = users.filter(u => String(u.role).toLowerCase() === 'doctor' && String(u.verification_status).toLowerCase() === 'approved')
-    
-    // Map to DoctorSummary format
-    availableDoctors.value = doctors.map((u) => ({
-      id: String(u.id ?? ''),
-      full_name: u.full_name || 'Unknown Doctor',
-      specialization: u.doctor_profile?.specialization || u.specialization || 'General',
-      availability: 'available',
-      hospital_name: u.hospital_name || nurseHospital.value || ''
+
+    type ApiDoctor = { id?: number|string; full_name?: string; specialization?: string; email?: string; availability?: string; hospital_name?: string }
+    const doctors: ApiDoctor[] = Array.isArray(res.data?.doctors) ? res.data.doctors : []
+    const checkedAt = String(res.data?.checked_at || '')
+
+    availableDoctors.value = doctors.map((d) => ({
+      id: d.id ?? '',
+      full_name: d.full_name || 'Unknown Doctor',
+      specialization: d.specialization || 'General',
+      availability: d.availability || 'available',
+      hospital_name: d.hospital_name || nurseHospital.value || ''
     })) as DoctorSummary[]
-    
-    console.log(`Loaded ${availableDoctors.value.length} doctors from hospital: ${nurseHospital.value}`)
-    
-    // Cache for fallback use
+
+    // Cache for fallback use with timestamp
     localStorage.setItem('available_doctors', JSON.stringify(availableDoctors.value))
+    if (checkedAt) {
+      localStorage.setItem('available_doctors_checked_at', checkedAt)
+      doctorsCheckedAt.value = checkedAt
+    }
   } catch (err) {
     console.error('Failed to fetch doctors:', err)
     const msg = getErrorMessage(err)
@@ -1775,6 +1762,8 @@ async function loadAvailableDoctors() {
       } else {
         availableDoctors.value = []
       }
+      const cachedTs = localStorage.getItem('available_doctors_checked_at')
+      doctorsCheckedAt.value = cachedTs || null
     } catch {
       availableDoctors.value = []
     }

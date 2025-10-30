@@ -21,4 +21,10 @@ urlpatterns = [
     
     # PDF report generation
     path('pdf/', views.generate_analytics_pdf, name='generate_analytics_pdf'),
+
+    # Telemetry and uptime
+    path('events/', views.list_usage_events, name='list_usage_events'),
+    path('events/log/', views.log_usage_event, name='log_usage_event'),
+    path('uptime/ping/', views.uptime_ping, name='uptime_ping'),
+    path('uptime/status/', views.uptime_status, name='uptime_status'),
 ]

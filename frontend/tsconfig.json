@@ -9,6 +9,7 @@
     ".quasar/**/*.d.ts",
     "src/**/*",
     "src/**/*.vue",
-    "quasar.config.ts"
+    "quasar.config.ts",
+    "capacitor.config.ts"
   ]
 }

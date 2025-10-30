@@ -310,12 +310,18 @@ class AppointmentManagement(models.Model):
     )
     appointment_time = models.TimeField(help_text="Time of the appointment.")
     queue_number = models.PositiveIntegerField(unique=True, help_text="Queue number for the appointment.")
+    # Lifecycle timestamps for analytics and operational tracking
+    checked_in_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the patient checked in for the appointment.")
+    consultation_started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the consultation started.")
+    consultation_finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the consultation finished.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     #status of the appointment like scheduled, completed, cancelled, no show
     status = models.CharField(max_length=50, choices=[
         ("scheduled", "Scheduled"),
         ("rescheduled", "Rescheduled"),
+        ("checked_in", "Checked In"),
+        ("in_progress", "In Progress"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
         ("no_show", "No Show"),
@@ -333,6 +339,7 @@ class AppointmentManagement(models.Model):
         return f"Appointment {self.id} - Patient: {self.patient.user.full_name} with Dr. {self.doctor.user.full_name}"
     
     def save(self, *args, **kwargs):
+        """Ensure valid scheduling and auto-populate derived fields."""
         # Only enforce future dates when scheduling or rescheduling
         try:
             status_requires_future = self.status in ["scheduled", "rescheduled"]
@@ -341,10 +348,22 @@ class AppointmentManagement(models.Model):
 
         if status_requires_future and self.appointment_date < timezone.now():
             raise ValueError("Appointment date cannot be in the past for scheduled/rescheduled appointments.")
+
+        # Auto-populate appointment_time from appointment_date if missing
+        if not self.appointment_time and self.appointment_date:
+            try:
+                self.appointment_time = self.appointment_date.time()
+            except Exception:
+                pass
+
+        # Auto-assign a globally unique queue_number if missing
+        if not self.queue_number:
+            last_queue_number = AppointmentManagement.objects.aggregate(
+                maximum_queue_number=models.Max("queue_number")
+            )["maximum_queue_number"] or 0
+            self.queue_number = last_queue_number + 1
+
         super().save(*args, **kwargs)
-        # This ensures that the appointment date is not in the past.
-        # This can be used to check if the appointment is valid or not.
-        # This can be used to check if the appointment is scheduled, completed, cancelled, or
 
 #queue for priority patients
 # no show.
@@ -1139,6 +1158,53 @@ class ArchiveAccessLog(models.Model):
     def __str__(self):
         rid = getattr(self.record, 'id', None)
         return f"Archive access: {self.action} by {getattr(self.user, 'email', 'system')} on {rid}"
+
+
+class MedicalRecordRequest(models.Model):
+    """
+    Represents a patient medical records request and its approval/delivery lifecycle.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('delivered', 'Delivered'),
+    ]
+
+    URGENCY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    patient = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='record_requests')
+    requested_by = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='initiated_record_requests')
+    primary_nurse = models.ForeignKey(NurseProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='record_requests')
+    attending_doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='record_requests')
+
+    request_type = models.CharField(max_length=100, blank=True, help_text='Type of request e.g., full_records, lab_results, etc.')
+    requested_records = models.JSONField(default=dict, blank=True, help_text='Details about specific records requested')
+    reason = models.TextField(blank=True)
+    urgency = models.CharField(max_length=10, choices=URGENCY_CHOICES, default='medium')
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    approved_by = models.ForeignKey(Users, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_record_requests')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    delivery_reference = models.CharField(max_length=255, blank=True, help_text='Reference to email id, file path, or transmission id')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'medical_record_requests'
+        ordering = ['-created_at']
+        verbose_name = 'Medical Record Request'
+        verbose_name_plural = 'Medical Record Requests'
+
+    def __str__(self):
+        return f"RecordRequest(patient={getattr(self.patient,'email','')}, status={self.status}, urgency={self.urgency})"
 
 
 class SecureKey(models.Model):

@@ -1167,21 +1167,11 @@ interface NurseSummary {
   email?: string | undefined;
   profile_picture?: string | null;
 }
-
-interface AvailableUser {
-  id: number | string;
-  full_name: string;
-  role: string;
-  verification_status: string;
-  email?: string;
-  profile_picture?: string | null;
-  nurse_profile?: { department?: string } | null;
-  specialization?: string;
-}
  
 const availableNurses = ref<NurseSummary[]>([]);
 const nursesLoading = ref(false);
 const nursesError = ref<string | null>(null);
+const nursesCheckedAt = ref<string | null>(null);
 
 const getInitials = (name: string): string => {
   const parts = (name || '').trim().split(/\s+/);
@@ -1210,27 +1200,52 @@ const loadAvailableNurses = async (): Promise<void> => {
   nursesLoading.value = true;
   nursesError.value = null;
   try {
-    const hospitalId = localStorage.getItem('selected_hospital_id');
-    const url = `/api/operations/messaging/available-users/${hospitalId ? `?hospital_id=${encodeURIComponent(String(hospitalId))}` : ''}`;
+    // New secured endpoint dedicated for nurse availability, includes timestamp and shift info
+    const url = `/api/operations/availability/nurses/`;
     const response = await api.get(url);
-    const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
-    const list: NurseSummary[] = users
-      .filter((u) => u.role === 'nurse' && u.verification_status === 'approved')
-      .map((u) => ({
-        id: u.id,
-        full_name: u.full_name,
-        department: u.nurse_profile?.department || u.specialization || 'General',
-        status: 'Verified',
-        availability: 'Available',
-        email: u.email ?? '',
-        profile_picture: u.profile_picture || null,
-      } as NurseSummary));
+    type ApiNurse = {
+      id: number | string;
+      full_name: string;
+      email?: string;
+      department?: string;
+      availability?: string;
+      on_duty?: boolean;
+    };
+    const nurses: ApiNurse[] = Array.isArray(response.data?.nurses)
+      ? (response.data.nurses as ApiNurse[])
+      : [];
+    const checkedAt = String(response.data?.checked_at || '');
+
+    const list: NurseSummary[] = nurses.map((n: ApiNurse) => ({
+      id: n.id,
+      full_name: n.full_name,
+      department: n.department || 'General',
+      status: n.on_duty ? 'On Duty' : 'Off Duty',
+      availability: n.availability || (n.on_duty ? 'Available' : 'Off Duty'),
+      email: n.email || '',
+      profile_picture: null,
+    } as NurseSummary));
     availableNurses.value = list;
+
+    // Cache for fallback and auditing
+    localStorage.setItem('available_nurses', JSON.stringify(list));
+    if (checkedAt) {
+      localStorage.setItem('available_nurses_checked_at', checkedAt);
+      nursesCheckedAt.value = checkedAt;
+    }
   } catch (error) {
     console.error('Failed to load available nurses:', error);
     const msg = getErrorMessage(error);
     nursesError.value = msg || 'Unable to load nurses';
-    availableNurses.value = [];
+    // Try to use cached data as fallback
+    try {
+      const cached = localStorage.getItem('available_nurses');
+      availableNurses.value = cached ? (JSON.parse(cached) as NurseSummary[]) : [];
+      const cachedTs = localStorage.getItem('available_nurses_checked_at');
+      nursesCheckedAt.value = cachedTs || null;
+    } catch {
+      availableNurses.value = [];
+    }
   } finally {
     nursesLoading.value = false;
   }
