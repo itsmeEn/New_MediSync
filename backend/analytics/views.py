@@ -2,13 +2,13 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from django.core.cache import cache
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from backend.admin_site.authentication import AdminJWTAuthentication
@@ -55,10 +55,11 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache
+from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache, UsageEvent, UptimePing
 from .serializers import (
     AnalyticsResultSerializer, AnalyticsTaskSerializer, 
-    AnalyticsRequestSerializer, AnalyticsResponseSerializer
+    AnalyticsRequestSerializer, AnalyticsResponseSerializer,
+    UsageEventSerializer, UptimePingSerializer
 )
 from .tasks import run_analytics_task_async
 from backend.users.models import PatientProfile
@@ -2175,3 +2176,140 @@ def create_forecast_chart(forecast_data):
     except Exception as e:
         print(f"Error creating forecast chart: {e}")
         return None
+
+
+# --- Usage Events Endpoints ---
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def log_usage_event(request):
+    """Log a usage event for analytics. Expects: event_type, context (JSON), source, session_id."""
+    try:
+        payload = request.data or {}
+        event_type = payload.get('event_type')
+        if not event_type:
+            return Response({'success': False, 'message': 'event_type is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        context = payload.get('context') or {}
+        source = payload.get('source')
+        session_id = payload.get('session_id')
+
+        ip = request.META.get('HTTP_X_FORWARDED_FOR')
+        if ip:
+            ip = ip.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+
+        event = UsageEvent.objects.create(
+            user=request.user if request.user and request.user.is_authenticated else None,
+            event_type=event_type,
+            source=source,
+            session_id=session_id,
+            ip_address=ip,
+            context=context,
+        )
+
+        return Response({'success': True, 'message': 'Event logged', 'data': UsageEventSerializer(event).data}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to log event: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_usage_events(request):
+    """List recent usage events with optional filters: event_type, since (ISO), limit."""
+    try:
+        qs = UsageEvent.objects.all()
+        event_type = request.query_params.get('event_type')
+        since = request.query_params.get('since')
+        limit = int(request.query_params.get('limit', 50))
+        limit = max(1, min(200, limit))
+
+        if event_type:
+            qs = qs.filter(event_type=event_type)
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since)
+                qs = qs.filter(created_at__gte=since_dt)
+            except Exception:
+                pass
+
+        qs = qs.order_by('-created_at')[:limit]
+        return Response({'success': True, 'message': 'Events retrieved', 'data': UsageEventSerializer(qs, many=True).data})
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to retrieve events: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# --- Uptime Ping Endpoints ---
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def uptime_ping(request):
+    """Receive uptime ping from clients or monitors. Accepts service, status, latency_ms, region, details (JSON)."""
+    try:
+        payload = request.data or {}
+        service = payload.get('service', 'web')
+        status_str = payload.get('status', 'up')
+        latency_ms = payload.get('latency_ms')
+        region = payload.get('region')
+        details = payload.get('details') or {}
+
+        ping = UptimePing.objects.create(
+            service=service,
+            status=status_str,
+            latency_ms=latency_ms,
+            region=region,
+            details=details,
+        )
+
+        return Response({'success': True, 'message': 'Ping recorded', 'data': UptimePingSerializer(ping).data}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to record ping: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def uptime_status(request):
+    """Return recent uptime status with optional filters: service, region, window_minutes."""
+    try:
+        service = request.query_params.get('service')
+        region = request.query_params.get('region')
+        window_minutes = int(request.query_params.get('window_minutes', 60))
+        window_minutes = max(1, min(1440, window_minutes))
+        since = timezone.now() - timedelta(minutes=window_minutes)
+
+        qs = UptimePing.objects.filter(created_at__gte=since)
+        if service:
+            qs = qs.filter(service=service)
+        if region:
+            qs = qs.filter(region=region)
+
+        # Latest by service/region
+        latest_map = {}
+        for ping in qs.order_by('-created_at'):
+            key = (ping.service, ping.region or 'unknown')
+            if key not in latest_map:
+                latest_map[key] = ping
+
+        # Aggregate simple stats
+        total = qs.count()
+        up = qs.filter(status='up').count()
+        down = qs.filter(status='down').count()
+        degraded = qs.filter(status='degraded').count()
+        avg_latency = qs.exclude(latency_ms__isnull=True).aggregate(v=models.Avg('latency_ms'))['v']
+
+        data = {
+            'summary': {
+                'total': total,
+                'up': up,
+                'down': down,
+                'degraded': degraded,
+                'avg_latency_ms': avg_latency,
+                'window_minutes': window_minutes,
+            },
+            'latest': [UptimePingSerializer(p).data for p in latest_map.values()]
+        }
+
+        return Response({'success': True, 'message': 'Uptime status retrieved', 'data': data})
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to retrieve uptime status: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

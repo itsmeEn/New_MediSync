@@ -30,6 +30,7 @@ daphne==4.0.0
 
 # PDF generation and visualization
 reportlab==4.0.7
+PyPDF2==3.0.1
 matplotlib>=3.8.0
 
 # HTTP client for stress-test analytics
