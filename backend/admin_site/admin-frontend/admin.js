@@ -1,5 +1,15 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8001/api/admin';
+// Allow overriding via window.ADMIN_API_BASE_URL or localStorage('admin_api_base_url'); default to 8000
+const API_BASE_URL = (function() {
+    try {
+        const win = (typeof window !== 'undefined') ? window.ADMIN_API_BASE_URL : null;
+        const ls = (typeof localStorage !== 'undefined') ? localStorage.getItem('admin_api_base_url') : null;
+        const base = win || ls || 'http://localhost:8000/api/admin';
+        return base.endsWith('/') ? base.slice(0, -1) : base; // normalize trailing slash
+    } catch (_) {
+        return 'http://localhost:8000/api/admin';
+    }
+})();
 const ANALYTICS_BASE_URL = API_BASE_URL.replace('/api/admin', '/api/analytics');
 
 // Global variables
@@ -105,6 +115,40 @@ function setupEventListeners() {
     if (analyzeBtn) {
         analyzeBtn.addEventListener('click', loadBottleneckAnalytics);
     }
+
+    // Settings: profile refresh
+    const settingsRefreshBtn = document.getElementById('settingsRefreshBtn');
+    if (settingsRefreshBtn) {
+        settingsRefreshBtn.addEventListener('click', loadAdminSettingsProfile);
+    }
+
+    // Settings: save profile
+    const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+    if (settingsSaveBtn) {
+        settingsSaveBtn.addEventListener('click', saveAdminSettingsProfile);
+    }
+
+    // Settings: close panel
+    const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+    if (settingsCloseBtn) {
+        settingsCloseBtn.addEventListener('click', () => {
+            navigateTo('dashboard');
+            const focusTarget = document.getElementById('statusFilter') || document.getElementById('searchInput');
+            if (focusTarget) focusTarget.focus();
+        });
+    }
+
+    // Settings: change password
+    const changePasswordBtn = document.getElementById('changePasswordBtn');
+    if (changePasswordBtn) {
+        changePasswordBtn.addEventListener('click', handleChangePassword);
+    }
+
+    // Settings: download users CSV
+    const downloadUsersBtn = document.getElementById('downloadUsersBtn');
+    if (downloadUsersBtn) {
+        downloadUsersBtn.addEventListener('click', downloadUsersCSV);
+    }
 }
 
 // Update time display
@@ -171,8 +215,172 @@ function navigateTo(section) {
         if (container) container.innerHTML = '';
     }
 
+    // Settings section: load profile on entry
+    if (section === 'settings') {
+        loadAdminSettingsProfile().catch(err => console.error('Failed to load settings profile:', err));
+    }
+
     // Sidebar removed; no mobile toggle needed
 }
+
+// Load admin settings profile
+async function loadAdminSettingsProfile() {
+    try {
+        const resp = await apiCall('/settings/profile/', 'GET');
+        if (!resp) return;
+        // Expect resp: { email, full_name, hospital } or { profile: {...} }
+        const data = resp.profile || resp;
+        document.getElementById('settingFullName').value = data.full_name || '';
+        document.getElementById('settingEmail').value = data.email || '';
+        const hosp = data.hospital || {};
+        const hospName = hosp.official_name || '';
+        const hospAddress = hosp.address || '';
+        const hospNameEl = document.getElementById('settingHospitalName');
+        const hospAddrEl = document.getElementById('settingHospitalAddress');
+        if (hospNameEl) hospNameEl.value = hospName;
+        if (hospAddrEl) hospAddrEl.value = hospAddress;
+        // Sync header admin name
+        currentUser = Object.assign({}, currentUser || {}, { full_name: data.full_name });
+        updateAdminName();
+        showToast('Success', 'Profile loaded', 'success');
+    } catch (error) {
+        console.error('Error loading admin profile:', error);
+        showToast('Error', error.message || 'Failed to load profile', 'error');
+    }
+}
+
+// Save admin settings profile
+async function saveAdminSettingsProfile() {
+    const fullNameEl = document.getElementById('settingFullName');
+    const emailEl = document.getElementById('settingEmail');
+    const hospNameEl = document.getElementById('settingHospitalName');
+    const hospAddrEl = document.getElementById('settingHospitalAddress');
+
+    const full_name = fullNameEl.value.trim();
+    const email = emailEl.value.trim();
+    const hospital_name = hospNameEl.value.trim();
+    const hospital_address = (hospAddrEl?.value || '').trim();
+
+    // Reset validation styles
+    [fullNameEl, emailEl, hospNameEl, hospAddrEl].forEach(el => el && el.classList.remove('is-invalid'));
+
+    // Basic input validation
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let hasError = false;
+    if (!full_name) {
+        hasError = true;
+        fullNameEl.classList.add('is-invalid');
+    }
+    if (!email || !emailPattern.test(email)) {
+        hasError = true;
+        emailEl.classList.add('is-invalid');
+    }
+    if (hasError) {
+        showToast('Error', 'Please correct the highlighted fields', 'error');
+        return;
+    }
+
+    showLoading(true);
+    const saveBtn = document.getElementById('settingsSaveBtn');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.setAttribute('aria-busy', 'true');
+    }
+    try {
+        const resp = await apiCall('/settings/profile/', 'PATCH', { full_name, email, hospital_name, hospital_address });
+        if (resp) {
+            showToast('Success', 'Profile updated', 'success');
+            // Refresh local display
+            currentUser = Object.assign({}, currentUser || {}, { full_name, email });
+            updateAdminName();
+        }
+    } catch (error) {
+        console.error('Error saving admin profile:', error);
+        showToast('Error', error.message || 'Failed to save profile', 'error');
+    } finally {
+        showLoading(false);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.removeAttribute('aria-busy');
+        }
+    }
+}
+
+// Handle change password
+async function handleChangePassword() {
+    const current_password = document.getElementById('currentPassword').value;
+    const new_password = document.getElementById('newPassword').value;
+
+    if (!current_password || !new_password) {
+        showToast('Error', 'Please enter current and new password', 'error');
+        return;
+    }
+
+    showLoading(true);
+    try {
+        const resp = await apiCall('/settings/password/', 'POST', { current_password, new_password });
+        if (resp && resp.success) {
+            showToast('Success', 'Password updated', 'success');
+            // Clear inputs
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newPassword').value = '';
+        } else {
+            showToast('Error', (resp && resp.error) || 'Failed to update password', 'error');
+        }
+    } catch (error) {
+        console.error('Error updating password:', error);
+        showToast('Error', error.message || 'Failed to update password', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Download all users CSV (Super Admin only)
+async function downloadUsersCSV() {
+    try {
+        const token = localStorage.getItem('admin_access_token');
+        if (!token) {
+            logout();
+            return;
+        }
+
+        const url = `${API_BASE_URL}/users/export/`;
+        const resp = await fetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (!resp.ok) {
+            let msg = `HTTP ${resp.status}`;
+            try {
+                const j = await resp.json();
+                msg = j.error || JSON.stringify(j);
+            } catch (_) {}
+            throw new Error(msg);
+        }
+
+        const blob = await resp.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        // Try to read filename from header; fallback
+        const dispo = resp.headers.get('Content-Disposition') || '';
+        let filename = 'users_export.csv';
+        const m = dispo.match(/filename="?([^";]+)"?/i);
+        if (m && m[1]) filename = m[1];
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(blobUrl);
+        showToast('Success', 'Users CSV downloaded', 'success');
+    } catch (error) {
+        console.error('Error downloading users CSV:', error);
+        showToast('Error', error.message || 'Failed to download CSV', 'error');
+    }
+}
+
+// Hospital Users feature removed
 
 // Load bottlenecks analytics via stress-test endpoint and render charts
 async function loadBottleneckAnalytics() {
@@ -1049,14 +1257,26 @@ async function apiCall(endpoint, method = 'GET', data = null) {
             }
         }
         
-        const responseData = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(responseData.error || 'API request failed');
+        let responseData;
+        try {
+            responseData = await response.json();
+        } catch (_) {
+            responseData = null;
         }
-        
+
+        if (!response.ok) {
+            const statusText = response.statusText || 'Error';
+            const detail = (responseData && (responseData.error || responseData.message)) || '';
+            const msg = `HTTP ${response.status} ${statusText}${detail ? ' — ' + detail : ''}`;
+            throw new Error(msg);
+        }
+
         return responseData;
     } catch (error) {
+        if (error.name === 'TypeError' || /Failed to fetch/i.test(String(error))) {
+            console.error('Network error calling API:', error);
+            throw new Error('Network error — cannot reach admin API (check server at localhost:8001).');
+        }
         console.error('API call error:', error);
         throw error;
     }

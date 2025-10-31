@@ -1,9 +1,12 @@
 #!/bin/bash
+set -euo pipefail
 
 # MediSync Admin Site Startup Script
 
 echo "🚀 Starting MediSync Admin Site..."
 echo "=================================="
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Function to check if a port is in use
 check_port() {
@@ -15,10 +18,15 @@ check_port() {
     fi
 }
 
-# Check if virtual environment exists
-if [ ! -d "/Users/judeibardaloza/.local/share/virtualenvs/medisync-WHaJ4sn5" ]; then
-    echo "❌ Virtual environment not found. Please set up the project first."
-    exit 1
+# Attempt to activate a virtualenv if available; otherwise use system Python
+if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+  echo "🧪 Using active virtualenv: $VIRTUAL_ENV"
+elif [ -d "/Users/judeibardaloza/.local/share/virtualenvs/medisync-WHaJ4sn5" ]; then
+  echo "🧪 Activating project virtualenv"
+  # shellcheck disable=SC1091
+  source /Users/judeibardaloza/.local/share/virtualenvs/medisync-WHaJ4sn5/bin/activate
+else
+  echo "⚠️ No virtualenv detected; using system Python"
 fi
 
 # Check ports
@@ -33,19 +41,26 @@ fi
 
 echo "✅ Ports are available"
 
+# Ensure migrations are applied for admin_site (and dependencies)
+echo "🗂️ Applying database migrations (admin_site)..."
+cd "$ROOT_DIR"
+python manage.py migrate admin_site --noinput || python manage.py migrate --noinput
+
+# Create or enforce admin user
+echo "👤 Ensuring admin account exists..."
+python "$ROOT_DIR/create_admin.py"
+
 # Start backend server
 echo "🔧 Starting backend server on port 8001..."
-source /Users/judeibardaloza/.local/share/virtualenvs/medisync-WHaJ4sn5/bin/activate
-python create_admin.py
 python manage.py runserver 8001 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
 sleep 3
 
-# Start frontend server
-echo "🌐 Starting frontend server on port 8080..."
-cd admin-frontend
+# Start frontend admin dashboard (static)
+echo "🌐 Starting admin dashboard on port 8080..."
+cd "$ROOT_DIR/backend/admin_site/admin-frontend"
 python -m http.server 8080 &
 FRONTEND_PID=$!
 

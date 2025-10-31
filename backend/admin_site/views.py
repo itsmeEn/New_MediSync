@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 import os
+import csv
+import io
 
 from .models import AdminUser, VerificationRequest, SystemLog, Hospital
 from .serializers import (
@@ -19,6 +21,7 @@ from .serializers import (
     HospitalSerializer, HospitalRegistrationSerializer, HospitalActivationSerializer
 )
 from .authentication import AdminJWTAuthentication
+from backend.users.models import User
 
 
 def log_admin_action(admin_user, action, target, target_id, details=""):
@@ -46,6 +49,9 @@ def admin_overview(request):
             'dashboard_stats': '/api/admin/dashboard/stats/',
             'verifications': '/api/admin/verifications/',
             'system_logs': '/api/admin/logs/',
+            'settings_profile': '/api/admin/settings/profile/',
+            'settings_password': '/api/admin/settings/password/',
+            'export_users': '/api/admin/users/export/',
         },
         'description': 'Administrative interface for managing user verifications and system operations'
     }, status=status.HTTP_200_OK)
@@ -87,6 +93,209 @@ def admin_config(request):
         'allowed_domains': allowed_domains,
         'banner_text': banner_text
     }, status=status.HTTP_200_OK)
+
+
+# Admin Settings: Profile (GET/PATCH)
+@api_view(['GET', 'PATCH'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def admin_settings_profile(request):
+    """
+    Get or update admin profile settings.
+    GET: returns name, email, hospital name.
+    PATCH: allows updating full_name, email, hospital_name, and hospital_address (if hospital exists).
+    """
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    admin_user = request.user
+
+    if request.method == 'GET':
+        hospital = admin_user.hospital
+        return Response({
+            'full_name': admin_user.full_name,
+            'email': admin_user.email,
+            'hospital': {
+                'id': hospital.id if hospital else None,
+                'official_name': hospital.official_name if hospital else None,
+                'address': hospital.address if hospital else None,
+            }
+        }, status=status.HTTP_200_OK)
+
+    # PATCH
+    payload = request.data or {}
+    updated = {}
+
+    full_name = (payload.get('full_name') or '').strip()
+    email = (payload.get('email') or '').strip()
+    hospital_name = (payload.get('hospital_name') or '').strip()
+    hospital_address = (payload.get('hospital_address') or '').strip()
+
+    try:
+        if full_name:
+            admin_user.full_name = full_name
+            updated['full_name'] = full_name
+
+        if email:
+            # basic validation: ensure unique
+            if AdminUser.objects.exclude(id=admin_user.id).filter(email=email).exists():
+                return Response({'error': 'Email already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+            admin_user.email = email
+            updated['email'] = email
+
+        if admin_user.hospital:
+            if hospital_name:
+                admin_user.hospital.official_name = hospital_name
+                updated['hospital_name'] = hospital_name
+            if hospital_address:
+                admin_user.hospital.address = hospital_address
+                updated['hospital_address'] = hospital_address
+            if hospital_name or hospital_address:
+                admin_user.hospital.save()
+
+        admin_user.save()
+        return Response({'message': 'Settings updated successfully', 'updated': updated}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to update settings: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Admin Settings: Password change
+@api_view(['POST'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def admin_change_password(request):
+    """Change admin user password given current and new password."""
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    current_password = request.data.get('current_password') or ''
+    new_password = request.data.get('new_password') or ''
+
+    if not current_password or not new_password:
+        return Response({'error': 'current_password and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not request.user.check_password(current_password):
+        return Response({'error': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        request.user.set_password(new_password)
+        request.user.save()
+        return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to update password: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Export all registered users (Super Admin only)
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def export_all_users(request):
+    """
+    Export all registered users as CSV. Super Admin only.
+    Includes key profile fields for admin reporting.
+    """
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+    if not request.user.is_super_admin:
+        return Response({'error': 'Export permitted for Super Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        users = User.objects.all().order_by('date_joined')
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            'email', 'full_name', 'role', 'date_of_birth', 'gender',
+            'hospital_name', 'hospital_address', 'is_verified', 'verification_status',
+            'date_joined', 'updated_at'
+        ])
+
+        for u in users:
+            writer.writerow([
+                u.email,
+                getattr(u, 'full_name', ''),
+                getattr(u, 'role', ''),
+                getattr(u, 'date_of_birth', ''),
+                getattr(u, 'gender', ''),
+                getattr(u, 'hospital_name', ''),
+                getattr(u, 'hospital_address', ''),
+                getattr(u, 'is_verified', False),
+                getattr(u, 'verification_status', ''),
+                getattr(u, 'date_joined', ''),
+                getattr(u, 'updated_at', ''),
+            ])
+
+        csv_bytes = output.getvalue().encode('utf-8')
+        filename = f"users_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response = FileResponse(io.BytesIO(csv_bytes), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    except Exception as e:
+        return Response({'error': f'Failed to export users: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# List users registered in admin's hospital (Admin only)
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def hospital_users(request):
+    """
+    Return users registered in the admin's active hospital.
+    Supports optional query params:
+    - search: filter by name/email/role
+    - verified_only: '1' or 'true' to include only admin-verified users
+    """
+    admin_user = request.user
+    if not isinstance(admin_user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Ensure admin has an ACTIVE hospital
+    if not admin_user.can_access_admin_functions():
+        return Response({
+            'error': 'Admin hospital missing or inactive.',
+            'resolution': 'Complete hospital registration/activation to access hospital users.'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        search = (request.GET.get('search') or '').strip()
+        verified_only = (request.GET.get('verified_only') or '').strip().lower() in ('1', 'true', 'yes')
+
+        # Match by hospital official name AND address to align with user.hospital_* storage
+        hospital_name = (getattr(admin_user.hospital, 'official_name', '') or '').strip()
+        hospital_address = (getattr(admin_user.hospital, 'address', '') or '').strip()
+        if not hospital_name or not hospital_address:
+            return Response({'users': [], 'message': 'Hospital name/address missing on admin record.'}, status=status.HTTP_200_OK)
+
+        # Use case-insensitive exact match on both fields to avoid stale name-only mismatches
+        queryset = User.objects.filter(
+            is_active=True,
+            hospital_name__iexact=hospital_name,
+            hospital_address__iexact=hospital_address
+        )
+        if verified_only:
+            queryset = queryset.filter(is_verified=True, verification_status='approved')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(full_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(role__icontains=search)
+            )
+
+        # Select fields to return
+        users = list(queryset.order_by('full_name').values(
+            'id', 'email', 'full_name', 'role', 'is_verified', 'verification_status', 'date_joined'
+        ))
+
+        # Log action (non-fatal on failure)
+        try:
+            log_admin_action(admin_user, 'FETCH_HOSPITAL_USERS', 'User', 0, f"count={len(users)} verified_only={verified_only}")
+        except Exception:
+            pass
+
+        return Response({'users': users, 'total_count': len(users)}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to fetch hospital users: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

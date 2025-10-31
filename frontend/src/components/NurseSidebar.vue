@@ -90,6 +90,19 @@
           <q-item-section>Patient Management</q-item-section>
         </q-item>
 
+        <!-- Patient Archive (Sub-section of Patient Management) -->
+        <q-item
+          clickable
+          v-ripple
+          @click="navigateTo('nurse-patient-archive')"
+          :class="['nav-sub-item', { active: activeRoute === 'patient-archive' }]"
+        >
+          <q-item-section avatar>
+            <q-icon name="archive" />
+          </q-item-section>
+          <q-item-section>Patient Archive</q-item-section>
+        </q-item>
+
         <q-item
           clickable
           v-ripple
@@ -222,6 +235,10 @@ const navigateTo = (route: string) => {
     case 'nurse-patient-assessment':
     case 'patient-assessment':
       void router.push('/nurse-patient-assessment');
+      break;
+    case 'nurse-patient-archive':
+      // Navigate to the dedicated Nurse Patient Archive page
+      void router.push('/nurse-patient-archive');
       break;
     case 'nurse-medicine-inventory':
       void router.push('/nurse-medicine-inventory');
@@ -439,6 +456,22 @@ onMounted(() => {
 
 .nav-item:hover:not(.active) {
   background: #f5f5f5;
+}
+
+/* Sub-navigation item styling */
+.nav-sub-item {
+  margin: 4px 16px 4px 32px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-sub-item.active {
+  background: #e8f3f1;
+  color: #286660;
+}
+
+.nav-sub-item.active .q-icon {
+  color: #286660;
 }
 
 /* Logout Section */

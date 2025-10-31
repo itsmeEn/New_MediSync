@@ -6,7 +6,10 @@
     <title>MediSync Admin Dashboard</title>
     <link rel="icon" type="image/png" href="logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Material Symbols for consistent iconography with Vue pages -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Roboto to match Quasar/Vue typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary-color: #286660;
@@ -18,10 +21,12 @@
         }
 
         body {
+            font-family: 'Roboto', system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
             background: linear-gradient(180deg, #f0f2f5 0%, #e9ecef 100%) !important;
             background-size: cover !important;
             background-attachment: fixed !important;
             position: relative !important;
+            color: #333;
         }
 
         body::before {
@@ -55,8 +60,8 @@
 
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: transform 0.2s;
         }
 
@@ -560,24 +565,24 @@
 
         .dashboard-cards-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 26px;
             max-width: 1200px;
             margin: 0 auto;
         }
 
         /* Glassmorphism Dashboard Cards */
         .dashboard-card {
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(20px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(25px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
             overflow: hidden;
             position: relative;
-            min-height: 140px;
+            min-height: 240px;
         }
 
         .dashboard-card::before {
@@ -594,9 +599,10 @@
         }
 
         .dashboard-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
-            background: rgba(255, 255, 255, 0.35);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.25);
         }
 
         .dashboard-card:hover::before {
@@ -644,6 +650,16 @@
             opacity: 0.8;
             transition: all 0.3s ease;
             font-size: 2.5rem;
+        }
+
+        /* Ensure Material Symbols render crisply */
+        .material-symbols-outlined {
+            font-variation-settings:
+              'FILL' 0,
+              'wght' 400,
+              'GRAD' 0,
+              'opsz' 48;
+            vertical-align: middle;
         }
 
         .dashboard-card:hover .card-icon {
@@ -855,7 +871,7 @@
                             placeholder="Search by name or email..."
                             class="search-input"
                         />
-                        <i class="fas fa-search search-icon"></i>
+                        <span class="material-symbols-outlined search-icon">search</span>
                     </div>
                 </div>
                 
@@ -863,7 +879,7 @@
                 <div class="header-right">
                     <!-- Time Display -->
                     <div class="time-display">
-                        <i class="fas fa-clock"></i>
+                        <span class="material-symbols-outlined">schedule</span>
                         <span class="time-text" id="currentTime"></span>
                     </div>
                     
@@ -871,7 +887,7 @@
                     <div class="admin-info">
                         <span class="admin-name" id="adminName">Admin</span>
                         <button class="logout-btn" onclick="logout()">
-                            <i class="fas fa-sign-out-alt"></i> Logout
+                            <span class="material-symbols-outlined">logout</span> Logout
                         </button>
                     </div>
                 </div>
@@ -905,7 +921,7 @@
                                 <div class="card-value" id="pendingCount">0</div>
                             </div>
                             <div class="card-icon">
-                                <i class="fas fa-clock"></i>
+                                <span class="material-symbols-outlined">schedule</span>
                             </div>
                         </div>
                     </div>
@@ -919,7 +935,7 @@
                                 <div class="card-value" id="approvedCount">0</div>
                             </div>
                             <div class="card-icon">
-                                <i class="fas fa-check-circle"></i>
+                                <span class="material-symbols-outlined">check_circle</span>
                             </div>
                         </div>
                     </div>
@@ -933,7 +949,7 @@
                                 <div class="card-value" id="declinedCount">0</div>
                             </div>
                             <div class="card-icon">
-                                <i class="fas fa-times-circle"></i>
+                                <span class="material-symbols-outlined">cancel</span>
                             </div>
                         </div>
                     </div>
@@ -947,7 +963,21 @@
                                 <div class="card-value" id="archivedCount">0</div>
                             </div>
                             <div class="card-icon">
-                                <i class="fas fa-archive"></i>
+                                <span class="material-symbols-outlined">inventory_2</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Settings Card -->
+                    <div class="dashboard-card" onclick="navigateTo('settings')">
+                        <div class="card-content">
+                            <div class="card-text">
+                                <div class="card-title">Admin Settings</div>
+                                <div class="card-description">Profile, password, and data export</div>
+                                <div class="card-value" style="font-size: 20px; color: #286660;">Manage</div>
+                            </div>
+                            <div class="card-icon">
+                                <span class="material-symbols-outlined">settings</span>
                             </div>
                         </div>
                     </div>
@@ -1002,7 +1032,7 @@
                             <h5 class="card-title">Module Performance</h5>
                             <div class="card-filters">
                                 <button id="analyzeBottlenecksBtn" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-chart-line"></i> Analyze
+                                    <span class="material-symbols-outlined" style="font-size:20px;">insights</span> Analyze
                                 </button>
                             </div>
                         </div>
@@ -1086,7 +1116,81 @@
                 <div class="greeting-card" style="max-width: 1200px; margin: 0 auto;">
                     <div class="greeting-content">
                         <h2 class="greeting-text">Settings</h2>
-                        <p class="greeting-subtitle">Configure admin preferences and platform settings here.</p>
+                        <p class="greeting-subtitle">Update admin profile, change password, and export users.</p>
+                    </div>
+                </div>
+
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Profile</h5>
+                        <div class="d-flex gap-2">
+                            <button id="settingsRefreshBtn" class="btn btn-outline-secondary btn-sm" aria-label="Refresh settings">Refresh</button>
+                            <button id="settingsCloseBtn" class="btn btn-outline-secondary btn-sm" aria-label="Close settings panel">
+                                <span class="material-symbols-outlined" style="font-size:18px; vertical-align:middle;">close</span>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="settingFullName">Full Name</label>
+                                <input id="settingFullName" type="text" class="form-control" placeholder="Admin Full Name">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="settingEmail">Email</label>
+                                <input id="settingEmail" type="email" class="form-control" placeholder="admin@example.com">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="settingHospitalName">Hospital Name</label>
+                                <input id="settingHospitalName" type="text" class="form-control" placeholder="Official Hospital Name">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="settingHospitalAddress">Hospital Address</label>
+                                <input id="settingHospitalAddress" type="text" class="form-control" placeholder="Hospital Address">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button id="settingsSaveBtn" class="btn btn-primary">
+                                <span class="material-symbols-outlined" style="font-size:20px; vertical-align:middle;">save</span>
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Change Password</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label" for="currentPassword">Current Password</label>
+                                <input id="currentPassword" type="password" class="form-control" placeholder="Current password">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="newPassword">New Password</label>
+                                <input id="newPassword" type="password" class="form-control" placeholder="New password">
+                            </div>
+                            <div class="col-md-4">
+                                <button id="changePasswordBtn" class="btn btn-warning">
+                                    <i class="fas fa-key"></i> Update Password
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="verifications-card" style="max-width: 1200px; margin: 20px auto;">
+                    <div class="card-header">
+                        <h5 class="card-title">Data Export</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Super Admins can download all registered users as CSV.</p>
+                        <button id="downloadUsersBtn" class="btn btn-success">
+                            <i class="fas fa-download"></i> Download Users CSV
+                        </button>
                     </div>
                 </div>
             </div>
