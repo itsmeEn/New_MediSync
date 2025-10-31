@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
 django.setup()
 
-from admin_site.models import AdminUser
+from backend.admin_site.models import AdminUser
 
 def create_admin_user():
     """Create or update the fixed admin user without prompts."""

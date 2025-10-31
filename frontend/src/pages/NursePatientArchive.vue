@@ -5,6 +5,7 @@
 
     <q-page-container class="page-container-with-fixed-header">
       <div class="patient-management-content">
+        <!-- Greeting card: styled to match Appointment Calendar header (no icon) -->
         <q-card class="greeting-card">
           <q-card-section class="greeting-content">
             <div class="greeting-text">

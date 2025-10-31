@@ -1814,7 +1814,7 @@ onUnmounted(() => {
 
 <style scoped>
 .page-background {
-  background: #f8f9fa;
+  background: #b5b7b9;
   background-size: cover;
   min-height: 100vh;
 }

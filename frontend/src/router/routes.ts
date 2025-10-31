@@ -77,6 +77,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('pages/NursePatientAssessment.vue'),
   },
   {
+    path: '/nurse-patient-archive',
+    name: 'NursePatientArchive',
+    component: () => import('pages/NursePatientArchive.vue'),
+  },
+  {
     path: '/nurse-medicine-inventory',
     component: () => import('pages/NurseMedicineInventory.vue'),
   },

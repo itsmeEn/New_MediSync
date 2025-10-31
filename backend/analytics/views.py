@@ -868,7 +868,7 @@ def generate_analytics_pdf(request):
         
         # Add standardized header
         add_standardized_header(story, hospital_info, user_info, title, styles)
-        
+
         # Overview section
         story.append(Paragraph("Overview:", styles['SectionHeaderNoBorder']))
         story.append(Paragraph(
@@ -878,19 +878,43 @@ def generate_analytics_pdf(request):
             styles['ContentText']
         ))
         
+        # Executive summary at the beginning
+        try:
+            add_executive_summary_section(story, analytics_data, styles)
+        except Exception:
+            pass
+
         # Add analytics sections with visualizations and interpretations
         add_analytics_sections_with_visualizations(story, analytics_data, styles)
-        
-        # AI-Based Recommendations and Suggestions
+
+        # Interpretation section (narrative + AI interpretation)
+        try:
+            add_data_interpretation_section(story, analytics_data, styles)
+        except Exception:
+            pass
         add_ai_interpretation_section(story, analytics_data, styles)
 
-        # AI Suggestions (role-specific, bullet points with priority)
+        # Factor analysis section
+        try:
+            add_factor_analysis_section(story, analytics_data, styles)
+        except Exception:
+            pass
+
+        # AI Recommendations module (priority, guidance, outcomes)
         try:
             role = (user_info.get('role', 'Doctor') if user_info else 'Doctor').lower()
-            ai_suggestions = build_recommendations(analytics_data, role)
-            add_ai_suggestions_section(story, ai_suggestions, styles)
+            add_ai_recommendations_module(story, analytics_data, role, styles)
         except Exception:
-            # Fail gracefully; PDF generation should continue
+            pass
+
+        # Key takeaways and citations at the end
+        try:
+            add_key_takeaways_section(story, analytics_data, styles)
+        except Exception:
+            pass
+        try:
+            add_citations_section(story, styles)
+        except Exception:
             pass
         
         # Prepared by signature (bottom-right)
@@ -1585,6 +1609,275 @@ def add_ai_interpretation_section(story, analytics_data, styles):
     
     # Add Interpretation section header
     story.append(Spacer(1, 20))
+
+def add_executive_summary_section(story, analytics_data, styles):
+    """Add an executive summary highlighting key results and implications."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    content_style = styles.get('ContentText') or styles['Normal']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+
+    story.append(Paragraph("Executive Summary", section_style))
+    story.append(Paragraph(
+        "This report synthesizes recent analytics across demographics, clinical trends, medication patterns, and forecasting. "
+        "It provides an evidence-based interpretation, factor analysis, and prioritized recommendations to inform care planning and operations.",
+        content_style
+    ))
+
+    # Top insights snapshot
+    try:
+        top_insights = generate_ai_insights(analytics_data)[:3]
+    except Exception:
+        top_insights = []
+    if top_insights:
+        story.append(Paragraph("Key Highlights:", sub_style))
+        for i in top_insights:
+            story.append(Paragraph(f"• {i}", content_style))
+    story.append(Spacer(1, 12))
+
+def add_data_interpretation_section(story, analytics_data, styles):
+    """Transform raw analytics into structured narrative with headings and explanations."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    content_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Interpretation of Results", section_style))
+
+    # Demographics interpretation
+    demo = analytics_data.get('patient_demographics') or {}
+    if demo:
+        story.append(Paragraph("Patient Demographics", sub_style))
+        age = demo.get('age_distribution') or {}
+        gender = demo.get('gender_proportions') or {}
+        if isinstance(age, dict) and age:
+            dominant_age = max(age, key=age.get)
+            story.append(Paragraph(
+                f"Age distribution indicates a concentration in the {dominant_age} group, which may necessitate age-specific care protocols.",
+                content_style
+            ))
+        if isinstance(gender, dict) and gender:
+            dominant_gender = max(gender, key=gender.get)
+            story.append(Paragraph(
+                f"Gender proportions show {dominant_gender} as most represented, influencing preventive strategies and educational materials.",
+                content_style
+            ))
+
+    # Health trends interpretation
+    trends = analytics_data.get('health_trends') or {}
+    if trends:
+        story.append(Paragraph("Health Trends", sub_style))
+        top_weekly = trends.get('top_illnesses_by_week') or []
+        if isinstance(top_weekly, list) and top_weekly:
+            top_item = top_weekly[0]
+            cond_name = top_item.get('medical_condition', 'the leading condition')
+            story.append(Paragraph(
+                f"Recent weekly analyses consistently identify {cond_name} as the most prevalent condition, suggesting targeted screening and early intervention.",
+                content_style
+            ))
+        analysis = trends.get('trend_analysis') or {}
+        if analysis:
+            inc = analysis.get('increasing_conditions') or []
+            dec = analysis.get('decreasing_conditions') or []
+            story.append(Paragraph(
+                f"Conditions showing increasing trends ({len(inc)} categories) require proactive resource planning, while decreasing trends ({len(dec)} categories) indicate effective interventions.",
+                content_style
+            ))
+
+    # Medication interpretation (nurse context)
+    med = analytics_data.get('medication_analysis') or {}
+    if med:
+        story.append(Paragraph("Medication Analysis", sub_style))
+        pareto = med.get('medication_pareto_data') or []
+        if isinstance(pareto, list) and pareto:
+            top_med = pareto[0]
+            name = top_med.get('medication', 'Top medication')
+            story.append(Paragraph(
+                f"Pareto analysis highlights {name} as frequently prescribed; review inventory, dosing protocols, and potential adverse event monitoring.",
+                content_style
+            ))
+
+    # Forecasting interpretation
+    volume = analytics_data.get('volume_prediction') or {}
+    surge = analytics_data.get('surge_prediction') or {}
+    if volume or surge:
+        story.append(Paragraph("Forecasting and Capacity", sub_style))
+        if volume and isinstance(volume.get('evaluation_metrics'), dict):
+            mae = volume['evaluation_metrics'].get('mae')
+            rmse = volume['evaluation_metrics'].get('rmse')
+            story.append(Paragraph(
+                f"Model performance metrics (MAE={mae}, RMSE={rmse}) indicate current forecast reliability and guide model calibration needs.",
+                content_style
+            ))
+        f_list = surge.get('forecasted_monthly_cases') or []
+        if isinstance(f_list, list) and len(f_list) > 1:
+            first = f_list[0].get('total_cases', 0)
+            last = f_list[-1].get('total_cases', 0)
+            trend = "increasing" if last > first else ("decreasing" if last < first else "stable")
+            story.append(Paragraph(
+                f"Six-month projections suggest {trend} case trajectory; align staffing schedules and bed management accordingly.",
+                content_style
+            ))
+    story.append(Spacer(1, 12))
+
+def add_factor_analysis_section(story, analytics_data, styles):
+    """Identify and quantify factors influencing results with detailed explanations."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    content_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Factor Analysis", section_style))
+    try:
+        model = MediSyncAIInsights()
+        risk = model.get_detailed_risk_assessment(analytics_data)
+    except Exception:
+        risk = {}
+
+    scores = risk.get('risk_scores') or {}
+    # Present quantitative score table if available
+    if scores:
+        from reportlab.platypus import Table, TableStyle
+        table_data = [
+            ["Factor", "Influence Score (0-100)"]
+        ]
+        for label in ["demographic_risk", "clinical_risk", "trend_risk", "capacity_risk", "overall_score"]:
+            val = scores.get(label)
+            if isinstance(val, (int, float)):
+                table_data.append([label.replace('_', ' ').title(), f"{val:.1f}"])
+        t = Table(table_data, hAlign='LEFT')
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.darkblue),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 8))
+
+    # Explain factor impacts
+    if scores:
+        story.append(Paragraph("Factor Impacts", sub_style))
+        demo_score = scores.get('demographic_risk')
+        if isinstance(demo_score, (int, float)):
+            story.append(Paragraph(
+                f"Demographics: Higher elderly ratios increase acuity and monitoring needs (score={demo_score:.1f}).",
+                content_style
+            ))
+        clinical_score = scores.get('clinical_risk')
+        if isinstance(clinical_score, (int, float)):
+            story.append(Paragraph(
+                f"Clinical Trends: Rising high-risk conditions elevate intervention urgency and staffing requirements (score={clinical_score:.1f}).",
+                content_style
+            ))
+        trend_score = scores.get('trend_risk')
+        if isinstance(trend_score, (int, float)):
+            story.append(Paragraph(
+                f"Forecast Trends: Short-term increases in case counts inform capacity planning and scheduling (score={trend_score:.1f}).",
+                content_style
+            ))
+
+    # Indicators (categorization)
+    indicators = risk.get('clinical_indicators') or {}
+    if indicators:
+        story.append(Paragraph("Indicators", sub_style))
+        for flag in indicators.get('red_flags', []) or []:
+            story.append(Paragraph(f"• Red Flag: {flag}", content_style))
+        for warn in indicators.get('warning_signs', []) or []:
+            story.append(Paragraph(f"• Warning: {warn}", content_style))
+        for prot in indicators.get('protective_factors', []) or []:
+            story.append(Paragraph(f"• Protective: {prot}", content_style))
+    story.append(Spacer(1, 12))
+
+def add_ai_recommendations_module(story, analytics_data, role, styles):
+    """Generate actionable recommendations with priority, guidance, and estimated outcomes."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    bullet_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("AI Recommendations", section_style))
+
+    # Build recommendations and supporting protocols
+    try:
+        model = MediSyncAIInsights()
+        insights = model.generate_insights(analytics_data) or {}
+        risk_assessment = model.get_detailed_risk_assessment(analytics_data)
+        protocols = model.generate_evidence_based_protocols(risk_assessment)
+        base_recs = (insights.get('recommendations') or {}).get('doctors' if role == 'doctor' else 'nurses', [])
+    except Exception:
+        risk_assessment, protocols, base_recs = {}, {}, []
+
+    # Priority bucketing
+    high, med, low = [], [], []
+    for idx, rec in enumerate(base_recs):
+        bucket = 'low'
+        if idx < 3:
+            bucket = 'high'
+        elif idx < 6:
+            bucket = 'medium'
+        item = {
+            'text': rec if isinstance(rec, str) else str(rec),
+            'guidance': protocols.get('intervention_protocols', [])[:2] or protocols.get('assessment_protocols', [])[:2],
+            'outcomes': protocols.get('quality_metrics', [])[:2]
+        }
+        if bucket == 'high':
+            high.append(item)
+        elif bucket == 'medium':
+            med.append(item)
+        else:
+            low.append(item)
+
+    def render_group(title, items):
+        story.append(Paragraph(title, sub_style))
+        if not items:
+            story.append(Paragraph("• No recommendations available.", bullet_style))
+            return
+        for it in items:
+            story.append(Paragraph(f"• {it['text']}", bullet_style))
+            if it.get('guidance'):
+                for g in it['guidance']:
+                    story.append(Paragraph(f"   – Guidance: {g}", bullet_style))
+            if it.get('outcomes'):
+                for o in it['outcomes']:
+                    story.append(Paragraph(f"   – Estimated Outcome: {o}", bullet_style))
+
+    render_group("High Priority", high)
+    render_group("Medium Priority", med)
+    render_group("Low Priority", low)
+    story.append(Spacer(1, 12))
+
+def add_key_takeaways_section(story, analytics_data, styles):
+    """Summarize primary findings and decisions at the end of the document."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    bullet_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Key Takeaways", section_style))
+    try:
+        points = generate_ai_insights(analytics_data)[:4]
+    except Exception:
+        points = []
+    if not points:
+        points = [
+            "Maintain continuous monitoring of emerging clinical trends.",
+            "Align staffing and capacity planning with forecast signals.",
+            "Tailor interventions to high-impact risk factors.",
+            "Iteratively calibrate models based on performance metrics."
+        ]
+    for p in points:
+        story.append(Paragraph(f"• {p}", bullet_style))
+    story.append(Spacer(1, 12))
+
+def add_citations_section(story, styles):
+    """Provide citations for methodologies and tools used."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    content_style = styles.get('ContentText') or styles['Normal']
+    story.append(Paragraph("Citations", section_style))
+    citations = [
+        "Breiman, L. (2001). Random Forests. Machine Learning, 45(1), 5–32.",
+        "Abadi, M. et al. (2016). TensorFlow: Large-Scale Machine Learning on Heterogeneous Systems.",
+        "ReportLab User Guide (Open Source Documentation).", 
+        "Hyndman, R.J., Athanasopoulos, G. (2018). Forecasting: Principles and Practice."
+    ]
+    for c in citations:
+        story.append(Paragraph(f"• {c}", content_style))
+    story.append(Spacer(1, 12))
     story.append(Paragraph("AI-Based Interpretation", section_style))
     
     # Build cohesive interpretation paragraph covering requested determinants

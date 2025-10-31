@@ -356,17 +356,6 @@
                       >
                         <q-tooltip>Send</q-tooltip>
                       </q-btn>
-                      <q-btn
-                        aria-label="Archive patient"
-                        flat
-                        round
-                        icon="archive"
-                        color="negative"
-                        size="sm"
-                        @click.stop="archivePatient(patient)"
-                      >
-                        <q-tooltip>Archive</q-tooltip>
-                      </q-btn>
                     </div>
                   </div>
                 </div>
@@ -400,6 +389,10 @@
                 <h5 class="card-title">List of Available Doctors</h5>
               </q-card-section>
               <q-card-section class="card-content">
+                <q-banner v-if="doctorsLoadError" dense class="q-mb-sm" icon="warning" inline-actions>
+                  <span class="text-negative">{{ doctorsLoadError }}</span>
+                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="loadAvailableDoctors"/>
+                </q-banner>
                 <div v-if="doctorsLoading" class="loading-section">
                   <q-spinner color="primary" size="2em" />
                   <p class="loading-text">Loading doctors...</p>
@@ -421,83 +414,6 @@
                     </div>
                   </div>
                 </div>
-              </q-card-section>
-            </q-card>
-
-            <!-- Patient Archive Card -->
-            <q-card class="glassmorphism-card archive-card section-spacing">
-              <q-card-section class="card-header">
-                <h5 class="card-title">Patient Archive</h5>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <div class="row q-col-gutter-md q-mb-sm">
-                  <div class="col-12 col-md-6"><q-input v-model="archiveFilters.query" label="Patient Name or ID" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.assessment_type" label="Assessment Type" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.medical_condition" label="Medical Condition" outlined dense/></div>
-                </div>
-                <div class="row q-col-gutter-md q-mb-sm">
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.start_date" label="Start Date" type="date" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.end_date" label="End Date" type="date" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-btn color="primary" icon="search" label="Search" class="full-width" :loading="archivesLoading" @click="searchArchives"/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-btn flat color="secondary" icon="clear" label="Reset" class="full-width" @click="resetArchiveFilters"/></div>
-                </div>
-
-                <q-inner-loading :showing="archivesLoading"><q-spinner color="primary"/></q-inner-loading>
-
-                <div v-if="!archivesLoading && archivedRecords.length === 0" class="empty-section">
-                  <q-icon name="inventory_2" size="48px" color="grey-5" />
-                  <p class="empty-text">No archived records</p>
-                </div>
-
-                <q-list v-else bordered separator>
-                  <q-item v-for="rec in archivedRecords" :key="rec.id">
-                    <q-item-section>
-                      <q-item-label>{{ rec.patient_name }} — {{ rec.assessment_type }} · {{ formatDateDisplay(rec.last_assessed_at) }}</q-item-label>
-                      <q-item-label caption>
-                        Condition: {{ rec.medical_condition || '—' }} • Hospital: {{ rec.hospital_name || '—' }}
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side top>
-                      <q-chip color="grey-8" text-color="white" size="sm">Archived</q-chip>
-                    </q-item-section>
-                    <q-item-section side>
-                      <div class="row q-gutter-xs">
-                        <q-btn dense flat icon="visibility" color="primary" @click="viewArchive(rec)" />
-                        <q-btn dense flat icon="download" color="secondary" @click="exportArchive(rec)" />
-                      </div>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-
-                <div class="row q-gutter-sm q-mt-sm" v-if="archivedRecords.length">
-                  <q-btn outline color="primary" icon="file_download" label="Export Results" @click="exportFilteredArchives"/>
-                </div>
-
-                <q-dialog v-model="showArchiveDetail">
-                  <q-card style="max-width: 800px; width: 90vw">
-                    <q-card-section>
-                      <div class="text-h6">Archived Assessment</div>
-                    </q-card-section>
-                    <q-separator/>
-                    <q-card-section>
-                      <div class="q-mb-sm"><b>Patient:</b> {{ selectedArchive?.patient_name }}</div>
-                      <div class="q-mb-sm"><b>Assessment:</b> {{ selectedArchive?.assessment_type }}</div>
-                      <div class="q-mb-sm"><b>Last Assessed:</b> {{ formatDateDisplay(selectedArchive?.last_assessed_at || '') }}</div>
-                      <div class="q-mb-sm"><b>Condition:</b> {{ selectedArchive?.medical_condition || '—' }}</div>
-                      <div class="q-mb-sm"><b>Hospital:</b> {{ selectedArchive?.hospital_name || '—' }}</div>
-                      <div class="q-mb-sm"><b>Medical History:</b> {{ selectedArchive?.medical_history_summary || '—' }}</div>
-                      <div class="q-mt-md">
-                        <div class="text-subtitle2 q-mb-xs">Assessment Data</div>
-                        <pre class="q-pa-sm bg-grey-2" style="white-space: pre-wrap;">{{ formatJson(selectedArchive?.decrypted_assessment_data) }}</pre>
-                      </div>
-                    </q-card-section>
-                    <q-separator/>
-                    <q-card-actions align="right">
-                      <q-btn flat label="Close" color="primary" v-close-popup/>
-                      <q-btn flat label="Export" color="secondary" @click="selectedArchive && exportArchive(selectedArchive)"/>
-                    </q-card-actions>
-                  </q-card>
-                </q-dialog>
               </q-card-section>
             </q-card>
 
@@ -882,22 +798,6 @@ const loadPatients = async () => {
 
 const selectPatient = (patient: Patient) => {
   selectedPatient.value = patient;
-  // Auto-filter archives by selected patient (User ID) and fetch
-  try {
-    const pid = String(patient.user_id ?? patient.id ?? '');
-    // Reset non-patient archive filters to avoid form coupling
-    archiveFilters.value = {
-      query: '',
-      patient_id: pid,
-      assessment_type: '',
-      medical_condition: '',
-      start_date: '',
-      end_date: ''
-    };
-    void searchArchives();
-  } catch (error) {
-    console.error('Error setting archive filters for patient:', error);
-  }
   console.log('Selected patient:', patient);
 };
 
@@ -1727,8 +1627,15 @@ async function loadAvailableDoctors() {
   
   try {
     // New secured endpoint returns only free doctors with timestamp and count
-    const url = '/api/operations/availability/doctors/free/?include_email=true'
-    const res = await api.get(url)
+    // NOTE: Axios baseURL already includes '/api', so do not prefix with '/api' here
+    const specialization = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition) || ''
+    const res = await api.get('/operations/availability/doctors/free/', {
+      params: {
+        include_email: true,
+        specialization
+        // Backend scopes to nurse's hospital; hospital_id not required here
+      }
+    })
 
     type ApiDoctor = { id?: number|string; full_name?: string; specialization?: string; email?: string; availability?: string; hospital_name?: string }
     const doctors: ApiDoctor[] = Array.isArray(res.data?.doctors) ? res.data.doctors : []
@@ -1910,167 +1817,7 @@ async function confirmSend() {
 
 // Removed developer-only dummy assignment helper; switching to real API-driven data
 
-// Archive action
-function archivePatient(patient: PatientSummary) {
-  // Prevent archiving while patient is in active forms
-  if (selectedPatient.value?.id === patient.id && formDialogOpen.value) {
-    $q.notify({ type: 'warning', message: 'Close active forms before archiving this patient.' });
-    return;
-  }
-  $q.dialog({ title: 'Archive Patient Records', message: `Archive records for ${patient.full_name}?`, cancel: true, ok: 'Archive' })
-    .onOk(() => {
-      void (async () => {
-        try {
-          // Backend expects patient_id to be the User ID; fallback to profile id if needed
-          await api.post('/operations/archives/create/', { patient_id: patient.user_id ?? patient.id })
-          // Remove from active patients list immediately
-          patients.value = patients.value.filter(p => p.id !== patient.id)
-          // Clear selection if this patient was selected
-          if (selectedPatient.value?.id === patient.id) { selectedPatient.value = null }
-          $q.notify({ type: 'positive', message: 'Patient archived' })
-          void searchArchives()
-        } catch (err) {
-          console.error('Archive failed', err)
-          $q.notify({ type: 'negative', message: 'Failed to archive patient' })
-        }
-      })()
-    })
-}
 
-// Patient Archive state and methods
-interface ArchiveRecord {
-  id: number;
-  patient_id: number;
-  patient_name: string;
-  assessment_type: string;
-  medical_condition: string;
-  medical_history_summary?: string;
-  diagnostics?: Record<string, unknown>;
-  last_assessed_at: string;
-  hospital_name?: string;
-  decrypted_assessment_data?: Record<string, unknown>;
-}
-
-const archivesLoading = ref(false)
-const archivedRecords = ref<ArchiveRecord[]>([])
-const showArchiveDetail = ref(false)
-const selectedArchive = ref<ArchiveRecord | null>(null)
-
-const archiveFilters = ref({
-  query: '',
-  patient_id: '',
-  assessment_type: '',
-  medical_condition: '',
-  start_date: '',
-  end_date: ''
-})
-
-const formatDateDisplay = (dateStr: string): string => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return d.toLocaleString()
-}
-
-const formatJson = (obj: unknown): string => {
-  try { 
-    return JSON.stringify(obj ?? {}, null, 2) 
-  } catch { 
-    return obj ? '[Unable to format object]' : ''
-  }
-}
-
-const buildArchiveParams = (): Record<string, string> => {
-  const params: Record<string, string> = {}
-  const f = archiveFilters.value
-  // Map to backend expected parameter names
-  if (f.query) params.patient_name = f.query
-  if (f.patient_id) params.patient_id = f.patient_id
-  if (f.assessment_type) params.assessment_type = f.assessment_type
-  if (f.medical_condition) params.condition = f.medical_condition
-  if (f.start_date) params.start = f.start_date
-  if (f.end_date) params.end = f.end_date
-  return params
-}
-
-const searchArchives = async () => {
-  archivesLoading.value = true
-  try {
-    const res = await api.get('/operations/archives/', { params: buildArchiveParams() })
-    const list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.results)
-        ? res.data.results
-        : (res.data?.records || [])
-    archivedRecords.value = list as ArchiveRecord[]
-  } catch (err: unknown) {
-    console.error('Archive search failed:', err)
-    let msg = 'Archive search failed'
-    if (typeof err === 'object' && err !== null) {
-      const e = err as { response?: { data?: { error?: unknown } }, message?: unknown }
-      const apiMsg = e.response?.data?.error
-      if (typeof apiMsg === 'string' && apiMsg.trim()) {
-        msg = apiMsg
-      } else if (typeof e.message === 'string' && e.message.trim()) {
-        msg = e.message
-      }
-    } else if (typeof err === 'string' && err.trim()) {
-      msg = err
-    }
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    archivesLoading.value = false
-  }
-}
-
-const resetArchiveFilters = () => {
-  archiveFilters.value = { query: '', patient_id: '', assessment_type: '', medical_condition: '', start_date: '', end_date: '' }
-  archivedRecords.value = []
-}
-
-const viewArchive = async (rec: ArchiveRecord) => {
-  try {
-    const res = await api.get(`/operations/archives/${rec.id}/`)
-    selectedArchive.value = (res.data?.record || res.data) as ArchiveRecord
-    showArchiveDetail.value = true
-  } catch (err) {
-    console.error('Failed to load archive detail:', err)
-    $q.notify({ type: 'negative', message: 'Failed to load archive detail', position: 'top' })
-  }
-}
-
-const exportArchive = async (rec: ArchiveRecord) => {
-  try {
-    const res = await api.get(`/operations/archives/${rec.id}/export/`, { responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `archive_${rec.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archive exported', position: 'top' })
-  } catch (err) {
-    console.error('Export failed:', err)
-    $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
-  }
-}
-
-const exportFilteredArchives = async () => {
-  try {
-    const res = await api.get('/operations/archives/export/', { params: buildArchiveParams(), responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'patient_archives.json'
-    a.click()
-    URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archives exported', position: 'top' })
-  } catch (err) {
-    console.error('Export failed:', err)
-    $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
-  }
-}
 
 onMounted(() => {
   console.log('🚀 NursePatientAssessment component mounted');
