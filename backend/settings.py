@@ -35,6 +35,8 @@ ALLOWED_HOSTS = [
     'testserver', 
     '172.20.29.202',  # Current network IP for mobile connectivity
     '192.168.55.101',
+    '192.168.1.60', #Network ni geloo
+    '192.168.56.1', #Network ni geloo
     '10.0.2.2',  # Android emulator
     '10.0.3.2',  # Alternative Android emulator IP
     '0.0.0.0',   # Allow all IPs for development (mobile testing)
@@ -123,7 +125,7 @@ DATABASES = {
         "HOST": "localhost",
         "PORT": "5432",
         "USER": "postgres",
-        "PASSWORD": "admin1234", 
+        "PASSWORD": "postgres", 
     }
 }
 
