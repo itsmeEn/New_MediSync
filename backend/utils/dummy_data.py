@@ -156,24 +156,6 @@ def populate_dummy_data(
                 return email
         return _rand_email(prefix)
 
-    def _approve_user(u: User) -> None:
-        """Mark a user as verified/approved, respecting system constraints."""
-        try:
-            u.verification_status = 'approved'
-        except Exception:
-            # Older schemas may miss this field; ignore safely
-            pass
-        try:
-            u.is_verified = True
-        except Exception:
-            pass
-        # Persist any changed flags
-        try:
-            u.save(update_fields=['verification_status', 'is_verified'])
-        except Exception:
-            # Fallback if update_fields mismatch; persist full save
-            u.save()
-
     def _rand_current_year_date(start_day_offset: int = 0, end_day_offset: int = 365) -> datetime:
         base = timezone.now().replace(month=1, day=1, hour=9, minute=0, second=0, microsecond=0)
         delta_days = random.randint(start_day_offset, end_day_offset)
@@ -192,8 +174,6 @@ def populate_dummy_data(
         doctor_user.hospital_name = hospital_name
         doctor_user.hospital_address = hospital_address
         doctor_user.save(update_fields=['hospital_name', 'hospital_address'])
-        if verify:
-            _approve_user(doctor_user)
         report.add('users', doctor_user.pk)
 
         doctor_profile = GeneralDoctorProfile.objects.create(
@@ -216,8 +196,6 @@ def populate_dummy_data(
             nurse_user.hospital_name = hospital_name
             nurse_user.hospital_address = hospital_address
             nurse_user.save(update_fields=['hospital_name', 'hospital_address'])
-            if verify:
-                _approve_user(nurse_user)
             report.add('users', nurse_user.pk)
 
             dept = random.choice(nurse_departments)
@@ -262,8 +240,6 @@ def populate_dummy_data(
             p_user.hospital_name = hospital_name
             p_user.hospital_address = hospital_address
             p_user.save(update_fields=['hospital_name', 'hospital_address'])
-            if verify:
-                _approve_user(p_user)
             report.add('users', p_user.pk)
 
             profile = PatientProfile.objects.create(
@@ -439,17 +415,10 @@ def populate_dummy_data(
             for j in range(appointments_per_patient):
                 # Ensure appointment_date is in the future and within the current year
                 dt_appt = _rand_future_datetime_within_year(60)
-                # Ensure unique queue number with robust randomization
-                attempts = 0
-                base_q = random.randint(1000, 999999)
+                # Ensure unique queue number
+                base_q = 1000 + (i * 10) + j
                 while AppointmentManagement.objects.filter(queue_number=base_q).exists():
-                    base_q = random.randint(1000, 999999)
-                    attempts += 1
-                    if attempts > 50:
-                        # As a final fallback, monotonic increment from a high base
-                        base_q = int(timezone.now().timestamp())
-                        if not AppointmentManagement.objects.filter(queue_number=base_q).exists():
-                            break
+                    base_q += 1
                 appt = AppointmentManagement.objects.create(
                     patient=profile,
                     doctor=doctor_profile,
@@ -506,21 +475,6 @@ def populate_dummy_data(
             report.add('medical_record_requests', mrr.pk)
 
         # Metrics
-        # Role distribution among created users
-        role_counts: Dict[str, int] = {
-            'doctor': User.objects.filter(pk__in=created_objects.get('users', []), role=User.Role.DOCTOR).count(),
-            'nurse': User.objects.filter(pk__in=created_objects.get('users', []), role=User.Role.NURSE).count(),
-            'patient': User.objects.filter(pk__in=created_objects.get('users', []), role=User.Role.PATIENT).count(),
-        }
-
-        # Verify flags confirmation across created users
-        verified_count = User.objects.filter(
-            pk__in=created_objects.get('users', []),
-            verification_status='approved',
-            is_verified=True,
-        ).count()
-        all_verified = verified_count == len(created_objects.get('users', [])) if created_objects.get('users') else True
-
         report.metrics = {
             'doctor_user_id': doctor_user.pk,
             'nurses_total': len(nurse_profiles),
@@ -531,9 +485,6 @@ def populate_dummy_data(
             'mrr_total': len(created_objects.get('medical_record_requests', [])),
             'hospital_contact': {'phone': hospital_phone, 'email': hospital_email},
             'nurse_patient_map': nurse_assignments_count,
-            'role_counts': role_counts,
-            'verified_users_total': verified_count,
-            'all_users_verified': all_verified,
         }
 
         if dry_run:

@@ -353,17 +353,6 @@
                       >
                         <q-tooltip>Send</q-tooltip>
                       </q-btn>
-                      <q-btn
-                        aria-label="Archive patient"
-                        flat
-                        round
-                        icon="archive"
-                        color="warning"
-                        size="sm"
-                        @click.stop="archivePatientInline(patient)"
-                      >
-                        <q-tooltip>Archive</q-tooltip>
-                      </q-btn>
                     </div>
                   </div>
                 </div>
@@ -399,7 +388,7 @@
               <q-card-section class="card-content">
                 <q-banner v-if="doctorsLoadError" dense class="q-mb-sm" icon="warning" inline-actions>
                   <span class="text-negative">{{ doctorsLoadError }}</span>
-                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="() => { void loadAvailableDoctors() }"/>
+                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="loadAvailableDoctors"/>
                 </q-banner>
                 <div v-if="doctorsLoading" class="loading-section">
                   <q-spinner color="primary" size="2em" />
@@ -1708,9 +1697,11 @@ async function loadAvailableDoctors(silent?: boolean) {
   try {
     // New secured endpoint returns only free doctors with timestamp and count
     // NOTE: Axios baseURL already includes '/api', so do not prefix with '/api' here
+    const specialization = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition) || ''
     const res = await api.get('/operations/availability/doctors/free/', {
       params: {
-        include_email: true
+        include_email: true,
+        specialization
         // Backend scopes to nurse's hospital; hospital_id not required here
       }
     })
@@ -1922,84 +1913,6 @@ async function confirmSend() {
       context: { error: String(err), patient_id: selectedPatientForSend.value?.id ?? null, doctor_id: sendForm.value.doctorId },
     });
   } finally { sendLoading.value = false }
-}
-
-async function archiveCurrentRecord() {
-  if (!selectedPatientForSend.value) { $q.notify({ type: 'warning', message: 'No patient selected' }); return }
-  sendLoading.value = true
-  try {
-    const rawPatient = selectedPatientForSend.value as unknown as { user_id?: number | string; id: number | string; medical_condition?: string | null };
-    const patientUserIdNum = Number(rawPatient.user_id ?? rawPatient.id);
-    if (!Number.isFinite(patientUserIdNum)) {
-      throw new Error('Invalid patient user ID');
-    }
-    const patientProfileIdNum = Number(rawPatient.id ?? rawPatient.user_id);
-    if (!Number.isFinite(patientProfileIdNum)) {
-      throw new Error('Invalid patient profile ID');
-    }
-
-    // Optional doctor context
-    const hasDoctor = !!sendForm.value.doctorId;
-    const doctorIdNum = hasDoctor ? Number(sendForm.value.doctorId) : NaN;
-    const specialization = hasDoctor ? (deriveSpecializationFromCondition(rawPatient.medical_condition) || 'General') : null;
-
-    // Build assessment data (prefer saved intake snapshot)
-    let intakePayload: Record<string, unknown> | null = null;
-    try {
-      const raw = localStorage.getItem(`opd_forms_${patientProfileIdNum}_intake`);
-      intakePayload = raw ? JSON.parse(raw) : { ...intakeForm.value } as unknown as Record<string, unknown>;
-    } catch {
-      intakePayload = { ...intakeForm.value } as unknown as Record<string, unknown>;
-    }
-
-    // Ensure latest intake is persisted before archiving
-    await persistIntakeSnapshot(patientProfileIdNum)
-
-    const assessmentData: Record<string, unknown> = {
-      ...(intakePayload || {}),
-      actor: 'nurse',
-      nurse_name: userProfile.value.full_name,
-      message: sendForm.value.message || ''
-    };
-
-    const payload: Record<string, unknown> = {
-      patient_id: patientUserIdNum,
-      assessment_type: 'full_record',
-      assessment_data: assessmentData,
-      full_record: true,
-      archival_reason: sendForm.value.message || '',
-      medical_condition: rawPatient.medical_condition || '',
-      hospital_name: userProfile.value.hospital_name || ''
-    };
-    if (hasDoctor && Number.isFinite(doctorIdNum)) {
-      payload.doctor_id = doctorIdNum;
-      payload.specialization = specialization || 'General';
-    }
-
-    await api.post('/operations/archives/create/', payload);
-    // Remove from active list immediately
-    patients.value = patients.value.filter(p => String(p.id ?? p.user_id) !== String(rawPatient.id ?? rawPatient.user_id))
-    $q.notify({ type: 'positive', message: 'Patient archived and removed from list' });
-
-    // Optional: keep dialog open to allow sending right after archiving
-  } catch (err: unknown) {
-    console.error('Archive create failed', err);
-    let msg = 'Failed to archive record';
-    if (typeof err === 'object' && err !== null) {
-      const e = err as { response?: { data?: { error?: unknown } }, message?: unknown };
-      const apiMsg = e.response?.data?.error;
-      if (typeof apiMsg === 'string' && apiMsg.trim()) {
-        msg = apiMsg;
-      } else if (typeof e.message === 'string' && e.message.trim()) {
-        msg = e.message;
-      }
-    } else if (typeof err === 'string' && err.trim()) {
-      msg = err;
-    }
-    $q.notify({ type: 'negative', message: msg });
-  } finally {
-    sendLoading.value = false;
-  }
 }
 
 // Removed developer-only dummy assignment helper; switching to real API-driven data
