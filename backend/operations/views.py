@@ -583,10 +583,12 @@ def doctor_create_appointment(request):
         max_q = AppointmentManagement.objects.aggregate(maxq=Max('queue_number'))['maxq'] or 0
         next_queue = max_q + 1
 
-        # Resolve department: prefer provided value, else doctor's specialization, else OPD
+        # [2025-10-31] Department resolution for AppointmentManagement
+        # Prefer explicit department from request; fall back to doctor's specialization; default to OPD
         dept = (request.data.get('department') or getattr(doctor_profile, 'specialization', None) or 'OPD')
 
-        # Create appointment with required fields
+        # [2025-10-31] Create appointment including resolved department
+        # Ensures the new AppointmentManagement.department field is consistently populated
         appointment = AppointmentManagement.objects.create(
             patient=patient_profile,
             doctor=doctor_profile,
@@ -740,10 +742,11 @@ def schedule_appointment(request):
         max_q = AppointmentManagement.objects.aggregate(maxq=Max('queue_number'))['maxq'] or 0
         next_queue = max_q + 1
 
-        # Resolve department: prefer provided value, else doctor's specialization, else OPD
+        # [2025-10-31] Department resolution for patient scheduling
+        # Prefer explicit department from payload; else use doctor specialization; default to OPD
         dept = (department or getattr(doctor_profile, 'specialization', None) or 'OPD')
 
-        # Create appointment
+        # [2025-10-31] Create appointment including resolved department
         appointment = AppointmentManagement.objects.create(
             patient=patient_profile,
             doctor=doctor_profile,

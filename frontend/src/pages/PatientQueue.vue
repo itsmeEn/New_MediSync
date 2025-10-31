@@ -497,7 +497,8 @@ const setupWebSocket = () => {
     const httpProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
     const httpProbeUrl = `${httpProtocol}//${backendHost}:${backendPort}/ws/queue/${dept}/${userIdSegment}`
     
-    // Preflight probe to avoid browser console errors when WS routes are not present
+    // [2025-10-31] Preflight HEAD probe added to avoid browser console
+    // errors when Queue WS routes are not present (local dev / Channels off)
     fetch(httpProbeUrl, { method: 'HEAD' }).then((res) => {
       if (!res.ok) {
         // Endpoint not available; skip WebSocket setup

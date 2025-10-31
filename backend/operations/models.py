@@ -19,7 +19,11 @@ from django.db import transaction
 
 Users = get_user_model()
 
-#notification management to notify patients about their queue status, appointment reminders, etc.
+# [2025-10-31] Context note: today’s work added department handling to appointments
+# and restored Department/HospitalDepartmentDoctor/DoctorTimeSlot models to align
+# the ORM with existing migrations. Comments below mark areas changed today.
+#
+# notification management to notify patients about their queue status, appointment reminders, etc.
 #notify doctors about the his appointments, patient status, etc.
 #motify nurses about the medicine inventory, patient status, etc.
 # a realtime notification system that can notify the patients
@@ -301,10 +305,11 @@ class AppointmentManagement(models.Model):
     appointment_id = models.AutoField(primary_key=True, help_text="Unique identifier for the appointment.")
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name="appointments")
     doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name="appointments")
-    # Structured time slot reference (nullable to maintain backward compatibility)
+    # [2025-10-31] Reintroduced structured time slot reference to match prior migrations
+    # (kept nullable to preserve backward compatibility with existing records)
     time_slot = models.ForeignKey('DoctorTimeSlot', on_delete=models.SET_NULL, null=True, blank=True, related_name='appointments', help_text="Structured time slot for the appointment (nullable for backward compatibility)")
-    # Department associated with the appointment (e.g., Cardiology, OPD)
-    # Keep flexible without choices to support hospital-specific departments
+    # [2025-10-31] Added flexible department association to prevent NULL errors
+    # and support hospital-specific department labels/slugs (default to OPD)
     department = models.CharField(max_length=100, help_text="Department for the appointment.", default="OPD")
     appointment_date = models.DateTimeField(help_text="Date and time of the appointment.")
     appointment_type = models.CharField(
@@ -346,6 +351,7 @@ class AppointmentManagement(models.Model):
 
 class Department(models.Model):
     """Hospital departments (e.g., Cardiology, OPD)."""
+    # [2025-10-31] Restored Department model to align with migrations
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True)
     description = models.TextField(blank=True)
@@ -363,6 +369,7 @@ class Department(models.Model):
 
 class HospitalDepartmentDoctor(models.Model):
     """Mapping between Hospital, Department, and Doctor with status and capacity."""
+    # [2025-10-31] Restored mapping model to prevent destructive migration operations
     hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='department_doctors')
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='hospital_doctors')
     doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name='hospital_departments')
@@ -382,6 +389,7 @@ class HospitalDepartmentDoctor(models.Model):
 
 class DoctorTimeSlot(models.Model):
     """Doctor time slots within a hospital department mapping."""
+    # [2025-10-31] Restored time slot model for structured scheduling compatibility
     hospital_department_doctor = models.ForeignKey(HospitalDepartmentDoctor, on_delete=models.CASCADE, related_name='time_slots')
     date = models.DateField()
     start_time = models.TimeField()

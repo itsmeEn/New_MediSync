@@ -87,7 +87,8 @@ const setupMedicationWS = (): void => {
     const httpProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
     const httpProbeUrl = `${httpProtocol}//${backendHost}:${backendPort}/ws/medication/${patientId}/`
 
-    // Preflight probe to avoid noisy browser WebSocket errors when endpoint is unavailable
+    // [2025-10-31] Preflight HEAD probe added to avoid noisy browser
+    // WebSocket errors when Channels routes are unavailable (dev environments)
     fetch(httpProbeUrl, { method: 'HEAD' }).then((res) => {
       if (!res.ok) {
         // Endpoint not available; skip WebSocket setup silently
