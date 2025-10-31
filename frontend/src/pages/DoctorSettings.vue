@@ -77,6 +77,7 @@
                             :options="specializationOptions"
                             label="Specialization"
                             outlined
+                            readonly
                             emit-value
                             map-options
                             class="large-input"
@@ -426,21 +427,9 @@ const accountStatus = ref({
   memberSince: '',
 });
 
-// Options
-const specializationOptions = [
-  { label: 'Internal Medicine', value: 'internal_medicine' },
-  { label: 'Cardiology', value: 'cardiology' },
-  { label: 'Dermatology', value: 'dermatology' },
-  { label: 'Emergency Medicine', value: 'emergency_medicine' },
-  { label: 'Family Medicine', value: 'family_medicine' },
-  { label: 'Neurology', value: 'neurology' },
-  { label: 'Orthopedics', value: 'orthopedics' },
-  { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Psychiatry', value: 'psychiatry' },
-  { label: 'Radiology', value: 'radiology' },
-  { label: 'Surgery', value: 'surgery' },
-  { label: 'Other', value: 'other' },
-];
+// Options: reuse patient appointment departments for specialization to keep consistency
+import { departmentOptions as sharedDepartmentOptions } from '../utils/departments'
+const specializationOptions = sharedDepartmentOptions
 
 
 // Computed properties

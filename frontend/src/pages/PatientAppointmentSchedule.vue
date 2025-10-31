@@ -621,18 +621,9 @@ const typeOptions = [
   { label: 'Mental Health Consultation', value: 'mental-health' }
 ]
 
-const departmentOptions = [
-  { label: 'General Medicine', value: 'general-medicine' },
-  { label: 'Cardiology', value: 'cardiology' },
-  { label: 'Dermatology', value: 'dermatology' },
-  { label: 'Orthopedics', value: 'orthopedics' },
-  { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Gynecology', value: 'gynecology' },
-  { label: 'Neurology', value: 'neurology' },
-  { label: 'Oncology', value: 'oncology' },
-  { label: 'Optometrist', value: 'optometrist' },
-  { label: 'Emergency Medicine', value: 'emergency-medicine' }
-]
+import { departmentOptions as sharedDepartmentOptions } from '../utils/departments'
+import type { DepartmentOption } from '../utils/departments'
+const departmentOptions = ref<DepartmentOption[]>(sharedDepartmentOptions)
 
 // Computed properties for filtered appointments
 const scheduledAppointments = computed(() => 
@@ -789,6 +780,17 @@ const loadDoctors = async () => {
     }
   } finally {
     doctorLoading.value = false
+  }
+}
+
+const loadHospitalDepartments = async () => {
+  try {
+    const res = await api.get('/operations/hospital/departments/')
+    const list = Array.isArray(res.data?.departments) ? res.data.departments : []
+    departmentOptions.value = list.length ? list : sharedDepartmentOptions
+  } catch (e) {
+    console.warn('Failed to load hospital departments, using defaults:', e)
+    departmentOptions.value = sharedDepartmentOptions
   }
 }
 
@@ -1022,6 +1024,7 @@ watch(() => form.value.department, () => {
 onMounted(() => {
   void fetchUnreadCount()
   void loadAppointments()
+  void loadHospitalDepartments()
   
   // Load doctors if department is preset
   if (form.value.department) {

@@ -106,13 +106,16 @@
                 </div>
                 <div class="form-group">
                   <label for="specialization">Specialization *</label>
-                  <input
+                  <select
                     id="specialization"
                     v-model="formData.specialization"
-                    type="text"
                     required
-                    placeholder="e.g., Cardiology, Pediatrics"
-                  />
+                  >
+                    <option value="">Select specialization</option>
+                    <option v-for="opt in departmentOptions" :key="opt.value" :value="opt.value">
+                      {{ opt.label }}
+                    </option>
+                  </select>
                 </div>
               </div>
 
@@ -166,6 +169,7 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import type { AxiosError } from 'axios';
 import HospitalSelection from '../components/HospitalSelection.vue';
+import { departmentOptions } from '../utils/departments';
 
 interface RegistrationFormData {
   full_name: string;

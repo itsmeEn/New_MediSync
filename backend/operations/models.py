@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from backend.users.models import GeneralDoctorProfile, NurseProfile, PatientProfile
+from backend.admin_site.models import Hospital
 from django.utils import timezone
 from datetime import timedelta
 from cryptography.fernet import Fernet
@@ -300,6 +301,11 @@ class AppointmentManagement(models.Model):
     appointment_id = models.AutoField(primary_key=True, help_text="Unique identifier for the appointment.")
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name="appointments")
     doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name="appointments")
+    # Structured time slot reference (nullable to maintain backward compatibility)
+    time_slot = models.ForeignKey('DoctorTimeSlot', on_delete=models.SET_NULL, null=True, blank=True, related_name='appointments', help_text="Structured time slot for the appointment (nullable for backward compatibility)")
+    # Department associated with the appointment (e.g., Cardiology, OPD)
+    # Keep flexible without choices to support hospital-specific departments
+    department = models.CharField(max_length=100, help_text="Department for the appointment.", default="OPD")
     appointment_date = models.DateTimeField(help_text="Date and time of the appointment.")
     appointment_type = models.CharField(
         max_length=50, choices=[
@@ -337,6 +343,63 @@ class AppointmentManagement(models.Model):
 
     def __str__(self):
         return f"Appointment {self.id} - Patient: {self.patient.user.full_name} with Dr. {self.doctor.user.full_name}"
+
+class Department(models.Model):
+    """Hospital departments (e.g., Cardiology, OPD)."""
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department"
+        verbose_name_plural = "Departments"
+        db_table = "department"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+class HospitalDepartmentDoctor(models.Model):
+    """Mapping between Hospital, Department, and Doctor with status and capacity."""
+    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='department_doctors')
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='hospital_doctors')
+    doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name='hospital_departments')
+    status = models.CharField(max_length=20, choices=[('active', 'Active'), ('inactive', 'Inactive')], default='active')
+    capacity_limit = models.PositiveIntegerField(null=True, blank=True, help_text="Optional max concurrent appointments for this mapping.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Hospital Department Doctor"
+        verbose_name_plural = "Hospital Department Doctors"
+        db_table = "hospital_department_doctor"
+        unique_together = ("hospital", "department", "doctor")
+
+    def __str__(self):
+        return f"{self.hospital} - {self.department} - {self.doctor}"
+
+class DoctorTimeSlot(models.Model):
+    """Doctor time slots within a hospital department mapping."""
+    hospital_department_doctor = models.ForeignKey(HospitalDepartmentDoctor, on_delete=models.CASCADE, related_name='time_slots')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    capacity = models.PositiveIntegerField(default=1, help_text="Max number of bookings allowed in this slot")
+    booked_count = models.PositiveIntegerField(default=0, help_text="Number of bookings confirmed in this slot")
+    is_available = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Doctor Time Slot"
+        verbose_name_plural = "Doctor Time Slots"
+        db_table = "doctor_time_slot"
+        unique_together = ("hospital_department_doctor", "date", "start_time", "end_time")
+
+    def __str__(self):
+        return f"{self.hospital_department_doctor} @ {self.date} {self.start_time}-{self.end_time}"
     
     def save(self, *args, **kwargs):
         """Ensure valid scheduling and auto-populate derived fields."""

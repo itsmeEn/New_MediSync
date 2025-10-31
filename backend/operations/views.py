@@ -583,10 +583,14 @@ def doctor_create_appointment(request):
         max_q = AppointmentManagement.objects.aggregate(maxq=Max('queue_number'))['maxq'] or 0
         next_queue = max_q + 1
 
+        # Resolve department: prefer provided value, else doctor's specialization, else OPD
+        dept = (request.data.get('department') or getattr(doctor_profile, 'specialization', None) or 'OPD')
+
         # Create appointment with required fields
         appointment = AppointmentManagement.objects.create(
             patient=patient_profile,
             doctor=doctor_profile,
+            department=dept,
             appointment_date=appointment_date,
             appointment_type=appointment_type,
             appointment_time=appt_time or getattr(appointment_date, 'time', lambda: None)() or timezone.now().time(),
@@ -649,7 +653,7 @@ def schedule_appointment(request):
         date_iso = request.data.get('date')
         time_str = request.data.get('time')
         # Optional fields
-        # department = request.data.get('department')  # currently unused in model
+        department = request.data.get('department')  # now used in model
         # reason = request.data.get('reason')         # model has no notes field
 
         if not date_iso or not time_str:
@@ -736,10 +740,14 @@ def schedule_appointment(request):
         max_q = AppointmentManagement.objects.aggregate(maxq=Max('queue_number'))['maxq'] or 0
         next_queue = max_q + 1
 
+        # Resolve department: prefer provided value, else doctor's specialization, else OPD
+        dept = (department or getattr(doctor_profile, 'specialization', None) or 'OPD')
+
         # Create appointment
         appointment = AppointmentManagement.objects.create(
             patient=patient_profile,
             doctor=doctor_profile,
+            department=dept,
             appointment_date=combined_dt,
             appointment_type=appointment_type,
             appointment_time=combined_dt.time(),
@@ -2086,7 +2094,9 @@ def get_available_doctors(request):
         
         # Allow patients, nurses, and doctors who are verified to view available doctors.
         # This supports patient appointment scheduling with department-based filtering.
-        if user.verification_status != 'approved':
+        # Patients can browse available doctors even if their account is not yet approved.
+        # Other roles (nurse/doctor/admin) must be approved.
+        if user.role != 'patient' and user.verification_status != 'approved':
             return Response({
                 'error': 'Account verification required to access doctor information.',
                 'verification_status': user.verification_status
@@ -2234,6 +2244,130 @@ def get_available_doctors(request):
     except Exception as e:
         return Response({
             'error': f'Failed to fetch available doctors: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Departments per Hospital
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def hospital_departments(request):
+    """
+    Return department options available in the user's hospital based on verified doctors.
+    - For patients: uses their registered hospital automatically.
+    - For other roles: optional `hospital` query parameter can scope departments.
+    - Falls back to standard department list to avoid breaking existing flows.
+    """
+    try:
+        user = request.user
+        # Patients can see hospital departments even if not yet approved.
+        # Other roles must be approved to access this data.
+        if user.role != 'patient' and user.verification_status != 'approved':
+            return Response({
+                'error': 'Account verification required to access hospital departments.',
+                'verification_status': user.verification_status
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        from backend.users.models import GeneralDoctorProfile, PatientProfile
+
+        # Determine hospital scope
+        requested_hospital = request.GET.get('hospital')
+        hospital_name = None
+        if user.role == 'patient':
+            try:
+                patient_profile = PatientProfile.objects.get(user=user)
+                hospital_name = getattr(patient_profile, 'hospital', None) or requested_hospital
+            except PatientProfile.DoesNotExist:
+                return Response({
+                    'departments': [],
+                    'total_count': 0,
+                    'message': 'Patient profile not found. Please complete registration to view departments.'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            hospital_name = requested_hospital or getattr(user, 'hospital_name', None)
+
+        # Base doctor query: only verified, active and available
+        doctors_query = GeneralDoctorProfile.objects.filter(
+            user__verification_status='approved',
+            user__is_active=True,
+            available_for_consultation=True
+        )
+        if hospital_name:
+            doctors_query = doctors_query.filter(user__hospital_name=hospital_name)
+
+        specializations = list(doctors_query.values_list('specialization', flat=True))
+
+        # Map specialization keywords to department slugs
+        dept_map = {
+            'general-medicine': ['general', 'internal medicine', 'primary care'],
+            'cardiology': ['cardiology', 'cardiologist', 'cardio'],
+            'dermatology': ['dermatology', 'dermatologist', 'dermat'],
+            'orthopedics': ['orthopedics', 'orthopaedic', 'orthopedic', 'ortho'],
+            'pediatrics': ['pediatrics', 'pediatrician', 'pediatr'],
+            'gynecology': ['gynecology', 'obstetrics', 'ob-gyn', 'obgyn', 'gynecol'],
+            'neurology': ['neurology', 'neurologist', 'neuro'],
+            'oncology': ['oncology', 'oncologist', 'oncolo'],
+            'optometrist': ['optometry', 'optometrist', 'eye care', 'ophthalmology', 'ophthalmologist'],
+            'emergency-medicine': ['emergency', 'emergency medicine']
+        }
+
+        slug_to_label = {
+            'general-medicine': 'General Medicine',
+            'cardiology': 'Cardiology',
+            'dermatology': 'Dermatology',
+            'orthopedics': 'Orthopedics',
+            'pediatrics': 'Pediatrics',
+            'gynecology': 'Gynecology',
+            'neurology': 'Neurology',
+            'oncology': 'Oncology',
+            'optometrist': 'Optometrist',
+            'emergency-medicine': 'Emergency Medicine',
+            'other': 'Other'
+        }
+
+        def spec_to_slug(spec: str) -> str:
+            s = (spec or '').lower()
+            for slug, keywords in dept_map.items():
+                if s == slug:
+                    return slug
+                if s.replace('-', ' ') == slug:
+                    return slug
+                for kw in keywords:
+                    if kw in s:
+                        return slug
+            # Default bucket
+            return 'general-medicine' if s.strip() == '' else 'other'
+
+        slugs = set(spec_to_slug(spec) for spec in specializations)
+
+        # Build options. If none detected, fall back to shared list
+        if slugs:
+            departments = [
+                {'label': slug_to_label.get(slug, slug.title().replace('-', ' ')), 'value': slug}
+                for slug in sorted(slugs)
+            ]
+        else:
+            departments = [
+                {'label': 'General Medicine', 'value': 'general-medicine'},
+                {'label': 'Cardiology', 'value': 'cardiology'},
+                {'label': 'Dermatology', 'value': 'dermatology'},
+                {'label': 'Orthopedics', 'value': 'orthopedics'},
+                {'label': 'Pediatrics', 'value': 'pediatrics'},
+                {'label': 'Gynecology', 'value': 'gynecology'},
+                {'label': 'Neurology', 'value': 'neurology'},
+                {'label': 'Oncology', 'value': 'oncology'},
+                {'label': 'Optometrist', 'value': 'optometrist'},
+                {'label': 'Emergency Medicine', 'value': 'emergency-medicine'},
+                {'label': 'Other', 'value': 'other'},
+            ]
+
+        return Response({
+            'departments': departments,
+            'total_count': len(departments),
+            'hospital': hospital_name
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            'error': f'Failed to fetch hospital departments: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])

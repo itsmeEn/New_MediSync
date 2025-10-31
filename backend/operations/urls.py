@@ -59,6 +59,8 @@ urlpatterns = [
     
     # Doctor selection endpoints
     path('available-doctors/', views.get_available_doctors, name='get_available_doctors'),
+    # Hospital-specific departments for patient scheduling
+    path('hospital/departments/', views.hospital_departments, name='hospital_departments'),
     path('assign-patient/', views.assign_patient_to_doctor, name='assign_patient_to_doctor'),
     
     # Doctor assignment endpoints

@@ -494,15 +494,23 @@ const setupWebSocket = () => {
 
     const dept = selectedDepartment.value || 'OPD'
     const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/queue/${dept}/${userIdSegment}`
+    const httpProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
+    const httpProbeUrl = `${httpProtocol}//${backendHost}:${backendPort}/ws/queue/${dept}/${userIdSegment}`
     
-    websocket.value = new WebSocket(wsUrl)
+    // Preflight probe to avoid browser console errors when WS routes are not present
+    fetch(httpProbeUrl, { method: 'HEAD' }).then((res) => {
+      if (!res.ok) {
+        // Endpoint not available; skip WebSocket setup
+        return
+      }
+      websocket.value = new WebSocket(wsUrl)
+      
+      websocket.value.onopen = () => {
+        console.log('Queue WebSocket connected')
+      }
     
-    websocket.value.onopen = () => {
-      console.log('Queue WebSocket connected')
-    }
-    
-    websocket.value.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+      websocket.value.onmessage = (event) => {
+        const data = JSON.parse(event.data)
       
       if (data.type === 'queue_status' || data.type === 'queue_status_update') {
         queueStatus.value = data.status
@@ -571,13 +579,16 @@ const setupWebSocket = () => {
           position: 'top'
         })
       }
-    }
-    
-    websocket.value.onclose = () => {
-      console.log('Queue WebSocket disconnected')
-      // Attempt to reconnect after 5 seconds
-      setTimeout(setupWebSocket, 5000)
-    }
+      }
+      
+      websocket.value.onclose = () => {
+        console.log('Queue WebSocket disconnected')
+        // Attempt to reconnect after 5 seconds
+        setTimeout(setupWebSocket, 5000)
+      }
+    }).catch(() => {
+      // Probe failed; skip connecting
+    })
   } catch (e) {
     console.warn('Failed to setup WebSocket', e)
   }
