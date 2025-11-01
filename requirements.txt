@@ -39,3 +39,10 @@ requests>=2.31.0
 # Two-Factor Authentication
 pyotp==2.9.0
 qrcode==7.4.2
+
+# Optional: TensorFlow for AI Insights (platform-aware)
+# macOS (Apple Silicon): install tensorflow-macos and optional Metal plugin
+tensorflow-macos; platform_system == "Darwin" and python_version < "3.12"
+tensorflow-metal; platform_system == "Darwin" and python_version < "3.12"
+# Linux/Windows: standard TensorFlow package
+tensorflow; platform_system != "Darwin" and python_version < "3.12"

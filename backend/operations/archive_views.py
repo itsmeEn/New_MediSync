@@ -5,6 +5,8 @@ from rest_framework import status
 from django.utils import timezone
 from datetime import datetime
 from django.core.cache import cache
+from django.db import transaction
+import os
 
 from backend.users.models import User, GeneralDoctorProfile
 from .models import PatientAssessmentArchive, ArchiveAccessLog
@@ -15,13 +17,72 @@ import hashlib
 import json
 from django.conf import settings
 
+# --- Dual-store helpers ---
+DUAL_STORE_ROOT = os.path.join(os.path.dirname(__file__), 'dual_store')
+DOCTOR_STORE_DIR = os.path.join(DUAL_STORE_ROOT, 'doctor_archives')
+NURSE_STORE_DIR = os.path.join(DUAL_STORE_ROOT, 'nurse_archives')
+
+def _ensure_dual_store_dirs():
+    try:
+        os.makedirs(DOCTOR_STORE_DIR, exist_ok=True)
+        os.makedirs(NURSE_STORE_DIR, exist_ok=True)
+    except Exception:
+        # Directory creation failure will be handled by caller
+        pass
+
+def _dual_store_write(record_id: int, payload: dict):
+    """Write identical JSON payload to doctor and nurse archive files.
+    Returns tuple (doctor_path, nurse_path). Raises on failure and attempts cleanup.
+    """
+    _ensure_dual_store_dirs()
+    doc_path = os.path.join(DOCTOR_STORE_DIR, f"archive_{record_id}.json")
+    nur_path = os.path.join(NURSE_STORE_DIR, f"archive_{record_id}.json")
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
+    wrote_doc = False
+    wrote_nur = False
+    try:
+        with open(doc_path, 'w', encoding='utf-8') as f:
+            f.write(serialized)
+        wrote_doc = True
+        with open(nur_path, 'w', encoding='utf-8') as f:
+            f.write(serialized)
+        wrote_nur = True
+        return doc_path, nur_path
+    except Exception as e:
+        # Attempt cleanup if one file was written
+        try:
+            if wrote_doc and os.path.exists(doc_path):
+                os.remove(doc_path)
+        except Exception:
+            pass
+        try:
+            if wrote_nur and os.path.exists(nur_path):
+                os.remove(nur_path)
+        except Exception:
+            pass
+        raise e
+
+def _record_payload_for_dual_store(record: PatientAssessmentArchive) -> dict:
+    return {
+        'id': record.id,
+        'patient_id': getattr(record.user, 'id', None),
+        'patient_name': getattr(record.user, 'full_name', ''),
+        'assessment_type': record.assessment_type,
+        'medical_condition': record.medical_condition,
+        'medical_history_summary': record.medical_history_summary,
+        'diagnostics': record.diagnostics,
+        'last_assessed_at': record.last_assessed_at.isoformat() if record.last_assessed_at else None,
+        'hospital_name': record.hospital_name,
+        'assessment': record.decrypt_payload(),
+    }
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def archive_list(request):
     """List archived patient assessments with search and filters"""
     start_time = timezone.now()
     try:
-        qs = PatientAssessmentArchive.objects.all()
+        qs = PatientAssessmentArchive.objects.filter(assessment_data__archived=True)
         patient_id = request.GET.get('patient_id')
         patient_name = request.GET.get('patient_name')
         start_date = request.GET.get('start')
@@ -144,12 +205,25 @@ def archive_create(request):
         doctor_id = payload.get('doctor_id')
         specialization = payload.get('specialization')
         signature = payload.get('signature')
+        assessment_type_val = payload.get('assessment_type', '').strip()
+        assessment_data_val = payload.get('assessment_data') or {}
+        if isinstance(assessment_data_val, str):
+            try:
+                assessment_data_val = json.loads(assessment_data_val)
+            except Exception:
+                return Response({'error': 'assessment_data must be valid JSON', 'code': 'ERR_BAD_ASSESSMENT_DATA'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not patient_id:
             return Response({'error': 'patient_id is required', 'code': 'ERR_MISSING_PATIENT'}, status=status.HTTP_400_BAD_REQUEST)
         user = User.objects.filter(id=patient_id).first()
         if not user:
             return Response({'error': 'Patient not found', 'code': 'ERR_PATIENT_NOT_FOUND'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Basic validation
+        if not assessment_type_val:
+            return Response({'error': 'assessment_type is required', 'code': 'ERR_MISSING_TYPE'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(assessment_data_val, dict) or not assessment_data_val:
+            return Response({'error': 'assessment_data is required', 'code': 'ERR_MISSING_DATA'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Verify specialization/doctor if provided
         if doctor_id or specialization:
@@ -161,20 +235,26 @@ def archive_create(request):
                 return Response({'error': 'Doctor verification/specialization mismatch', 'code': 'ERR_SPECIALIZATION_MISMATCH'}, status=status.HTTP_403_FORBIDDEN)
 
         # Verify digital signature if provided
-        if signature and not _verify_signature(payload.get('assessment_data') or {}, signature):
+        if signature and not _verify_signature(assessment_data_val, signature):
             ArchiveAccessLog.objects.create(user=request.user, action='create', record=None, query_params=json.dumps({'doctor_id': doctor_id, 'specialization': specialization, 'status': 'failure', 'code': 'ERR_BAD_SIGNATURE'}))
             return Response({'error': 'Bad digital signature', 'code': 'ERR_BAD_SIGNATURE'}, status=status.HTTP_401_UNAUTHORIZED)
+        # Mark as archived in assessment_data
+        assessment_data_val['archived'] = True
 
-        record = PatientAssessmentArchive.objects.create(
-            user=user,
-            assessment_type=payload.get('assessment_type', ''),
-            medical_condition=payload.get('medical_condition', ''),
-            medical_history_summary=payload.get('medical_history_summary', ''),
-            diagnostics=payload.get('diagnostics') or {},
-            assessment_data=payload.get('assessment_data') or {},
-            last_assessed_at=payload.get('last_assessed_at') or timezone.now(),
-            hospital_name=payload.get('hospital_name', ''),
-        )
+        # Transactional create with dual store write
+        with transaction.atomic():
+            record = PatientAssessmentArchive.objects.create(
+                user=user,
+                assessment_type=assessment_type_val,
+                medical_condition=payload.get('medical_condition', ''),
+                medical_history_summary=payload.get('medical_history_summary', ''),
+                diagnostics=payload.get('diagnostics') or {},
+                assessment_data=assessment_data_val,
+                last_assessed_at=payload.get('last_assessed_at') or timezone.now(),
+                hospital_name=payload.get('hospital_name', ''),
+            )
+            # Write to dual store; throw to trigger rollback if failed
+            _dual_store_write(record.id, _record_payload_for_dual_store(record))
         serializer = PatientAssessmentArchiveSerializer(record)
         ArchiveAccessLog.objects.create(
             user=request.user,
@@ -256,3 +336,72 @@ def archive_logs(request):
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': f'Failed to fetch archive logs: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def archive_update(request, archive_id):
+    """Update an archived assessment and reflect changes to dual store files."""
+    try:
+        record = PatientAssessmentArchive.objects.filter(id=archive_id).first()
+        if not record:
+            return Response({'error': 'Archive record not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = request.data or {}
+        updated_fields = {}
+        if 'assessment_type' in payload:
+            updated_fields['assessment_type'] = str(payload.get('assessment_type') or '')
+        if 'medical_condition' in payload:
+            updated_fields['medical_condition'] = str(payload.get('medical_condition') or '')
+        if 'medical_history_summary' in payload:
+            updated_fields['medical_history_summary'] = str(payload.get('medical_history_summary') or '')
+        if 'diagnostics' in payload:
+            updated_fields['diagnostics'] = payload.get('diagnostics') or {}
+        if 'assessment_data' in payload:
+            assessment_data_val = payload.get('assessment_data')
+            if isinstance(assessment_data_val, str):
+                try:
+                    assessment_data_val = json.loads(assessment_data_val)
+                except Exception:
+                    return Response({'error': 'assessment_data must be valid JSON', 'code': 'ERR_BAD_ASSESSMENT_DATA'}, status=status.HTTP_400_BAD_REQUEST)
+            if not isinstance(assessment_data_val, dict):
+                return Response({'error': 'assessment_data must be an object'}, status=status.HTTP_400_BAD_REQUEST)
+            # Preserve archived flag unless caller sets it
+            if 'archived' not in assessment_data_val:
+                assessment_data_val['archived'] = True
+            updated_fields['assessment_data'] = assessment_data_val
+
+        with transaction.atomic():
+            for k, v in updated_fields.items():
+                setattr(record, k, v)
+            record.save()
+            _dual_store_write(record.id, _record_payload_for_dual_store(record))
+
+        serializer = PatientAssessmentArchiveSerializer(record)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to update archive: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def archive_unarchive(request, archive_id):
+    """Mark an archive as unarchived (archived=false) and update dual files."""
+    try:
+        record = PatientAssessmentArchive.objects.filter(id=archive_id).first()
+        if not record:
+            return Response({'error': 'Archive record not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = record.assessment_data or {}
+        if isinstance(data, dict):
+            data['archived'] = False
+        else:
+            data = {'archived': False}
+
+        with transaction.atomic():
+            record.assessment_data = data
+            record.save()
+            _dual_store_write(record.id, _record_payload_for_dual_store(record))
+
+        return Response({'success': True, 'message': 'Record unarchived', 'id': record.id}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to unarchive: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
