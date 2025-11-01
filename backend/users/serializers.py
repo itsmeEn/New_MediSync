@@ -163,6 +163,31 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['email']  # Email should not be updated through this endpoint
 
+    def update(self, instance, validated_data):
+        """Trim and persist hospital fields reliably."""
+        # Basic fields
+        instance.full_name = validated_data.get('full_name', instance.full_name)
+        instance.date_of_birth = validated_data.get('date_of_birth', instance.date_of_birth)
+        instance.gender = validated_data.get('gender', instance.gender)
+
+        # Hospital fields: normalize whitespace
+        hosp_name = validated_data.get('hospital_name', instance.hospital_name)
+        hosp_addr = validated_data.get('hospital_address', instance.hospital_address)
+        if isinstance(hosp_name, str):
+            hosp_name = hosp_name.strip()
+        if isinstance(hosp_addr, str):
+            hosp_addr = hosp_addr.strip()
+        instance.hospital_name = hosp_name or ''
+        instance.hospital_address = hosp_addr or ''
+
+        # Persist only changed fields when possible
+        try:
+            instance.save(update_fields=['full_name', 'date_of_birth', 'gender', 'hospital_name', 'hospital_address'])
+        except Exception:
+            # Fallback: save without update_fields to avoid edge cases
+            instance.save()
+        return instance
+
 
 class TwoFactorEnableSerializer(serializers.Serializer):
     """

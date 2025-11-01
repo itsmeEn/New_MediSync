@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs
+from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs, archive_update, archive_unarchive
 from . import secure_views
 from . import monitoring_views
 from .medical_request_views import medical_requests, approve_medical_request, deliver_medical_request
@@ -83,6 +83,8 @@ urlpatterns = [
     path('archives/', archive_list, name='archive_list'),
     path('archives/create/', archive_create, name='archive_create'),
     path('archives/<int:archive_id>/', archive_detail, name='archive_detail'),
+    path('archives/<int:archive_id>/update/', archive_update, name='archive_update'),
+    path('archives/<int:archive_id>/unarchive/', archive_unarchive, name='archive_unarchive'),
     path('archives/<int:archive_id>/export/', archive_export, name='archive_export'),
     path('archives/logs/', archive_logs, name='archive_logs'),
 

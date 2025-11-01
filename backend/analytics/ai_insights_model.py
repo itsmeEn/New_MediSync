@@ -23,8 +23,15 @@ except Exception as e:
     layers = None  # type: ignore
     models = None  # type: ignore
     import logging
+    import platform
+    import sys
+    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     logging.getLogger(__name__).warning(
-        f"TensorFlow not available: {e}. Proceeding without deep learning components."
+        (
+            "TensorFlow not available: %s. Proceeding without deep learning components. "
+            "Detected Python %s on %s. For macOS, install 'tensorflow-macos' and optional 'tensorflow-metal' "
+            "on Python 3.10/3.11; for Linux/Windows install 'tensorflow' on Python < 3.12."
+        ) % (e, py_ver, platform.system())
     )
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -384,18 +391,20 @@ class MediSyncAIInsights:
             tf_risk = {0: 'low_risk', 1: 'moderate_risk', 2: 'high_risk'}[tf_pred_class]
         else:
             tf_risk = 'moderate_risk'
-            tf_confidence = None
+            tf_confidence = 0.0
         
         # Map class indices to risk levels
         risk_levels = {0: 'low_risk', 1: 'moderate_risk', 2: 'high_risk'}
         
         # Random Forest prediction with safe fallback when model is absent/unfitted
+        rf_pred_class_idx = 1  # default to 'moderate_risk'
         if self.rf_model is not None:
             try:
                 rf_pred_class = self.rf_model.predict(X_scaled)[0]
                 rf_pred_proba = self.rf_model.predict_proba(X_scaled)[0]
                 rf_risk = risk_levels[rf_pred_class]
                 feature_importance = getattr(self.rf_model, 'feature_importances_', np.array([]))
+                rf_pred_class_idx = int(rf_pred_class)
             except Exception:
                 rf_pred_proba = np.array([0.2, 0.6, 0.2])
                 rf_risk = risk_levels[1]
@@ -414,7 +423,7 @@ class MediSyncAIInsights:
                 },
                 'random_forest': {
                     'risk_level': rf_risk,
-                    'confidence': float(rf_pred_proba[rf_pred_class])
+                    'confidence': float(rf_pred_proba[rf_pred_class_idx])
                 },
                 'consensus': self._get_consensus_risk(tf_risk, rf_risk)
             },

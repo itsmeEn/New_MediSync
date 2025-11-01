@@ -1578,22 +1578,43 @@ function deriveSpecializationFromCondition(condition: string | null | undefined)
 const nurseHospital = computed(() => (userProfile.value?.hospital_name || '') || (JSON.parse(localStorage.getItem('user') || '{}').hospital_name || ''))
 
 const filteredAvailableDoctors = computed(() => {
-  const spec = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
   const currentHospital = nurseHospital.value
-  
-  return (availableDoctors.value || []).filter((d) => {
-    // Hospital validation: ensure doctor is from the same hospital as the nurse
-    const hospitalOk = currentHospital && d.hospital_name && 
-      String(d.hospital_name).toLowerCase().trim() === String(currentHospital).toLowerCase().trim()
-    
-    // Specialization matching (optional - if patient has a specific condition)
-    const specOk = spec ? (String(d.specialization || '').toLowerCase().includes(String(spec).toLowerCase())) : true
-    
-    // Availability check
-    const availOk = (String(d.availability || d.status || '').toLowerCase() === 'available') || !d.availability
-    
-    return hospitalOk && specOk && availOk
+  const specialization = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
+
+  // Safe normalizer: only accepts strings, otherwise returns empty
+  const norm = (s: unknown) => (typeof s === 'string' ? s.toLowerCase().trim() : '')
+
+  // Base filter: same hospital and available
+  const baseList = (availableDoctors.value || []).filter((d) => {
+    const docHosp = norm(d.hospital_name)
+    const nurseHosp = norm(currentHospital)
+    const hospitalOk = nurseHosp ? (docHosp ? docHosp === nurseHosp : true) : true
+    const statusNorm = norm(d.availability || d.status)
+    const availOk = statusNorm === 'available' || !d.availability
+    return hospitalOk && availOk
   })
+
+  // If no specialization or no base doctors, return base list
+  if (!specialization || baseList.length === 0) return baseList
+
+  // Relaxed specialization matching with heuristics
+  const specNorm = norm(specialization)
+  const roots = [
+    'cardio', 'neuro', 'derma', 'pedia', 'ortho', 'onco', 'ophthal', 'optom',
+    'endo', 'gastro', 'hemato', 'psycho', 'uro', 'neph', 'pulmo', 'rheuma', 'ent'
+  ]
+  const matchesByRoot = (s: unknown) => roots.some((r) => norm(s).includes(r) && specNorm.includes(r))
+
+  const specFiltered = baseList.filter((d) => {
+    const ds = norm(d.specialization)
+    if (!ds) return false
+    if (ds.includes(specNorm) || specNorm.includes(ds)) return true
+    if (matchesByRoot(d.specialization)) return true
+    return false
+  })
+
+  // Fallback: if no matches by specialization, return base list
+  return specFiltered.length > 0 ? specFiltered : baseList
 })
 
 function getInitials(name: string): string {

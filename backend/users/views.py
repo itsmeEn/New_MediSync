@@ -262,10 +262,15 @@ def update_profile(request):
     """
     serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
     if serializer.is_valid():
-        serializer.save()
+        user = serializer.save()
+        # Re-fetch from DB to ensure persistence and return fresh data
+        try:
+            refreshed = User.objects.get(pk=user.pk)
+        except User.DoesNotExist:
+            refreshed = user
         return Response({
             'message': 'Profile updated successfully',
-            'user': UserSerializer(request.user).data
+            'user': UserSerializer(refreshed).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
