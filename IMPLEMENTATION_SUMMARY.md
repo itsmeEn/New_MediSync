@@ -333,3 +333,52 @@ The patient queue notification system has been successfully implemented with:
 
 The system is production-ready and fully functional!
 
+## Doctor Dashboard and Appointments Enhancements (2025-11-01)
+
+### Overview
+- Added appointment actions on the doctor dashboard: Notify Patient, Manage Patient, and Mark as Completed wired to backend endpoints.
+- Normalized appointment identifiers in the dashboard to work with `appointment_id` and `id` interchangeably.
+- Implemented route-based patient preloading in Doctor Patient Management for smooth handoff from dashboard actions.
+- Added a visual indicator for completed appointments in the calendar (strike-through), improving at-a-glance status scanning.
+- Introduced backend tests for `notify_patient_appointment` and `finish_consultation` endpoints.
+
+### Frontend Changes
+- `frontend/src/pages/DoctorDashboard.vue`
+  - Added `notifyPatient()` wiring to `POST /operations/appointments/<appointment_id>/notify-patient/`.
+  - Added `managePatient()` navigation to `DoctorPatientManagement` with query preselection.
+  - Switched `markAsCompleted()` to `POST /operations/appointments/<appointment_id>/finish/` and updated local state.
+  - Normalized fetch of appointments to ensure consistent `id`, `appointment_id`, `patient_name`, `status`, and `consultation_finished_at` fields.
+  - Added action buttons and tooltips in the Upcoming Appointments list.
+- `frontend/src/pages/DoctorAppointment.vue`
+  - Bound a status-based class for calendar rows and added a strike-through style (`.cell-appointment-completed`).
+- `frontend/src/pages/DoctorPatientManagement.vue`
+  - Imported `useRoute` and preselected a patient after assignments load via `patientId`/`patientName` query parameters.
+
+### Backend Changes
+- `backend/operations/tests/test_appointment_endpoints.py` (new)
+  - Test: Notification endpoint queues a message for appointments starting within 15 minutes.
+  - Test: Finish consultation endpoint sets status to `completed` and fills `consultation_finished_at`.
+
+### Architecture Notes
+- Dashboard action flows use backend canonical endpoints to avoid inconsistent PATCH semantics.
+- Patient handoff from dashboard → management uses query-based preselection to avoid additional API calls.
+- UI feedback via Quasar `notify` maintains consistent user feedback across actions.
+
+### Verification
+- Ran the frontend dev server and verified actions in the UI at `http://localhost:9001/`.
+- Calendar view shows completed appointments with a strike-through style.
+- Navigating from dashboard Manage Patient opens the target page with the patient selected when `patientId` or exact `patientName` is present.
+- Backend tests added for critical endpoints; run via Django test runner.
+
+### How to Test
+- Frontend
+  - Start dev server: `npm run dev` in `frontend`.
+  - Go to Doctor Dashboard, use Notify/Manage/Complete on appointments.
+  - Open Doctor Appointments calendar and confirm strike-through on completed items.
+- Backend
+  - Run `python manage.py test backend/operations/tests/test_appointment_endpoints.py`.
+
+### Impact
+- No breaking changes; identifier normalization covers mixed `id`/`appointment_id` payloads.
+- Actions now use robust backend endpoints with queue-side effects managed on the server.
+

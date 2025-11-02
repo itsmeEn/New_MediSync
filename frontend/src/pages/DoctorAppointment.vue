@@ -445,6 +445,7 @@
                   v-for="(appt, idx) in day.appointments.slice(0, 3)"
                   :key="`appt-${weekIndex}-${dayIndex}-${idx}`"
                   class="cell-appointment-row"
+                  :class="{ 'cell-appointment-completed': (appt?.status || '').toLowerCase() === 'completed' }"
                 >
                   <span class="cell-appt-time">
                     {{ formatTime(appt.appointment_time || appt.appointment_date) }}
@@ -2375,6 +2376,11 @@ onUnmounted(() => {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.cell-appointment-completed {
+  text-decoration: line-through;
+  opacity: 0.65;
 }
 
 .cell-appt-time {

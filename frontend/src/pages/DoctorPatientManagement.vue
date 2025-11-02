@@ -1005,6 +1005,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
 import type { AxiosError } from 'axios';
@@ -1497,6 +1498,28 @@ const loadPatients = async () => {
         is_dummy: false
       }));
       console.log('Assigned patients loaded:', patients.value.length, 'User role:', userProfile.value.role);
+      // Try preselecting patient based on route query parameters
+      try {
+        const route = useRoute();
+        const q = route.query as Record<string, string | string[]>;
+        const pidRaw = q.patientId ?? q.patient_id;
+        const pnameRaw = q.patientName ?? q.patient_name;
+        let candidate: Patient | undefined;
+        if (pidRaw) {
+          const pid = Number(Array.isArray(pidRaw) ? pidRaw[0] : pidRaw);
+          candidate = patients.value.find(p => p.id === pid || p.user_id === pid);
+        }
+        if (!candidate && pnameRaw) {
+          const pname = String(Array.isArray(pnameRaw) ? pnameRaw[0] : pnameRaw).toLowerCase();
+          candidate = patients.value.find(p => (p.full_name || p.patient_name || '').toLowerCase() === pname);
+        }
+        if (candidate) {
+          selectPatient(candidate);
+          $q.notify({ type: 'info', message: `Preloaded patient: ${candidate.full_name}`, position: 'top' });
+        }
+      } catch (e) {
+        console.warn('Route-based preselection failed', e);
+      }
       const first = patients.value[0];
       if (first) { void loadVerificationStatus(first); }
     } else {

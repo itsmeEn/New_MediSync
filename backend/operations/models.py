@@ -410,29 +410,23 @@ class DoctorTimeSlot(models.Model):
         return f"{self.hospital_department_doctor} @ {self.date} {self.start_time}-{self.end_time}"
     
     def save(self, *args, **kwargs):
-        """Ensure valid scheduling and auto-populate derived fields."""
-        # Only enforce future dates when scheduling or rescheduling
+        """Validate slot time ranges and availability constraints before saving."""
+        # Validate time range
+        if self.start_time >= self.end_time:
+            raise ValueError("Start time must be before end time.")
+
+        # Disable availability if slot date is in the past
         try:
-            status_requires_future = self.status in ["scheduled", "rescheduled"]
+            if self.date < timezone.now().date():
+                self.is_available = False
         except Exception:
-            status_requires_future = True
+            # If timezone comparison fails, proceed safely
+            pass
 
-        if status_requires_future and self.appointment_date < timezone.now():
-            raise ValueError("Appointment date cannot be in the past for scheduled/rescheduled appointments.")
-
-        # Auto-populate appointment_time from appointment_date if missing
-        if not self.appointment_time and self.appointment_date:
-            try:
-                self.appointment_time = self.appointment_date.time()
-            except Exception:
-                pass
-
-        # Auto-assign a globally unique queue_number if missing
-        if not self.queue_number:
-            last_queue_number = AppointmentManagement.objects.aggregate(
-                maximum_queue_number=models.Max("queue_number")
-            )["maximum_queue_number"] or 0
-            self.queue_number = last_queue_number + 1
+        # Enforce capacity constraints
+        if self.booked_count is not None and self.capacity is not None:
+            if self.booked_count >= self.capacity:
+                self.is_available = False
 
         super().save(*args, **kwargs)
 

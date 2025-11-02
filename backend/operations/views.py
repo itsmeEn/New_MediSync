@@ -387,6 +387,76 @@ def finish_consultation(request, appointment_id):
     except Exception as e:
         return Response({'error': f'Failed to finish consultation: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def notify_patient_appointment(request, appointment_id):
+    """
+    Notify the patient that their appointment is imminent (within 15 minutes).
+    Persists a Notification for audit and broadcasts via WebSocket.
+    """
+    try:
+        appt = AppointmentManagement.objects.filter(appointment_id=appointment_id).select_related('patient', 'doctor').first()
+        if not appt:
+            return Response({'error': 'Appointment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        is_doctor = hasattr(user, 'doctor_profile') or getattr(user, 'role', '') == 'doctor'
+        is_nurse = getattr(user, 'role', '') == 'nurse'
+        if not (is_doctor or is_nurse):
+            return Response({'error': 'Only doctors or nurses can send notifications'}, status=status.HTTP_403_FORBIDDEN)
+
+        now = timezone.now()
+        appt_dt = appt.appointment_date
+        if not appt_dt:
+            return Response({'error': 'Appointment date/time not set'}, status=status.HTTP_400_BAD_REQUEST)
+
+        delta = appt_dt - now
+        if delta.total_seconds() < 0 or delta > timedelta(minutes=15):
+            return Response({'error': 'Notification allowed only within 15 minutes before start'}, status=status.HTTP_400_BAD_REQUEST)
+
+        patient_user = getattr(appt.patient, 'user', None)
+        doctor_user = getattr(appt.doctor, 'user', None)
+        doctor_name = getattr(doctor_user, 'full_name', 'your doctor') if doctor_user else 'your doctor'
+        try:
+            display_time = appt_dt.astimezone(timezone.get_current_timezone()).strftime('%I:%M %p')
+        except Exception:
+            display_time = appt_dt.strftime('%I:%M %p')
+        message = f"Your appointment with {doctor_name} starts soon at {display_time}."
+
+        notif = Notification.objects.create(
+            user=patient_user,
+            message=message,
+            channel=Notification.CHANNEL_PUSH,
+            delivery_status=Notification.DELIVERY_PENDING,
+        )
+
+        # Broadcast via WebSocket to patient's messaging group
+        try:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f'messaging_{patient_user.id}',
+                {
+                    'type': 'notification',
+                    'notification': {
+                        'event': 'appointment_imminent',
+                        'appointment_id': appt.appointment_id,
+                        'department': appt.department,
+                        'timestamp': now.isoformat(),
+                        'notification': NotificationSerializer(notif).data,
+                    },
+                },
+            )
+            notif.delivery_status = Notification.DELIVERY_SENT
+            notif.sent_at = timezone.now()
+            notif.save()
+        except Exception:
+            # Leave as pending for retry/background sender
+            pass
+
+        return Response({'message': 'Notification queued', 'notification': NotificationSerializer(notif).data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to send notification: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def doctor_pending_assessments(request):
@@ -677,14 +747,15 @@ def schedule_appointment(request):
             time_dt = datetime.strptime(time_str, '%H:%M')
 
             # Combine keeping date from date_dt and time from time_dt
-            combined_dt = datetime(
+            naive_dt = datetime(
                 year=date_dt.year,
                 month=date_dt.month,
                 day=date_dt.day,
                 hour=time_dt.hour,
                 minute=time_dt.minute,
-                tzinfo=timezone.get_current_timezone()
             )
+            # Make timezone-aware using the current timezone to avoid DST/offset issues
+            combined_dt = timezone.make_aware(naive_dt, timezone.get_current_timezone())
         except Exception:
             return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -827,14 +898,14 @@ def reschedule_appointment(request, appointment_id):
             
             time_dt = datetime.strptime(time_str, '%H:%M')
             
-            combined_dt = datetime(
+            naive_dt = datetime(
                 year=date_dt.year,
                 month=date_dt.month,
                 day=date_dt.day,
                 hour=time_dt.hour,
                 minute=time_dt.minute,
-                tzinfo=timezone.get_current_timezone()
             )
+            combined_dt = timezone.make_aware(naive_dt, timezone.get_current_timezone())
         except Exception:
             return Response({'error': 'Invalid date or time format'}, status=status.HTTP_400_BAD_REQUEST)
         

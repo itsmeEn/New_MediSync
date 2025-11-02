@@ -40,7 +40,8 @@ export const useAppointmentsStore = defineStore('appointments', () => {
     loading.value = true
     error.value = null
     try {
-      const response = await api.get('/operations/appointments/')
+      // Use patient-scoped endpoint to avoid leaking other users' data
+      const response = await api.get('/operations/patient/appointments/')
       type AppointmentDTO = {
         appointment_id?: number
         id?: number
@@ -49,6 +50,7 @@ export const useAppointmentsStore = defineStore('appointments', () => {
         type?: string
         appointment_date?: string
         date?: string
+        appointment_time?: string
         doctor_name?: string
         doctor?: string
         reason?: string
@@ -59,8 +61,8 @@ export const useAppointmentsStore = defineStore('appointments', () => {
       appointments.value = raw.map((a) => {
         const dt = a.appointment_date ?? a.date
         const d = dt ? new Date(dt) : null
-        const dateStr = d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] : (a.date ?? '')
-        const timeStr = d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : (a.time ?? '')
+        const dateStr = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : (a.date ?? '')
+        const timeStr = d ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : (a.appointment_time ?? a.time ?? '')
         const statusMap: Record<string, Appointment['status']> = {
           scheduled: 'upcoming',
           completed: 'completed',

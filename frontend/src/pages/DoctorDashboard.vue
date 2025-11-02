@@ -184,10 +184,30 @@
                       <q-btn
                         round
                         flat
+                        icon="notifications_active"
+                        color="primary"
+                        @click="notifyPatient(appointment)"
+                        class="q-mr-sm"
+                      >
+                        <q-tooltip>Notify Patient</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        round
+                        flat
+                        icon="manage_accounts"
+                        color="secondary"
+                        @click="managePatient(appointment)"
+                        class="q-mr-sm"
+                      >
+                        <q-tooltip>Manage Patient</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        round
+                        flat
                         icon="check_circle"
                         color="positive"
                         @click="markAsCompleted(appointment)"
-                        v-if="appointment.status === 'confirmed'"
+                        v-if="isCompletable(appointment)"
                         class="q-mr-sm"
                       >
                         <q-tooltip>Mark as Completed</q-tooltip>
@@ -444,6 +464,27 @@
         </q-card>
       </q-dialog>
 
+      <!-- Notify Patient Success Dialog -->
+      <q-dialog v-model="showNotifyDialog" persistent>
+        <q-card class="modal-card">
+          <q-card-section class="modal-header">
+            <div class="modal-title">Patient Notification Sent</div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
+          </q-card-section>
+
+          <q-card-section v-if="notifyDialogInfo">
+            <div class="q-mb-sm"><strong>Patient:</strong> {{ notifyDialogInfo.patientName }}</div>
+            <div class="q-mb-sm"><strong>Appointment ID:</strong> {{ notifyDialogInfo.appointmentId }}</div>
+            <div class="text-grey-7">{{ notifyDialogInfo.message }}</div>
+          </q-card-section>
+
+          <q-card-actions align="right">
+            <q-btn flat label="Close" color="primary" v-close-popup />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
       <!-- Follow-up Scheduling Dialog -->
       <q-dialog v-model="showFollowUpDialog" persistent>
         <q-card style="min-width: 400px">
@@ -596,6 +637,8 @@ const totalPatientsModal = ref(false);
 const completedAppointmentsModal = ref(false);
 const pendingAssessmentsModal = ref(false);
 const showNotifications = ref(false);
+const showNotifyDialog = ref(false);
+const notifyDialogInfo = ref<null | { patientName: string; appointmentId: number; message: string }>(null);
 
 // Modal data
 const todayAppointments = ref<Appointment[]>([]);
@@ -972,14 +1015,84 @@ function viewMedicalAssessment(appointment: Appointment) {
   showMedicalAssessmentDialog.value = true;
 }
 
+function getAppointmentId(appt: Appointment): number {
+  // Support both id and appointment_id coming from backend
+  const anyAppt = appt as unknown as { id?: number; appointment_id?: number };
+  return Number(anyAppt.appointment_id ?? anyAppt.id ?? -1);
+}
+
+function isCompletable(appt: Appointment): boolean {
+  const status = String(appt?.status || '').toLowerCase();
+  // Show complete action for active appointments
+  return status === 'confirmed' || status === 'scheduled';
+}
+
+async function notifyPatient(appointment: Appointment) {
+  try {
+    const apptId = getAppointmentId(appointment);
+    if (!apptId || apptId < 0) {
+      $q.notify({ type: 'negative', message: 'Invalid appointment ID', position: 'top' });
+      return;
+    }
+
+    const resp = await api.post(`/operations/appointments/${apptId}/notify-patient/`);
+    const backendMsg = resp?.data?.message || 'Patient notification queued';
+    const patientName = String(appointment.patient?.name ?? appointment.patient_name ?? 'Patient');
+
+    // Toast confirmation
+    $q.notify({ type: 'positive', message: backendMsg, position: 'top' });
+
+    // Success popup dialog
+    notifyDialogInfo.value = { patientName, appointmentId: apptId, message: backendMsg };
+    showNotifyDialog.value = true;
+  } catch (error) {
+    console.error('Failed to notify patient:', error);
+    const err = error;
+    let httpStatus: number | undefined;
+    let serverMsg: string | undefined;
+    if (typeof err === 'object' && err && 'response' in err) {
+      const resp = (err as { response?: { status?: number; data?: { error?: string; message?: string } } }).response;
+      httpStatus = resp?.status;
+      serverMsg = resp?.data?.error ?? resp?.data?.message;
+    }
+    let friendlyMsg = serverMsg || (err instanceof Error ? err.message : 'Failed to notify patient');
+
+    if (httpStatus === 401) {
+      friendlyMsg = 'Authentication required. Please sign in again.';
+    } else if (httpStatus === 403) {
+      friendlyMsg = 'Insufficient permissions to notify patient.';
+    } else if (httpStatus === 400) {
+      friendlyMsg = serverMsg || 'Notification allowed only shortly before the appointment start time.';
+    }
+
+    $q.notify({ type: 'negative', message: friendlyMsg, position: 'top' });
+  }
+}
+
+async function managePatient(appointment: Appointment) {
+  try {
+    const anyAppt = appointment as unknown as { patient?: { id?: number; name?: string }; patient_id?: number };
+    const pid = Number(anyAppt.patient?.id ?? anyAppt.patient_id ?? NaN);
+    const query: Record<string, string> = {};
+    if (!Number.isNaN(pid)) {
+      query.patientId = String(pid);
+    } else if (appointment.patient_name) {
+      query.patientName = String(appointment.patient_name);
+    }
+    await router.push({ name: 'DoctorPatientManagement', query });
+  } catch (error) {
+    console.error('Failed to navigate to patient management:', error);
+    $q.notify({ type: 'negative', message: 'Navigation error', position: 'top' });
+  }
+}
+
 async function markAsCompleted(appointment: Appointment) {
   try {
-    await api.patch(`/operations/appointments/${appointment.id}/`, {
-      status: 'completed',
-    });
+    const apptId = getAppointmentId(appointment);
+    await api.post(`/operations/appointments/${apptId}/finish/`);
 
     // Update local appointment
-    const index = appointments.value.findIndex((a) => a.id === appointment.id);
+    const index = appointments.value.findIndex((a) => getAppointmentId(a) === apptId);
     if (index !== -1 && appointments.value[index]) {
       appointments.value[index].status = 'completed';
     }
@@ -1072,7 +1185,44 @@ async function cancelAppointment(appointment: Appointment) {
 async function fetchAppointments() {
   try {
     const response = await api.get('/operations/appointments/');
-    appointments.value = response.data;
+    const raw = Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
+    // Normalize to ensure id and fields present
+    type BackendAppointment = {
+      id?: number;
+      appointment_id?: number;
+      patient_name?: string;
+      patient?: { id?: number; name?: string } | null;
+      appointment_date?: string;
+      date?: string;
+      appointment_time?: string;
+      time?: string;
+      status?: string;
+      consultation_finished_at?: string;
+      completed_at?: string;
+    };
+
+    const mapped = (raw as BackendAppointment[]).map((a) => {
+      const patientObj = a?.patient && typeof a.patient === 'object' ? a.patient : null;
+      const appt: Appointment = {
+        id: Number(a?.id ?? a?.appointment_id ?? -1),
+        patient_name: String(a?.patient_name ?? (patientObj?.name ?? '')),
+        appointment_date: String(a?.appointment_date ?? a?.date ?? ''),
+        appointment_time: String(a?.appointment_time ?? a?.time ?? ''),
+        status: String(a?.status ?? 'scheduled'),
+        completed_at: a?.consultation_finished_at ?? a?.completed_at ?? undefined,
+        appointment_id: Number(a?.appointment_id ?? a?.id ?? -1),
+      } as Appointment;
+
+      if (patientObj) {
+        appt.patient = {
+          id: Number((patientObj as { id?: number }).id ?? -1),
+          name: String((patientObj as { name?: string }).name ?? ''),
+        };
+      }
+
+      return appt;
+    });
+    appointments.value = mapped;
   } catch (error) {
     console.error('Failed to fetch appointments:', error);
     $q.notify({
