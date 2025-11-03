@@ -51,6 +51,74 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     """
     serializer_class = CustomTokenObtainPairSerializer
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_specializations(request):
+    """
+    Public endpoint: return a distinct, user-visible list of doctor specializations.
+
+    Combines a curated list provided by product with distinct values from
+    the database (`GeneralDoctorProfile.specialization`). De-duplicates
+    case-insensitively while preserving human-friendly labels.
+    """
+    try:
+        curated = [
+            'Cardiology',
+            'Dermatology',
+            'Gastroenterology',
+            'Neurology',
+            'Pediatrics',
+            'Internal Medicine',
+            'Psychiatry',
+            'Obstetrics and Gynecology (OB-GYN)',
+            'Oncology',
+            'Anesthesiology',
+            'General Surgery',
+            'Orthopedic Surgery',
+            'Ophthalmology',
+            'Radiology',
+            'Pulmonology',
+            'Nephrology',
+            'Endocrinology',
+            'Otolaryngology (ENT)',
+            'Rheumatology',
+        ]
+
+        # Build normalization map from DB values
+        rows = GeneralDoctorProfile.objects.values_list('specialization', flat=True)
+        normalized_map = {}
+        for raw in rows:
+            label = (raw or '').trim() if hasattr(raw, 'trim') else (raw or '').strip()
+            label = label.strip()
+            if not label:
+                continue
+            key = ' '.join(label.lower().split())  # case-insensitive, collapse spaces
+            if key not in normalized_map:
+                normalized_map[key] = label
+
+        # Start with curated list in the provided order
+        out = []
+        seen = set()
+        for label in curated:
+            key = ' '.join(label.lower().split())
+            if key not in seen:
+                out.append(label)
+                seen.add(key)
+
+        # Append DB extras not already in curated, sorted for stability
+        db_extras = [v for k, v in normalized_map.items() if k not in seen]
+        out.extend(sorted(db_extras, key=lambda s: s.lower()))
+
+        return Response({ 'specializations': out }, status=status.HTTP_200_OK)
+    except Exception as e:
+        # Return curated list on error to avoid blocking registration
+        return Response({ 'specializations': [
+            'Cardiology', 'Dermatology', 'Gastroenterology', 'Neurology', 'Pediatrics',
+            'Internal Medicine', 'Psychiatry', 'Obstetrics and Gynecology (OB-GYN)', 'Oncology',
+            'Anesthesiology', 'General Surgery', 'Orthopedic Surgery', 'Ophthalmology', 'Radiology',
+            'Pulmonology', 'Nephrology', 'Endocrinology', 'Otolaryngology (ENT)', 'Rheumatology'
+        ], 'error': f'Failed to load specializations: {str(e)}' }, status=status.HTTP_200_OK)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
@@ -953,6 +1021,12 @@ def doctor_patient_forms_overview(request, patient_id):
             'id': profile.id,
             'full_name': profile.user.full_name,
             'email': profile.user.email,
+            # Include minimal demographics so doctor UI can render consistently
+            'gender': profile.user.gender,
+            'date_of_birth': profile.user.date_of_birth,
+            'age': calculate_age(profile.user.date_of_birth) if profile.user.date_of_birth else None,
+            'blood_type': profile.blood_type,
+            'medical_condition': profile.medical_condition,
         },
         'forms': {
             'history_physical_forms': list(profile.history_physical_forms or []),

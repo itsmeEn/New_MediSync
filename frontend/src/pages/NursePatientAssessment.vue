@@ -1403,6 +1403,8 @@ const saveIntake = async () => {
             ...payload,
             archived_at: new Date().toISOString(),
             nurse_name: userProfile.value.full_name,
+            // Persist MRN captured during registration so it appears in Archive
+            mrn: registrationForm.value.mrn || ''
           }
           const archivePayload: Record<string, unknown> = {
             patient_id: patientUserIdNum,

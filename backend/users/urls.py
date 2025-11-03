@@ -8,6 +8,8 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('login/', views.login, name='login'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Public list of doctor specializations (for registration dropdown)
+    path('specializations/', views.list_specializations, name='list_specializations'),
 
     # API endpoints for user profiles
     path('profile/', views.get_user_profile, name='get_user_profile'),

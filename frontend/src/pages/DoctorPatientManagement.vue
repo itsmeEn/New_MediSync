@@ -234,6 +234,7 @@
 
             <!-- Medical Requests Card removed per refactor -->
 
+
             <!-- List of Available Nurses Card -->
             <q-card class="dashboard-card nurses-card q-mt-lg">
               <q-card-section class="card-content">
@@ -853,6 +854,28 @@
         <q-card-section class="card-header">
           <div class="card-title">Nurse Intake Assessment</div>
         </q-card-section>
+        <!-- Inline Patient Demographics positioned on top of intake content -->
+        <q-card-section class="card-content">
+          <div class="row items-center justify-between q-mb-xs">
+            <div class="text-subtitle2">Patient Demographics</div>
+            <q-btn flat dense size="sm" icon="refresh" label="Refresh" @click="refreshDemographics" />
+          </div>
+          <div v-if="demoLoading" class="row items-center q-gutter-sm q-mb-sm">
+            <q-spinner color="primary" size="1.5em" />
+            <span class="text-caption">Loading demographics...</span>
+          </div>
+          <div v-else-if="demographics" class="row q-col-gutter-sm q-mb-md demographics-inline">
+            <div class="col-12 text-weight-medium">{{ demographicFullName || selectedPatient?.full_name }}</div>
+            <div class="col-6"><strong>DOB:</strong> {{ formattedDOB || '—' }}</div>
+            <div class="col-6"><strong>Age:</strong> {{ demographicAge || (demographics.age ?? '') || (selectedPatient?.age ?? '') || '—' }}</div>
+            <div class="col-6"><strong>Sex:</strong> {{ demographics.sex || selectedPatient?.gender || '—' }}</div>
+            <div v-if="demographics.mrn || selectedPatient?.mrn" class="col-6"><strong>MRN:</strong> {{ demographics.mrn || selectedPatient?.mrn }}</div>
+            <div class="col-12"><strong>Email:</strong> {{ demographics.email || selectedPatient?.email || '—' }}</div>
+          </div>
+          <div v-else class="q-mb-md">
+            <q-banner dense icon="info">No demographics found</q-banner>
+          </div>
+        </q-card-section>
         <q-card-section class="card-content">
           <div v-if="nurseIntakeLoading" class="loading-section">
             <q-spinner color="primary" size="2em" />
@@ -1059,6 +1082,51 @@ const nurseIntakeView = computed(() => {
     return ''
   }
 
+  // Render allergies in a human-readable form instead of JSON
+  const formatAllergies = (v: unknown): string => {
+    const toText = (x: unknown): string => {
+      if (x === null || x === undefined) return ''
+      if (typeof x === 'string') return x.trim()
+      if (typeof x === 'number' || typeof x === 'boolean') return String(x)
+      return ''
+    }
+
+    if (v === null || v === undefined) return ''
+
+    // Array of objects [{substance, reaction}] or [{name, reaction}] → "Penicillin — Rash"
+    if (Array.isArray(v)) {
+      const items = v
+        .map((it) => {
+          if (it && typeof it === 'object') {
+            const obj = it as Record<string, unknown>
+            const substance = toText(obj['substance'] ?? obj['name'])
+            const reaction = toText(obj['reaction'])
+            if (substance && reaction) return `${substance} — ${reaction}`
+            if (substance) return substance
+            if (reaction) return reaction
+            return ''
+          }
+          return toText(it)
+        })
+        .filter((s) => s.length > 0)
+      return items.join(', ')
+    }
+
+    // Single object {substance, reaction}
+    if (typeof v === 'object') {
+      const obj = v as Record<string, unknown>
+      const substance = toText(obj['substance'] ?? obj['name'])
+      const reaction = toText(obj['reaction'])
+      if (substance && reaction) return `${substance} — ${reaction}`
+      if (substance) return substance
+      if (reaction) return reaction
+      return ''
+    }
+
+    // Fallback: primitives only
+    return toText(v)
+  }
+
   const vitalsRaw = (d['vitals'] || d['vital_signs'] || {}) as Record<string, unknown>
   const vitals = {
     blood_pressure: str(vitalsRaw['blood_pressure'] || vitalsRaw['bp']),
@@ -1070,7 +1138,7 @@ const nurseIntakeView = computed(() => {
 
   return {
     chief_complaint: str(d['chief_complaint'] || d['complaint']),
-    allergies: str(d['allergies'] || d['known_allergies']),
+    allergies: formatAllergies(d['allergies'] || d['known_allergies']),
     current_medications: str(d['current_medications'] || d['medications']),
     medical_history: str(d['medical_history'] || d['history']),
     assessment_notes: str(d['assessment_notes'] || d['notes'] || d['nurse_notes']),
@@ -1250,6 +1318,148 @@ const getErrorMessage = (e: unknown): string => {
   }
   try { return JSON.stringify(e); } catch { return String(e); }
 };
+
+// Demographics state and helpers
+type Demographics = {
+  mrn?: string; firstName?: string; middleName?: string; lastName?: string;
+  dob?: string; age?: number; sex?: string; maritalStatus?: string; nationality?: string;
+  homeAddress?: string; cellPhone?: string; homePhone?: string; email?: string;
+  emergencyName?: string; emergencyRelationship?: string; emergencyPhone?: string;
+}
+const demographics = ref<Demographics | null>(null)
+const demoLoadError = ref<string | null>(null)
+const demoLoading = ref(false)
+const DEMO_TTL_MS = 5 * 60 * 1000
+const demoCache = new Map<number, { data: Demographics; ts: number }>()
+
+const demographicFullName = computed(() => {
+  const d = demographics.value
+  if (!d) return ''
+  const names = [d.firstName, d.middleName, d.lastName].filter(Boolean)
+  return names.join(' ').trim()
+})
+const formattedDOB = computed(() => {
+  const dob = demographics.value?.dob
+  if (!dob) return ''
+  try { return new Date(dob).toLocaleDateString() } catch { return String(dob) }
+})
+const demographicAge = computed(() => {
+  const dob = demographics.value?.dob
+  if (!dob) return ''
+  try {
+    const d = new Date(dob)
+    const diff = Date.now() - d.getTime()
+    const ageDt = new Date(diff)
+    return Math.abs(ageDt.getUTCFullYear() - 1970)
+  } catch { return '' }
+})
+
+const mergePatientOverview = (patient: Patient, base: Demographics | null): Demographics => {
+  const merged: Demographics = { ...(base || {}) }
+  if (!merged.email && patient.email) merged.email = patient.email
+  if (!merged.sex && patient.gender) merged.sex = patient.gender
+  // No DOB or address in patient list; keep base if present
+  return merged
+}
+
+const tryLoadDemographicsLocal = (pid: number): Demographics | null => {
+  const mainKey = `patient_reg_${pid}`
+  const draftKey = `patient_reg_draft_${pid}`
+  try {
+    const raw = localStorage.getItem(mainKey)
+    if (raw) return JSON.parse(raw)
+    const draftRaw = localStorage.getItem(draftKey)
+    if (draftRaw) return JSON.parse(draftRaw)
+  } catch { /* ignore */ }
+  return null
+}
+
+const loadDemographics = async (): Promise<void> => {
+  demoLoadError.value = null
+  demographics.value = null
+  if (!selectedPatient.value) return
+
+  const pid = Number(selectedPatient.value.id || selectedPatient.value.user_id)
+  if (!Number.isFinite(pid)) {
+    demoLoadError.value = 'Invalid patient identifier'
+    return
+  }
+
+  // Use cache when fresh
+  const cached = demoCache.get(pid)
+  const now = Date.now()
+  if (cached && now - cached.ts < DEMO_TTL_MS) {
+    demographics.value = cached.data
+    return
+  }
+
+  demoLoading.value = true
+  try {
+    // 1) Try localStorage (nurse registration)
+    const localData = tryLoadDemographicsLocal(pid)
+    let merged = mergePatientOverview(selectedPatient.value, localData)
+
+    // 2) If still empty, attempt minimal overview endpoint to ensure we at least have email
+    if (!merged || Object.keys(merged).length === 0) {
+      try {
+        const resp = await api.get(`/users/doctor/patient/${pid}/forms/`)
+        const p = resp.data?.patient
+        if (p && typeof p === 'object') {
+          const overview: Demographics = {
+            email: p.email,
+            sex: p.gender,
+            dob: p.date_of_birth,
+            age: p.age,
+          }
+          merged = mergePatientOverview(selectedPatient.value, overview)
+        }
+      } catch { /* non-blocking */ }
+    }
+
+    if (!merged || Object.keys(merged).length === 0) {
+      demoLoadError.value = 'Demographics not found for selected patient.'
+      demographics.value = null
+    } else {
+      demographics.value = merged
+      demoCache.set(pid, { data: merged, ts: Date.now() })
+    }
+  } catch (e) {
+    console.warn('Failed to load demographics', e)
+    demoLoadError.value = 'Unable to load demographics; please retry.'
+    demographics.value = null
+  } finally {
+    demoLoading.value = false
+  }
+}
+
+const refreshDemographics = (): void => {
+  if (!selectedPatient.value) return
+  const pid = Number(selectedPatient.value.id || selectedPatient.value.user_id)
+  demoCache.delete(pid)
+  void loadDemographics()
+}
+
+// Limited polling with exponential backoff when demographics missing
+const loadDemographicsWithBackoff = async (): Promise<void> => {
+  await loadDemographics()
+  if (!demographics.value) {
+    const delays = [1000, 2000, 4000]
+    for (const d of delays) {
+      await new Promise(res => setTimeout(res, d))
+      await loadDemographics()
+      if (demographics.value) break
+    }
+  }
+}
+
+watch(selectedPatient, (p) => {
+  if (p) {
+    void loadDemographicsWithBackoff()
+  } else {
+    demographics.value = null
+    demoLoadError.value = null
+  }
+})
 
 const loadAvailableNurses = async (): Promise<void> => {
   nursesLoading.value = true;
@@ -1563,7 +1773,9 @@ const loadVerificationStatus = async (patient: Patient) => {
 };
 
 const viewPatientDetails = (patient: Patient) => {
-  // For now, 'View' opens the nurse intake assessment for the selected patient
+  // Ensure the clicked patient is selected so demographics load and bind correctly
+  selectedPatient.value = patient;
+  // Open the nurse intake assessment dialog
   void openNurseIntake(patient)
 };
 

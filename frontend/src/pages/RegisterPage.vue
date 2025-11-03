@@ -112,8 +112,8 @@
                     required
                   >
                     <option value="">Select specialization</option>
-                    <option v-for="opt in departmentOptions" :key="opt.value" :value="opt.value">
-                      {{ opt.label }}
+                    <option v-for="spec in specializationOptions" :key="spec" :value="spec">
+                      {{ spec }}
                     </option>
                   </select>
                 </div>
@@ -238,6 +238,39 @@ const roleTitle = computed(() => {
 // (Legacy fetchHospitals removed; HospitalSelection handles fetching/persistence)
 onMounted(() => {
   role.value = String(route.params.role || '').toLowerCase();
+  if (role.value === 'doctor') {
+    void loadSpecializations();
+  }
+});
+
+// Specializations dropdown options
+const specializationOptions = ref<string[]>([]);
+const specializationLoading = ref(false);
+const specializationError = ref<string | null>(null);
+
+const loadSpecializations = async () => {
+  if (specializationLoading.value) return;
+  specializationLoading.value = true;
+  specializationError.value = null;
+  try {
+    const resp = await api.get('/users/specializations/');
+    const specs = Array.isArray(resp.data?.specializations) ? resp.data.specializations : [];
+    specializationOptions.value = specs;
+    // If nothing loaded, keep dropdown usable with an empty list
+  } catch (e) {
+    specializationOptions.value = [];
+    specializationError.value = 'Failed to load specializations';
+    console.error('[RegisterPage] Failed to load specializations:', e);
+  } finally {
+    specializationLoading.value = false;
+  }
+};
+
+// Load specializations when role switches to doctor
+watch(role, (newRole) => {
+  if (newRole === 'doctor' && specializationOptions.value.length === 0) {
+    void loadSpecializations();
+  }
 });
 
 // Password strength calculation
