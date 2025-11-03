@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import NurseHeader from 'components/NurseHeader.vue'
 import NurseSidebar from 'components/NurseSidebar.vue'
@@ -255,14 +255,14 @@ const viewArchive = async (rec: ArchiveRecord) => {
 const exportArchive = async (rec: ArchiveRecord) => {
   try {
     const res = await api.get(`/operations/archives/${rec.id}/export/`, { responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/json' })
+    const blob = new Blob([res.data], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `archive_${rec.id}.json`
+    a.download = `archive_${rec.id}.pdf`
     a.click()
     URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archive exported', position: 'top' })
+    $q.notify({ type: 'positive', message: 'Archive exported (PDF)', position: 'top' })
   } catch (err) {
     console.error('Export failed:', err)
     $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
@@ -424,6 +424,12 @@ const unarchiveSelected = async () => {
     $q.notify({ type: 'negative', message: msg, position: 'top' })
   }
 }
+
+// Auto-load archives on page mount
+onMounted(() => {
+  // Load with current (empty) filters so users immediately see data
+  void searchArchives()
+})
 </script>
 
 <style scoped>

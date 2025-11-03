@@ -6,11 +6,14 @@ from django.utils import timezone
 from datetime import datetime
 from django.core.cache import cache
 from django.db import transaction
+from django.http import HttpResponse
 import os
 
 from backend.users.models import User, GeneralDoctorProfile
+from backend.users.models import PatientProfile
 from .models import PatientAssessmentArchive, ArchiveAccessLog
 from .serializers import PatientAssessmentArchiveSerializer, ArchiveAccessLogSerializer
+from .pdf_service import generate_archive_pdf
 
 import hmac
 import hashlib
@@ -75,6 +78,45 @@ def _record_payload_for_dual_store(record: PatientAssessmentArchive) -> dict:
         'hospital_name': record.hospital_name,
         'assessment': record.decrypt_payload(),
     }
+
+
+def _collect_full_profile(user: User) -> dict:
+    """Aggregate a patient's full record from PatientProfile JSON fields.
+    Includes demographics and major nursing/doctor-centric sections.
+    """
+    data = {}
+    try:
+        profile = user.patient_profile
+    except PatientProfile.DoesNotExist:
+        profile = None
+    if not profile:
+        return data
+
+    mapping = {
+        'nursing_intake_assessment': 'nursing_intake_assessment',
+        'graphic_flow_sheets': 'graphic_flow_sheets',
+        'medication_administration_records': 'medication_administration_records',
+        'patient_education_record': 'patient_education_record',
+        'discharge_checklist_summary': 'discharge_checklist_summary',
+        'history_and_physical': 'history_and_physical',
+        'progress_notes': 'progress_notes',
+        'provider_order_sheets': 'provider_order_sheets',
+        'operative_procedure_reports': 'operative_procedure_reports',
+    }
+
+    for key, attr in mapping.items():
+        data[key] = getattr(profile, attr, None)
+
+    # Minimal demographics snapshot
+    data['patient'] = {
+        'id': getattr(user, 'id', None),
+        'full_name': getattr(user, 'full_name', ''),
+        'email': getattr(user, 'email', ''),
+        'date_of_birth': str(getattr(user, 'date_of_birth', '') or ''),
+        'gender': getattr(user, 'gender', ''),
+        'mrn': getattr(user, 'mrn', ''),
+    }
+    return data
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -219,6 +261,12 @@ def archive_create(request):
         if not user:
             return Response({'error': 'Patient not found', 'code': 'ERR_PATIENT_NOT_FOUND'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Authorization: only doctors, nurses, and admins may archive
+        actor_role = str(getattr(request.user, 'role', '') or '').lower()
+        if actor_role not in ('doctor', 'nurse', 'admin'):
+            ArchiveAccessLog.objects.create(user=request.user, action='create', record=None, query_params=json.dumps({'status': 'failure', 'code': 'ERR_FORBIDDEN_ROLE', 'actor_role': actor_role}))
+            return Response({'error': 'Not authorized to archive records', 'code': 'ERR_FORBIDDEN_ROLE'}, status=status.HTTP_403_FORBIDDEN)
+
         # Basic validation
         if not assessment_type_val:
             return Response({'error': 'assessment_type is required', 'code': 'ERR_MISSING_TYPE'}, status=status.HTTP_400_BAD_REQUEST)
@@ -238,13 +286,32 @@ def archive_create(request):
         if signature and not _verify_signature(assessment_data_val, signature):
             ArchiveAccessLog.objects.create(user=request.user, action='create', record=None, query_params=json.dumps({'doctor_id': doctor_id, 'specialization': specialization, 'status': 'failure', 'code': 'ERR_BAD_SIGNATURE'}))
             return Response({'error': 'Bad digital signature', 'code': 'ERR_BAD_SIGNATURE'}, status=status.HTTP_401_UNAUTHORIZED)
-        # Mark as archived in assessment_data
+        # Full record aggregation if requested
+        full_record = bool(payload.get('full_record'))
+        if full_record:
+            try:
+                aggregated = _collect_full_profile(user)
+                # Merge, with aggregated keys taking precedence only if missing
+                for k, v in aggregated.items():
+                    if k not in assessment_data_val:
+                        assessment_data_val[k] = v
+            except Exception:
+                # Non-fatal; proceed with provided assessment_data
+                pass
+
+        # Mark as archived in assessment_data with metadata
         assessment_data_val['archived'] = True
+        assessment_data_val['archived_at'] = timezone.now().isoformat()
+        assessment_data_val['archived_by'] = getattr(request.user, 'id', None)
+        reason = payload.get('archival_reason') or payload.get('reason') or ''
+        if isinstance(reason, str) and reason.strip():
+            assessment_data_val['archival_reason'] = reason.strip()
 
         # Transactional create with dual store write
         with transaction.atomic():
             record = PatientAssessmentArchive.objects.create(
                 user=user,
+                patient_profile=getattr(user, 'patient_profile', None),
                 assessment_type=assessment_type_val,
                 medical_condition=payload.get('medical_condition', ''),
                 medical_history_summary=payload.get('medical_history_summary', ''),
@@ -260,7 +327,7 @@ def archive_create(request):
             user=request.user,
             action='create',
             record=record,
-            query_params=json.dumps({'doctor_id': doctor_id, 'specialization': specialization, 'status': 'success'}),
+            query_params=json.dumps({'doctor_id': doctor_id, 'specialization': specialization, 'status': 'success', 'full_record': full_record}),
             duration_ms=int((timezone.now()-start_time).total_seconds()*1000)
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -271,44 +338,41 @@ def archive_create(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def archive_export(request, archive_id):
-    """Export a single archived assessment as standardized JSON"""
+    """Export a single archived assessment as a PDF with header and selected forms."""
     start_time = timezone.now()
     try:
         record = PatientAssessmentArchive.objects.filter(id=archive_id).first()
         if not record:
             return Response({'error': 'Archive record not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        cache_key = f"archives:export:{archive_id}"
-        cached = cache.get(cache_key)
-        if cached:
+        cache_key = f"archives:export_pdf:{archive_id}"
+        cached_pdf = cache.get(cache_key)
+        if cached_pdf:
+            try:
+                ArchiveAccessLog.objects.create(
+                    user=request.user, action='export', record=record,
+                    duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
+                )
+            except Exception:
+                pass
+            return HttpResponse(cached_pdf, content_type='application/pdf', headers={
+                'Content-Disposition': f'attachment; filename="archive_{archive_id}.pdf"'
+            })
+
+        # Generate the PDF bytes using the pdf service
+        pdf_bytes = generate_archive_pdf(record)
+        cache.set(cache_key, pdf_bytes, timeout=180)
+
+        try:
             ArchiveAccessLog.objects.create(
                 user=request.user, action='export', record=record,
                 duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
             )
-            return Response(cached, status=status.HTTP_200_OK, headers={
-                'Content-Disposition': f'attachment; filename="archive_{archive_id}.json"'
-            })
+        except Exception:
+            pass
 
-        payload = {
-            'id': record.id,
-            'patient_id': record.user.id,
-            'patient_name': record.user.full_name,
-            'assessment_type': record.assessment_type,
-            'medical_condition': record.medical_condition,
-            'medical_history_summary': record.medical_history_summary,
-            'diagnostics': record.diagnostics,
-            'last_assessed_at': record.last_assessed_at.isoformat() if record.last_assessed_at else None,
-            'hospital_name': record.hospital_name,
-            'assessment': record.decrypt_payload(),
-        }
-        cache.set(cache_key, payload, timeout=180)
-
-        ArchiveAccessLog.objects.create(
-            user=request.user, action='export', record=record,
-            duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
-        )
-        return Response(payload, status=status.HTTP_200_OK, headers={
-            'Content-Disposition': f'attachment; filename="archive_{archive_id}.json"'
+        return HttpResponse(pdf_bytes, content_type='application/pdf', headers={
+            'Content-Disposition': f'attachment; filename="archive_{archive_id}.pdf"'
         })
     except Exception as e:
         return Response({'error': f'Failed to export archive: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
