@@ -1,11 +1,13 @@
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .models import SecureKey, SecureTransmission, TransmissionAudit, MFAChallenge
+from .models import SecureKey, SecureTransmission, TransmissionAudit, MFAChallenge, PurgeAuditLog, PatientAssessmentArchive
 from backend.users.models import PatientProfile
+from backend.analytics.models import PatientRecord
+from django.forms.models import model_to_dict
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -167,3 +169,117 @@ def report_breach(request, transmission_id):
     t.save(update_fields=['breach_flag','breach_notified_at'])
     TransmissionAudit.objects.create(transmission=t, event='breach_reported', detail='Breach notification filed', actor=request.user)
     return Response({'message': 'Breach reported'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def purge_medical_records(request):
+    """
+    Securely purge medical records for a single patient.
+    Scope: patient-level only to minimize blast radius.
+    Requires verified account and role of admin or doctor.
+    Body:
+      - patient_id: PatientProfile ID or User ID of patient
+      - dry_run (optional): if true, returns counts without modifying data
+    Returns counts of cleared fields and deleted records.
+    """
+    user = request.user
+    if getattr(user, 'verification_status', 'pending') != 'approved':
+        return Response({'error': 'Account verification required.'}, status=status.HTTP_403_FORBIDDEN)
+    if getattr(user, 'role', None) not in ('admin', 'doctor'):
+        return Response({'error': 'Insufficient permissions'}, status=status.HTTP_403_FORBIDDEN)
+
+    pid = request.data.get('patient_id')
+    dry_run = bool(request.data.get('dry_run'))
+    if not pid:
+        return Response({'error': 'patient_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Resolve patient
+    patient = PatientProfile.objects.filter(id=pid).first() or PatientProfile.objects.filter(user_id=pid).first()
+    if not patient:
+        return Response({'error': 'Patient not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Audit start
+    audit = PurgeAuditLog.objects.create(
+        actor=user,
+        action='PURGE_MEDICAL_RECORDS',
+        status='started',
+        details={'scope': 'patient', 'patient_profile_id': patient.id, 'patient_user_id': patient.user_id}
+    )
+
+    try:
+        # Fields to clear in PatientProfile
+        fields_to_clear = {
+            # Text/choice fields
+            'blood_type': None,
+            'medical_condition': '',
+            'medication': '',
+            'test_results': '',
+            # Date fields
+            'date_of_admission': None,
+            'discharge_date': None,
+            # JSON fields
+            'nursing_intake_assessment': {},
+            'graphic_flow_sheets': [],
+            'medication_administration_records': [],
+            'patient_education_record': [],
+            'discharge_checklist_summary': {},
+            'history_physical_forms': [],
+            'progress_notes': [],
+            'provider_order_sheets': [],
+            'operative_procedure_reports': [],
+        }
+
+        cleared_count = 0
+        update_fields = []
+
+        if not dry_run:
+            for field_name, default_val in fields_to_clear.items():
+                try:
+                    field = patient._meta.get_field(field_name)
+                    # Use field default when provided
+                    default = field.default
+                    if callable(default):
+                        default_val = default()
+                    elif default not in (None, models.NOT_PROVIDED):
+                        default_val = default
+                except Exception:
+                    # Fall back to given default_val
+                    pass
+
+                setattr(patient, field_name, default_val)
+                update_fields.append(field_name)
+                cleared_count += 1
+            patient.save(update_fields=update_fields)
+
+        # Delete analytics PatientRecord entries for this patient
+        analytics_qs = PatientRecord.objects.filter(user_id=patient.user_id)
+        analytics_count = analytics_qs.count()
+        if not dry_run:
+            analytics_qs.delete()
+
+        # Delete assessment archives linked to this patient
+        archives_qs = PatientAssessmentArchive.objects.filter(patient_profile_id=patient.id)
+        archives_count = archives_qs.count()
+        if not dry_run:
+            archives_qs.delete()
+
+        counts = {
+            'patient_profiles_cleared': cleared_count,
+            'analytics_records_deleted': analytics_count,
+            'assessment_archives_deleted': archives_count,
+            'dry_run': dry_run,
+        }
+
+        if not dry_run:
+            audit.mark_success(counts=counts, extra={'fields_cleared': list(fields_to_clear.keys())})
+        else:
+            audit.details = {**(audit.details or {}), **counts}
+            audit.save(update_fields=['details'])
+
+        return Response({'message': 'Purge completed' if not dry_run else 'Dry-run successful', **counts}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        audit.mark_failed(str(e))
+        return Response({'error': 'Purge failed', 'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

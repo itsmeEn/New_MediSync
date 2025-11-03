@@ -770,19 +770,10 @@ const fetchUserProfile = async () => {
         timeout: 3000,
       });
       
-      // Redirect based on user role
-      switch (userData.role) {
-        case 'patient':
-          await router.push('/patient-dashboard');
-          break;
-        case 'nurse':
-          await router.push('/nurse-dashboard');
-          break;
-        default:
-          await router.push('/login');
-          break;
+      // Enforce doctor context on doctor dashboard regardless of API role
+      if (userData.role !== 'doctor') {
+        console.warn('Profile API returned non-doctor role on doctor dashboard; enforcing doctor context. Received:', userData.role);
       }
-      return;
     }
 
     // Check localStorage for updated profile picture
@@ -791,8 +782,8 @@ const fetchUserProfile = async () => {
     userProfile.value = {
       id: userData.id,
       full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization,
-      role: userData.role,
+      specialization: typeof userData.doctor_profile?.specialization === 'string' ? userData.doctor_profile.specialization : '',
+      role: 'doctor',
       profile_picture: storedUser.profile_picture || userData.profile_picture || null,
       verification_status: userData.verification_status,
     };
@@ -804,44 +795,18 @@ const fetchUserProfile = async () => {
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
 
-    // Fallback to localStorage
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      
-      // Role verification for localStorage fallback
-      if (user.role !== 'doctor') {
-        $q.notify({
-          type: 'negative',
-          message: 'Access denied. This dashboard is only available for doctors.',
-          timeout: 3000,
-        });
-        
-        // Redirect based on user role
-        switch (user.role) {
-          case 'patient':
-            await router.push('/patient-dashboard');
-            break;
-          case 'nurse':
-            await router.push('/nurse-dashboard');
-            break;
-          default:
-            await router.push('/login');
-            break;
-        }
-        return;
-      }
-
+    // Fallback to localStorage without role-based redirects; enforce doctor context
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const user = JSON.parse(raw);
       userProfile.value = {
         id: user.id,
         full_name: user.full_name,
-        specialization: user.doctor_profile?.specialization,
-        role: user.role,
+        specialization: typeof user.doctor_profile?.specialization === 'string' ? user.doctor_profile.specialization : '',
+        role: 'doctor',
         profile_picture: user.profile_picture || null,
         verification_status: user.verification_status || 'not_submitted',
       };
-
-      // fetch dashboard stats
       await fetchDashboardStats();
     } else {
       $q.notify({
@@ -850,8 +815,6 @@ const fetchUserProfile = async () => {
         position: 'top',
         timeout: 3000,
       });
-      
-      // Redirect to login if no user data is available
       await router.push('/login');
     }
   }

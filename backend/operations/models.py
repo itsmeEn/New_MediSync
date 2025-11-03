@@ -960,6 +960,76 @@ class QueueSchedule(models.Model):
         return f"{self.department} Queue Schedule by {self.nurse.user.full_name}"
 
 
+class PurgeAuditLog(models.Model):
+    """
+    Audit log for medical records purges.
+    Stores only non-PHI metadata and counts for compliance.
+    """
+    ACTION_CHOICES = [
+        ("PURGE_MEDICAL_RECORDS", "Purge Medical Records"),
+    ]
+
+    STATUS_CHOICES = [
+        ("started", "Started"),
+        ("success", "Success"),
+        ("failed", "Failed"),
+    ]
+
+    actor = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purge_actions",
+        help_text="User who initiated the purge"
+    )
+    action = models.CharField(max_length=64, choices=ACTION_CHOICES, default="PURGE_MEDICAL_RECORDS")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="started")
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Counts only; do not store PHI or raw data
+    patient_profiles_cleared = models.PositiveIntegerField(default=0)
+    analytics_records_deleted = models.PositiveIntegerField(default=0)
+    assessment_archives_deleted = models.PositiveIntegerField(default=0)
+
+    details = models.JSONField(default=dict, blank=True, help_text="Additional non-sensitive metadata, e.g., field list, durations")
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "purge_audit_logs"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["action", "status"]),
+            models.Index(fields=["started_at"]),
+        ]
+
+    def mark_success(self, counts: dict | None = None, extra: dict | None = None):
+        self.status = "success"
+        self.completed_at = timezone.now()
+        if counts:
+            self.patient_profiles_cleared = int(counts.get("patient_profiles_cleared", self.patient_profiles_cleared))
+            self.analytics_records_deleted = int(counts.get("analytics_records_deleted", self.analytics_records_deleted))
+            self.assessment_archives_deleted = int(counts.get("assessment_archives_deleted", self.assessment_archives_deleted))
+        if extra:
+            self.details = {**(self.details or {}), **extra}
+        self.save(update_fields=[
+            "status",
+            "completed_at",
+            "patient_profiles_cleared",
+            "analytics_records_deleted",
+            "assessment_archives_deleted",
+            "details",
+        ])
+
+    def mark_failed(self, message: str):
+        self.status = "failed"
+        self.completed_at = timezone.now()
+        self.error_message = message[:4000]
+        self.save(update_fields=["status", "completed_at", "error_message"])
+
+
 class QueueStatus(models.Model):
     """
     Model for tracking real-time queue status and broadcasting changes

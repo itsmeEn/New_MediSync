@@ -644,13 +644,31 @@ def doctor_analytics(request):
             analysis_type='monthly_illness_forecast',
             status='completed'
         ).order_by('-created_at').first()
+
+        # Patient volume prediction (include for doctor; strip evaluation metrics)
+        volume_prediction = AnalyticsResult.objects.filter(
+            analysis_type='patient_volume_prediction',
+            status='completed'
+        ).order_by('-created_at').first()
+
+        vp_results = volume_prediction.results if volume_prediction else None
+        if isinstance(vp_results, dict) and 'evaluation_metrics' in vp_results:
+            # Remove MAE/RMSE from doctor-facing payload per requirements
+            vp_results = {k: v for k, v in vp_results.items() if k != 'evaluation_metrics'}
         
+        # Normalize gender proportions in patient demographics if present
+        pd_results = patient_demographics.results if patient_demographics else None
+        if isinstance(pd_results, dict) and 'gender_proportions' in pd_results:
+            pd_results = pd_results.copy()
+            pd_results['gender_proportions'] = normalize_gender_proportions(pd_results.get('gender_proportions', {}))
+
         analytics_data = {
-            'patient_demographics': patient_demographics.results if patient_demographics else None,
+            'patient_demographics': pd_results if pd_results else (patient_demographics.results if patient_demographics else None),
             'illness_prediction': illness_prediction.results if illness_prediction else None,
             'health_trends': health_trends.results if health_trends else None,
             'surge_prediction': surge_prediction.results if surge_prediction else None,
             'monthly_illness_forecast': monthly_illness_forecast.results if monthly_illness_forecast else None,
+            'volume_prediction': vp_results,
             'doctor_name': request.user.full_name,
             'specialization': getattr(request.user.doctor_profile, 'specialization', 'General Practice') if hasattr(request.user, 'doctor_profile') else 'General Practice',
             'generated_at': timezone.now().isoformat()
@@ -708,9 +726,15 @@ def nurse_analytics(request):
             status='completed'
         ).order_by('-created_at').first()
         
+        # Normalize gender proportions for data integrity if available
+        pd_results = patient_demographics.results if patient_demographics else None
+        if isinstance(pd_results, dict) and 'gender_proportions' in pd_results:
+            pd_results = pd_results.copy()
+            pd_results['gender_proportions'] = normalize_gender_proportions(pd_results.get('gender_proportions', {}))
+
         analytics_data = {
             'medication_analysis': medication_analysis.results if medication_analysis else None,
-            'patient_demographics': patient_demographics.results if patient_demographics else None,
+            'patient_demographics': pd_results if pd_results else (patient_demographics.results if patient_demographics else None),
             'health_trends': health_trends.results if health_trends else None,
             'volume_prediction': volume_prediction.results if volume_prediction else None,
             'nurse_name': request.user.full_name,
@@ -861,8 +885,10 @@ def generate_analytics_pdf(request):
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{user_role}_analytics_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
         
+        # Build PDF into an in-memory buffer for reliable response writing
+        buffer = io.BytesIO()
         # Create PDF with custom page template
-        doc = create_standardized_pdf_template(response, hospital_info, user_info)
+        doc = create_standardized_pdf_template(buffer, hospital_info, user_info)
         styles = get_custom_styles()
         story = []
         
@@ -925,9 +951,19 @@ def generate_analytics_pdf(request):
         add_standardized_footer(story, styles)
         
         doc.build(story)
+        # Write generated PDF bytes to HTTP response
+        response.write(buffer.getvalue())
+        buffer.close()
         return response
         
     except Exception as e:
+        # Log detailed traceback to server console for debugging
+        try:
+            import traceback
+            print("[PDF Generation] Error generating PDF report:", str(e))
+            print(traceback.format_exc())
+        except Exception:
+            pass
         return Response({
             'error': f'Error generating PDF report: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1002,6 +1038,56 @@ def get_hospital_information(user):
         'phone': '+1 (555) 123-4567',  # Default phone
         'email': 'info@medisync.healthcare'  # Default email
     }
+
+def normalize_gender_proportions(gender_data):
+    """Validate and normalize gender proportions to ensure integrity.
+
+    - Ensures keys for 'Male', 'Female', and 'Other' exist
+    - Coerces values to non-negative numbers
+    - Normalizes values so the sum equals 100 (percentages)
+    - If all values are zero or invalid, returns a sensible default
+    """
+    try:
+        if not isinstance(gender_data, dict):
+            gender_data = {}
+
+        # Extract and sanitize numeric values
+        male = float(gender_data.get('Male', 0) or 0)
+        female = float(gender_data.get('Female', 0) or 0)
+        other = float(gender_data.get('Other', gender_data.get('Non-binary', 0) or 0) or 0)
+
+        # Clamp negatives to zero
+        male = max(male, 0)
+        female = max(female, 0)
+        other = max(other, 0)
+
+        total = male + female + other
+        if total <= 0:
+            # Default distribution when no data available
+            return {'Male': 50.0, 'Female': 48.0, 'Other': 2.0}
+
+        # If values are counts, convert to percentages
+        male_pct = (male / total) * 100.0
+        female_pct = (female / total) * 100.0
+        other_pct = (other / total) * 100.0
+
+        # Normalize rounding to ensure exact 100
+        # Round to one decimal place and adjust residual to Male
+        male_pct = round(male_pct, 1)
+        female_pct = round(female_pct, 1)
+        other_pct = round(other_pct, 1)
+        residual = 100.0 - (male_pct + female_pct + other_pct)
+        male_pct = round(male_pct + residual, 1)
+
+        # Final clamp and correction for any floating errors
+        male_pct = max(min(male_pct, 100.0), 0.0)
+        female_pct = max(min(female_pct, 100.0), 0.0)
+        other_pct = max(min(other_pct, 100.0), 0.0)
+
+        return {'Male': male_pct, 'Female': female_pct, 'Other': other_pct}
+    except Exception:
+        # Fallback to a safe default in case of any unexpected error
+        return {'Male': 50.0, 'Female': 48.0, 'Other': 2.0}
 
     return hospital_info
 
@@ -2291,11 +2377,14 @@ def create_age_distribution_chart(age_data):
 def create_gender_pie_chart(gender_data):
     """Create gender distribution pie chart"""
     try:
+        # Validate and normalize before charting
+        safe_gender = normalize_gender_proportions(gender_data or {})
+
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        genders = list(gender_data.keys())
-        percentages = list(gender_data.values())
+        genders = list(safe_gender.keys())
+        percentages = list(safe_gender.values())
         colors_list = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']
         
         wedges, texts, autotexts = ax.pie(percentages, labels=genders, autopct='%1.1f%%',

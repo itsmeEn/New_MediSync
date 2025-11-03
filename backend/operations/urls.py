@@ -40,6 +40,8 @@ urlpatterns = [
     # Availability endpoints
     path('availability/doctors/free/', views.available_doctors_free, name='available_doctors_free'),
     path('availability/nurses/', views.available_nurses, name='available_nurses'),
+    path('nurses/list/', views.nurses_list, name='nurses_list'),
+    path('nurse/capacity/validate/', views.nurse_capacity_validate, name='nurse_capacity_validate'),
     
     # Message notification endpoints
     path('messaging/notifications/', views.get_message_notifications, name='get_message_notifications'),
@@ -111,4 +113,5 @@ urlpatterns += [
     path('secure/mfa/challenge/', secure_views.mfa_challenge),
     path('secure/mfa/verify/', secure_views.mfa_verify),
     path('secure/transmissions/<int:transmission_id>/breach/', secure_views.report_breach),
+    path('secure/purge/medical-records/', secure_views.purge_medical_records),
 ]

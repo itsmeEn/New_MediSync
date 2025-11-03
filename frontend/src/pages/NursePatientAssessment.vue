@@ -17,9 +17,6 @@
                 <h4 class="greeting-title">Patient Management</h4>
                 <p class="greeting-subtitle">Manage your patients and their medical records</p>
               </div>
-              <div class="greeting-icon">
-                <q-icon name="people" size="3rem" />
-              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -356,6 +353,17 @@
                       >
                         <q-tooltip>Send</q-tooltip>
                       </q-btn>
+                      <q-btn
+                        aria-label="Archive patient"
+                        flat
+                        round
+                        icon="archive"
+                        color="warning"
+                        size="sm"
+                        @click.stop="archivePatientInline(patient)"
+                      >
+                        <q-tooltip>Archive</q-tooltip>
+                      </q-btn>
                     </div>
                   </div>
                 </div>
@@ -391,7 +399,7 @@
               <q-card-section class="card-content">
                 <q-banner v-if="doctorsLoadError" dense class="q-mb-sm" icon="warning" inline-actions>
                   <span class="text-negative">{{ doctorsLoadError }}</span>
-                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="loadAvailableDoctors"/>
+                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="() => { void loadAvailableDoctors() }"/>
                 </q-banner>
                 <div v-if="doctorsLoading" class="loading-section">
                   <q-spinner color="primary" size="2em" />
@@ -450,7 +458,7 @@
                       <q-input v-model="registrationForm.dateOfRegistration" label="Date of Registration" hint="Auto-set at opening" outlined dense readonly :input-attrs="{ 'aria-label':'Date of Registration' }"/>
                     </div>
                     <div class="col-12 col-md-6">
-                      <q-input v-model="registrationForm.registeredBy" label="Registered By" hint="Your email/username" outlined dense readonly :input-attrs="{ 'aria-label':'Registered By' }"/>
+                      <q-input v-model="registrationForm.registeredBy" label="Registered By" outlined dense readonly :input-attrs="{ 'aria-label':'Registered By' }"/>
                     </div>
                   </div>
                 </q-slide-transition>
@@ -558,6 +566,7 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancel" v-close-popup aria-label="Cancel" />
+          <q-btn color="secondary" label="Archive" :loading="sendLoading" @click="archiveCurrentRecord" aria-label="Archive record" />
           <q-btn color="primary" label="Send" :loading="sendLoading" @click="confirmSend" aria-label="Confirm send" />
         </q-card-actions>
       </q-card>
@@ -1000,8 +1009,7 @@ const prefillRegistrationFromProfile = () => {
       hospital_name?: string;
       hospital_address?: string;
       nurse_profile?: { department?: string };
-      email?: string;
-      username?: string;
+      full_name?: string;
     }
     const upHolder = userProfile as unknown as { value?: MaybeUserProfile | null }
     const up: MaybeUserProfile | null = upHolder?.value ?? null
@@ -1009,7 +1017,7 @@ const prefillRegistrationFromProfile = () => {
       registrationForm.value.hospitalName = up.hospital_name ?? ''
       registrationForm.value.hospitalAddress = up.hospital_address ?? ''
       registrationForm.value.departmentName = up.nurse_profile?.department ?? 'OPD'
-      registrationForm.value.registeredBy = up.email ?? up.username ?? ''
+      registrationForm.value.registeredBy = up.full_name ?? ''
     }
   } catch {
     // ignore
@@ -1381,6 +1389,35 @@ const saveIntake = async () => {
     const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/intake/`, payload)
     if (res.data?.success) {
       $q.notify({ type: 'positive', message: 'Intake saved to server' })
+
+      // Immediately archive the saved intake so it appears in Medical Records
+      try {
+        // Derive patient account id without using any-casts
+        let patientUserIdNum = NaN
+        if (selectedPatient.value) {
+          const sp = selectedPatient.value as unknown as { user_id?: number | string; id: number | string }
+          patientUserIdNum = Number(sp.user_id ?? sp.id)
+        }
+        if (Number.isFinite(patientUserIdNum)) {
+          const assessmentData = {
+            ...payload,
+            archived_at: new Date().toISOString(),
+            nurse_name: userProfile.value.full_name,
+          }
+          const archivePayload: Record<string, unknown> = {
+            patient_id: patientUserIdNum,
+            assessment_type: 'intake',
+            assessment_data: assessmentData,
+            medical_condition: selectedPatient.value?.medical_condition || '',
+            hospital_name: userProfile.value.hospital_name || ''
+          }
+          await api.post('/operations/archives/create/', archivePayload)
+          $q.notify({ type: 'info', message: 'Intake archived to Medical Records' })
+        }
+      } catch (archiveErr) {
+        console.warn('Intake archive failed:', archiveErr)
+        // Non-blocking: saving intake succeeded; archiving can be retried via Send/Archive
+      }
     } else {
       throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save intake'))
     }
@@ -1393,6 +1430,40 @@ const saveIntake = async () => {
       msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
     }
     $q.notify({ type: 'negative', message: msg })
+  }
+}
+
+function buildIntakePayload(): Record<string, unknown> {
+  return {
+    vitals: {
+      bp: intakeForm.value.bp,
+      hr: Number(intakeForm.value.hr),
+      rr: Number(intakeForm.value.rr),
+      temp_c: Number(intakeForm.value.temp),
+      o2_sat: Number(intakeForm.value.o2),
+    },
+    weight_kg: Number(intakeForm.value.weight),
+    height_cm: Number(intakeForm.value.height),
+    chief_complaint: intakeForm.value.chiefComplaint,
+    pain_score: Number(intakeForm.value.painScore),
+    allergies: (intakeForm.value.allergies || []).map((a) => ({ substance: a.name, reaction: a.reaction })),
+    current_medications: [],
+    mental_status: intakeForm.value.mentalStatus,
+    fall_risk_score: Number(intakeForm.value.fallRisk),
+    assessed_at: new Date().toISOString(),
+  }
+}
+
+// Helper: persist current intake snapshot to DB, idempotent
+async function persistIntakeSnapshot(patientProfileIdNum: number): Promise<void> {
+  try {
+    const payload = buildIntakePayload()
+    const res = await api.put(`/users/nurse/patient/${patientProfileIdNum}/intake/`, payload)
+    if (!(res.data?.success)) {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save intake'))
+    }
+  } catch (e) {
+    console.warn('Non-blocking: persistIntakeSnapshot failed', e)
   }
 }
 
@@ -1579,12 +1650,11 @@ const nurseHospital = computed(() => (userProfile.value?.hospital_name || '') ||
 
 const filteredAvailableDoctors = computed(() => {
   const currentHospital = nurseHospital.value
-  const specialization = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
 
   // Safe normalizer: only accepts strings, otherwise returns empty
   const norm = (s: unknown) => (typeof s === 'string' ? s.toLowerCase().trim() : '')
 
-  // Base filter: same hospital and available
+  // Filter strictly by hospital and availability; do not tie to selected patient
   const baseList = (availableDoctors.value || []).filter((d) => {
     const docHosp = norm(d.hospital_name)
     const nurseHosp = norm(currentHospital)
@@ -1594,27 +1664,7 @@ const filteredAvailableDoctors = computed(() => {
     return hospitalOk && availOk
   })
 
-  // If no specialization or no base doctors, return base list
-  if (!specialization || baseList.length === 0) return baseList
-
-  // Relaxed specialization matching with heuristics
-  const specNorm = norm(specialization)
-  const roots = [
-    'cardio', 'neuro', 'derma', 'pedia', 'ortho', 'onco', 'ophthal', 'optom',
-    'endo', 'gastro', 'hemato', 'psycho', 'uro', 'neph', 'pulmo', 'rheuma', 'ent'
-  ]
-  const matchesByRoot = (s: unknown) => roots.some((r) => norm(s).includes(r) && specNorm.includes(r))
-
-  const specFiltered = baseList.filter((d) => {
-    const ds = norm(d.specialization)
-    if (!ds) return false
-    if (ds.includes(specNorm) || specNorm.includes(ds)) return true
-    if (matchesByRoot(d.specialization)) return true
-    return false
-  })
-
-  // Fallback: if no matches by specialization, return base list
-  return specFiltered.length > 0 ? specFiltered : baseList
+  return baseList
 })
 
 function getInitials(name: string): string {
@@ -1633,8 +1683,8 @@ function getErrorMessage(e: unknown): string {
   try { return JSON.stringify(e) } catch { return String(e) }
 }
 
-async function loadAvailableDoctors() {
-  doctorsLoading.value = true
+async function loadAvailableDoctors(silent?: boolean) {
+  if (!silent) doctorsLoading.value = true
   doctorsLoadError.value = null
   
   // Validate that nurse has hospital information
@@ -1643,17 +1693,22 @@ async function loadAvailableDoctors() {
     doctorsLoadError.value = 'Hospital information missing. Please update your profile with hospital details.'
     doctorsLoading.value = false
     availableDoctors.value = []
+    $q.notify({ type: 'warning', message: 'Hospital information missing. Update your profile.', position: 'top' })
+    void api.post('/operations/client-log/', {
+      level: 'warning',
+      message: 'loadAvailableDoctors aborted: missing hospital',
+      route: 'NursePatientAssessment',
+      context: {}
+    }).catch(() => { /* non-blocking */ })
     return
   }
   
   try {
     // New secured endpoint returns only free doctors with timestamp and count
     // NOTE: Axios baseURL already includes '/api', so do not prefix with '/api' here
-    const specialization = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition) || ''
     const res = await api.get('/operations/availability/doctors/free/', {
       params: {
-        include_email: true,
-        specialization
+        include_email: true
         // Backend scopes to nurse's hospital; hospital_id not required here
       }
     })
@@ -1676,10 +1731,23 @@ async function loadAvailableDoctors() {
       localStorage.setItem('available_doctors_checked_at', checkedAt)
       doctorsCheckedAt.value = checkedAt
     }
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'loadAvailableDoctors succeeded',
+      route: 'NursePatientAssessment',
+      context: { count: availableDoctors.value.length, checked_at: checkedAt }
+    }).catch(() => { /* non-blocking */ })
   } catch (err) {
     console.error('Failed to fetch doctors:', err)
     const msg = getErrorMessage(err)
     doctorsLoadError.value = msg || 'Unable to load doctors from your hospital'
+    $q.notify({ type: 'negative', message: 'Failed to load available doctors', position: 'top' })
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadAvailableDoctors failed',
+      route: 'NursePatientAssessment',
+      context: { error: String(err) }
+    }).catch(() => { /* non-blocking */ })
     
     // Try to use cached data as fallback
     try {
@@ -1696,7 +1764,9 @@ async function loadAvailableDoctors() {
       availableDoctors.value = []
     }
   } finally {
-    doctorsLoading.value = false
+    if (!silent) {
+      doctorsLoading.value = false
+    }
   }
 }
 
@@ -1731,7 +1801,7 @@ interface PatientSummary {
 
 function sendPatientRecords(patient: PatientSummary) {
   selectedPatientForSend.value = patient
-  if (!availableDoctors.value.length) { void loadAvailableDoctors() }
+  if (!availableDoctors.value.length) { void loadAvailableDoctors(true) }
   // If filtered list has a single match, preselect it
   const docs = filteredAvailableDoctors.value
   if (docs.length === 1) {
@@ -1739,6 +1809,19 @@ function sendPatientRecords(patient: PatientSummary) {
     sendForm.value.doctorId = first && first.id != null ? String(first.id) : null
   }
   showSendDialog.value = true
+}
+
+// Inline archive action in patient list: reuse archive flow without opening dialog
+function archivePatientInline(patient: PatientSummary) {
+  try {
+    selectedPatientForSend.value = patient
+    // Default to no doctor context and empty message for quick archive
+    sendForm.value = { doctorId: null, message: '' }
+    void archiveCurrentRecord()
+  } catch (err) {
+    console.error('Inline archive init failed', err)
+    $q.notify({ type: 'negative', message: 'Failed to start archive' })
+  }
 }
 
 async function confirmSend() {
@@ -1775,6 +1858,9 @@ async function confirmSend() {
     } catch {
       intakePayload = { ...intakeForm.value };
     }
+    // Ensure latest intake is persisted before transmission
+    await persistIntakeSnapshot(patientProfileIdNum)
+
     const recordBundle = {
       kind: 'intake',
       at: new Date().toISOString(),
@@ -1836,6 +1922,80 @@ async function confirmSend() {
   } finally { sendLoading.value = false }
 }
 
+async function archiveCurrentRecord() {
+  if (!selectedPatientForSend.value) { $q.notify({ type: 'warning', message: 'No patient selected' }); return }
+  sendLoading.value = true
+  try {
+    const rawPatient = selectedPatientForSend.value as unknown as { user_id?: number | string; id: number | string; medical_condition?: string | null };
+    const patientUserIdNum = Number(rawPatient.user_id ?? rawPatient.id);
+    if (!Number.isFinite(patientUserIdNum)) {
+      throw new Error('Invalid patient user ID');
+    }
+    const patientProfileIdNum = Number(rawPatient.id ?? rawPatient.user_id);
+    if (!Number.isFinite(patientProfileIdNum)) {
+      throw new Error('Invalid patient profile ID');
+    }
+
+    // Optional doctor context
+    const hasDoctor = !!sendForm.value.doctorId;
+    const doctorIdNum = hasDoctor ? Number(sendForm.value.doctorId) : NaN;
+    const specialization = hasDoctor ? (deriveSpecializationFromCondition(rawPatient.medical_condition) || 'General') : null;
+
+    // Build assessment data (prefer saved intake snapshot)
+    let intakePayload: Record<string, unknown> | null = null;
+    try {
+      const raw = localStorage.getItem(`opd_forms_${patientProfileIdNum}_intake`);
+      intakePayload = raw ? JSON.parse(raw) : { ...intakeForm.value } as unknown as Record<string, unknown>;
+    } catch {
+      intakePayload = { ...intakeForm.value } as unknown as Record<string, unknown>;
+    }
+
+    // Ensure latest intake is persisted before archiving
+    await persistIntakeSnapshot(patientProfileIdNum)
+
+    const assessmentData: Record<string, unknown> = {
+      ...(intakePayload || {}),
+      archived_at: new Date().toISOString(),
+      nurse_name: userProfile.value.full_name,
+      message: sendForm.value.message || ''
+    };
+
+    const payload: Record<string, unknown> = {
+      patient_id: patientUserIdNum,
+      assessment_type: 'intake',
+      assessment_data: assessmentData,
+      medical_condition: rawPatient.medical_condition || '',
+      hospital_name: userProfile.value.hospital_name || ''
+    };
+    if (hasDoctor && Number.isFinite(doctorIdNum)) {
+      payload.doctor_id = doctorIdNum;
+      payload.specialization = specialization || 'General';
+    }
+
+    await api.post('/operations/archives/create/', payload);
+    $q.notify({ type: 'positive', message: 'Record archived successfully' });
+
+    // Optional: keep dialog open to allow sending right after archiving
+  } catch (err: unknown) {
+    console.error('Archive create failed', err);
+    let msg = 'Failed to archive record';
+    if (typeof err === 'object' && err !== null) {
+      const e = err as { response?: { data?: { error?: unknown } }, message?: unknown };
+      const apiMsg = e.response?.data?.error;
+      if (typeof apiMsg === 'string' && apiMsg.trim()) {
+        msg = apiMsg;
+      } else if (typeof e.message === 'string' && e.message.trim()) {
+        msg = e.message;
+      }
+    } else if (typeof err === 'string' && err.trim()) {
+      msg = err;
+    }
+    $q.notify({ type: 'negative', message: msg });
+  } finally {
+    sendLoading.value = false;
+  }
+}
+
 // Removed developer-only dummy assignment helper; switching to real API-driven data
 
 
@@ -1850,7 +2010,7 @@ onMounted(() => {
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
   // Poll doctor availability every 10 seconds to keep list fresh
-  doctorPoller = window.setInterval(() => { void loadAvailableDoctors() }, 10000)
+  doctorPoller = window.setInterval(() => { void loadAvailableDoctors(true) }, 10000)
 });
 onUnmounted(() => {
   if (doctorPoller !== null) {
@@ -2274,11 +2434,40 @@ const sendSecureToDoctor = async (args: { patientId: number; doctorId: number; r
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
   backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.1);
+  box-shadow:
+    0 10px 25px rgba(40, 102, 96, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  min-height: 160px;
+}
+
+.greeting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
 }
 
 .greeting-content {
@@ -2310,10 +2499,7 @@ const sendSecureToDoctor = async (args: { patientId: number; doctorId: number; r
   font-weight: 500;
 }
 
-.greeting-icon {
-  color: #286660;
-  opacity: 0.8;
-}
+/* removed greeting icon for cleaner header */
 
 /* Management Cards */
 .management-cards-grid {

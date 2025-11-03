@@ -16,6 +16,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from datetime import datetime, date
+import logging
 from decimal import Decimal
 import pyotp
 import qrcode
@@ -583,29 +584,40 @@ def nurse_patient_forms_overview(request, patient_id):
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def nurse_intake(request, patient_id):
+    logger = logging.getLogger(__name__)
     deny = _require_nurse(request.user)
     if deny:
         return deny
 
     profile = _get_patient_profile(patient_id)
     if not profile:
+        logger.warning(f"nurse_intake:patient_not_found nurse_id={getattr(request.user,'id',None)} patient_id={patient_id}")
         return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
+        logger.info(f"nurse_intake:get nurse_id={getattr(request.user,'id',None)} patient_id={patient_id} has_data={bool(profile.nursing_intake_assessment)}")
         return Response({'success': True, 'data': profile.nursing_intake_assessment or {}})
 
     # PUT
     serializer = NursingIntakeAssessmentSerializer(data=request.data)
     if not serializer.is_valid():
+        logger.warning(f"nurse_intake:validation_failed nurse_id={getattr(request.user,'id',None)} patient_id={patient_id} errors={serializer.errors}")
         return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
-        profile.set_nursing_intake(serializer.validated_data)
-        valid, errors = profile.validate_nurse_forms_minimal()
-        if not valid:
+        try:
+            profile.set_nursing_intake(serializer.validated_data)
+            valid, errors = profile.validate_nurse_forms_minimal()
+            if not valid:
+                transaction.set_rollback(True)
+                logger.warning(f"nurse_intake:post_validate_failed nurse_id={getattr(request.user,'id',None)} patient_id={patient_id} errors={errors}")
+                return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+            profile.save(update_fields=['nursing_intake_assessment'])
+            logger.info(f"nurse_intake:stored nurse_id={getattr(request.user,'id',None)} patient_id={patient_id}")
+        except Exception as e:
+            logger.exception(f"nurse_intake:db_error nurse_id={getattr(request.user,'id',None)} patient_id={patient_id} details={e}")
             transaction.set_rollback(True)
-            return Response({'success': False, 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
-        profile.save(update_fields=['nursing_intake_assessment'])
+            return Response({'success': False, 'error': 'Failed to store nursing intake.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return Response({'success': True, 'data': profile.nursing_intake_assessment})
 
 
@@ -896,7 +908,29 @@ def _doctor_authorized_for_profile(user, profile: PatientProfile):
     # Allow if admin, or assigned doctor, or the requesting doctor is the patient's assigned doctor
     if user.role == 'admin':
         return True
-    return profile.assigned_doctor_id == user.id
+    
+    # Check legacy assigned_doctor field
+    if profile.assigned_doctor_id == user.id:
+        return True
+    
+    # Check new PatientAssignment system
+    try:
+        from backend.operations.models import PatientAssignment
+        from backend.users.models import GeneralDoctorProfile
+        
+        # Get doctor profile for the requesting user
+        doctor_profile = GeneralDoctorProfile.objects.get(user=user)
+        
+        # Check if there's an active assignment
+        assignment_exists = PatientAssignment.objects.filter(
+            patient=profile,
+            doctor=doctor_profile,
+            status__in=['pending', 'accepted', 'in_progress']
+        ).exists()
+        
+        return assignment_exists
+    except (GeneralDoctorProfile.DoesNotExist, Exception):
+        return False
 
 
 @api_view(['GET'])
@@ -927,6 +961,23 @@ def doctor_patient_forms_overview(request, patient_id):
             'operative_procedure_reports': list(profile.operative_procedure_reports or []),
         }
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def doctor_nurse_intake(request, patient_id):
+    """Allow an authorized doctor/admin to view the nursing intake assessment for a patient."""
+    deny = _require_doctor(request.user)
+    if deny:
+        return deny
+
+    profile = _get_patient_profile(patient_id)
+    if not profile:
+        return Response({'error': 'Patient not found.'}, status=status.HTTP_404_NOT_FOUND)
+    if not _doctor_authorized_for_profile(request.user, profile):
+        return Response({'error': 'Not authorized for this patient.'}, status=status.HTTP_403_FORBIDDEN)
+
+    return Response({'success': True, 'data': profile.nursing_intake_assessment or {}}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST'])

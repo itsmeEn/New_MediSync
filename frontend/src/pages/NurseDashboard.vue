@@ -32,64 +32,72 @@
         </q-card>
       </div>
 
-      <!-- Dashboard Content -->
-      <div class="dashboard-content">
-        <div class="dashboard-cards">
+      <!-- Dashboard Cards Section -->
+      <div class="dashboard-cards-section">
+        <div class="dashboard-cards-grid">
           <!-- Today's Tasks Card -->
-          <q-card class="dashboard-card tasks-card" clickable @click="showTasksDialog = true">
+          <q-card class="dashboard-card tasks-card" clickable aria-label="Today's Tasks">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Tasks</div>
-                <div class="card-number">{{ dashboardStats.todaysTasks }}</div>
                 <div class="card-description">Tasks to be completed today</div>
+                <div class="card-value" role="status" aria-live="polite">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>{{ dashboardStats.todaysTasks }}</span>
+                </div>
               </div>
-              <div class="card-icon task-icon">
+              <div class="card-icon">
                 <q-icon name="assignment" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
           <!-- Patients Under Care Card -->
-          <q-card class="dashboard-card patients-card" clickable @click="showPatientsDialog = true">
+          <q-card class="dashboard-card patients-card" clickable aria-label="Patients Under Care">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Patients Under Care</div>
-                <div class="card-number">{{ dashboardStats.patientsUnderCare }}</div>
-                <div class="card-description">Total patients in queue</div>
+                <div class="card-description">Based on current queue</div>
+                <div class="card-value" role="status" aria-live="polite">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>{{ dashboardStats.patientsUnderCare }}</span>
+                </div>
               </div>
-              <div class="card-icon patients-icon">
+              <div class="card-icon">
                 <q-icon name="people" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
           <!-- Vitals Checked Card -->
-          <q-card class="dashboard-card vitals-card" clickable @click="showVitalsDialog = true">
+          <q-card class="dashboard-card vitals-card" clickable aria-label="Vitals Checked">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Vitals Checked</div>
-                <div class="card-number">{{ dashboardStats.vitalsChecked }}</div>
                 <div class="card-description">Completed patient assessments</div>
+                <div class="card-value" role="status" aria-live="polite">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>{{ dashboardStats.vitalsChecked }}</span>
+                </div>
               </div>
-              <div class="card-icon vitals-icon">
+              <div class="card-icon">
                 <q-icon name="favorite" size="2.5rem" />
               </div>
             </q-card-section>
           </q-card>
 
-          <!-- Medications Administered Card -->
-          <q-card
-            class="dashboard-card medications-card"
-            clickable
-            @click="showMedicationsDialog = true"
-          >
+          <!-- Medications Given Card -->
+          <q-card class="dashboard-card medications-card" clickable aria-label="Medications Given">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Medications Given</div>
-                <div class="card-number">{{ dashboardStats.medicationsGiven }}</div>
                 <div class="card-description">Total medications in inventory</div>
+                <div class="card-value" role="status" aria-live="polite">
+                  <q-spinner v-if="statsLoading" size="md" />
+                  <span v-else>{{ dashboardStats.medicationsGiven }}</span>
+                </div>
               </div>
-              <div class="card-icon medications-icon">
+              <div class="card-icon">
                 <q-icon name="medication" size="2.5rem" />
               </div>
             </q-card-section>
@@ -219,159 +227,7 @@
       <router-view />
     </q-page-container>
 
-    <!-- Today's Tasks Modal -->
-    <q-dialog v-model="showTasksDialog">
-      <q-card class="modal-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Today's Tasks</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
-        </q-card-section>
-        <q-card-section>
-          <div class="tasks-list">
-            <q-list v-if="todaysTasks.length > 0">
-              <q-item v-for="task in todaysTasks" :key="task.id">
-                <q-item-section avatar>
-                  <q-icon :name="task.icon" :color="task.color" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ task.title }}</q-item-label>
-                  <q-item-label caption>{{ task.description }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-chip :color="task.status_color" text-color="white" :label="task.status" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="empty-state">
-              <q-icon name="assignment" size="3rem" color="grey-4" />
-              <p class="text-grey-6">No tasks for today</p>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Patients Under Care Modal -->
-    <q-dialog v-model="showPatientsDialog">
-      <q-card class="modal-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Patients Under Care</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
-        </q-card-section>
-        <q-card-section>
-          <div class="patients-list">
-            <q-list v-if="normalQueue.length > 0 || priorityQueue.length > 0">
-              <q-item v-for="patient in normalQueue" :key="patient.id">
-                <q-item-section avatar>
-                  <q-icon name="person" color="primary" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ patient.patient_name }}</q-item-label>
-                  <q-item-label caption>Queue #{{ patient.queue_number }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-chip color="blue" text-color="white" label="Normal" />
-                </q-item-section>
-              </q-item>
-              <q-item v-for="patient in priorityQueue" :key="patient.id">
-                <q-item-section avatar>
-                  <q-icon name="person" color="red" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ patient.patient_name }}</q-item-label>
-                  <q-item-label caption>Queue #{{ patient.queue_number }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-chip color="red" text-color="white" label="Priority" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="empty-state">
-              <q-icon name="people" size="3rem" color="grey-4" />
-              <p class="text-grey-6">No patients in queue</p>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Vitals Checked Modal -->
-    <q-dialog v-model="showVitalsDialog">
-      <q-card class="modal-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Vitals Checked</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
-        </q-card-section>
-        <q-card-section>
-          <div class="vitals-list">
-            <q-list v-if="completedAssessments.length > 0">
-              <q-item v-for="assessment in completedAssessments" :key="assessment.id">
-                <q-item-section avatar>
-                  <q-icon name="favorite" color="green" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ assessment.patient_name }}</q-item-label>
-                  <q-item-label caption>{{ assessment.vitals_summary }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-chip color="green" text-color="white" label="Completed" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="empty-state">
-              <q-icon name="favorite" size="3rem" color="grey-4" />
-              <p class="text-grey-6">No completed assessments yet</p>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Medications Modal -->
-    <q-dialog v-model="showMedicationsDialog">
-      <q-card class="modal-card">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Medications in Inventory</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup class="modal-close-btn" />
-        </q-card-section>
-        <q-card-section>
-          <div class="medications-list">
-            <q-list v-if="medicines.length > 0">
-              <q-item v-for="medicine in medicines" :key="medicine.id">
-                <q-item-section avatar>
-                  <q-icon name="medication" color="purple" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ medicine.medicine_name }}</q-item-label>
-                  <q-item-label caption>{{ medicine.medicine_name }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-chip
-                    :color="
-                      medicine.stock_level === 'Low'
-                        ? 'red'
-                        : medicine.stock_level === 'Medium'
-                          ? 'orange'
-                          : 'green'
-                    "
-                    text-color="white"
-                    :label="`${medicine.current_stock} units`"
-                  />
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <div v-else class="empty-state">
-              <q-icon name="medication" size="3rem" color="grey-4" />
-              <p class="text-grey-6">No medications in inventory</p>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    
 
 
     <!-- Queue Schedule Modal -->
@@ -655,15 +511,13 @@ const locationData = ref<{
 const locationLoading = ref(false);
 const locationError = ref(false);
 
-// Dialog states
-const showTasksDialog = ref(false);
-const showPatientsDialog = ref(false);
-const showVitalsDialog = ref(false);
-const showMedicationsDialog = ref(false);
+// Dialog states (modals removed for dashboard cards); keep other dialogs
 const showNotifications = ref(false);
 const showStockAlerts = ref(false);
 const showQueueScheduleDialog = ref(false);
 const savingSchedule = ref(false);
+// Card loading indicator to mirror DoctorDashboard
+const statsLoading = ref(false);
 const currentSchedule = ref<{
   id: number;
   department: DepartmentValue;
@@ -2885,16 +2739,17 @@ onUnmounted(() => {
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   position: relative;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .greeting-card::before {
@@ -2906,10 +2761,15 @@ onUnmounted(() => {
   height: 4px;
   background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
   border-radius: 16px 16px 0 0;
+  opacity: 1;
 }
 
 .greeting-content {
   padding: 24px;
+  /* Ensure greeting spans full width and aligns left */
+  max-width: none;
+  margin: 0;
+  text-align: left;
 }
 
 .greeting-text {
@@ -2925,25 +2785,77 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.greeting-card:hover {
+  transform: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.greeting-card:hover::before {
+  opacity: 1;
+}
+
 /* Dashboard Content */
 .dashboard-content {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 0 24px 24px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .dashboard-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
+  gap: 26px;
   margin-bottom: 32px;
 }
 
-/* Responsive design for smaller screens */
-@media (max-width: 1200px) {
+/* Unified grid container to match DoctorDashboard */
+.dashboard-cards-section {
+  padding: 0 24px 24px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.dashboard-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 26px;
+  margin-bottom: 32px;
+}
+
+/* Responsive design to match DoctorDashboard */
+@media (max-width: 768px) {
   .dashboard-cards {
     grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
   }
+}
+
+@media (max-width: 480px) {
+  .dashboard-cards {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Mobile readability and touch-friendly sizing */
+@media (max-width: 768px) {
+  .greeting-content { padding: 18px; }
+  .greeting-text { font-size: 22px; }
+  .greeting-subtitle { font-size: 14px; }
+  .queueing-actions { gap: 12px; }
+  .queueing-actions .q-btn, .action-btn { min-height: 44px; padding: 10px 14px; font-size: 14px; }
+}
+
+@media (max-width: 480px) {
+  .greeting-content { padding: 16px; }
+  .greeting-text { font-size: 20px; }
+  .greeting-subtitle { font-size: 13px; }
+  .queueing-actions { gap: 10px; }
+  .queueing-actions .q-btn, .action-btn { min-height: 44px; padding: 10px 12px; font-size: 13px; }
 }
 
 @media (max-width: 768px) {
@@ -3026,12 +2938,12 @@ onUnmounted(() => {
     padding: 20px;
   }
 
-  .dashboard-content {
+  .dashboard-cards-section {
     padding: 16px;
   }
 
-  .dashboard-cards {
-    grid-template-columns: 1fr;
+  .dashboard-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -3047,7 +2959,7 @@ onUnmounted(() => {
     font-size: 1.1rem;
   }
 
-  .card-number {
+  .card-value {
     font-size: 2.2rem;
     align-self: flex-end;
   }
@@ -3100,15 +3012,18 @@ onUnmounted(() => {
 }
 
 .dashboard-card {
-  background: rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   position: relative;
+  min-height: 240px;
 }
 
 .dashboard-card::before {
@@ -3118,23 +3033,46 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 4px;
+  /* Default brand gradient; overridden per card type below */
   background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
   border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .dashboard-card:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.dashboard-card:hover::before {
+  opacity: 1;
+}
+
+/* Tint glassmorphism top bar to match each card color */
+.tasks-card::before {
+  background: linear-gradient(90deg, #2196f3, #64b5f6, #bbdefb);
+}
+.patients-card::before {
+  background: linear-gradient(90deg, #4caf50, #81c784, #c8e6c9);
+}
+.vitals-card::before {
+  background: linear-gradient(90deg, #ff9800, #ffb74d, #ffe0b2);
+}
+.medications-card::before {
+  background: linear-gradient(90deg, #9c27b0, #ba68c8, #e1bee7);
 }
 
 .card-content {
+  padding: 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
+  height: 100%;
 }
 
 .card-text {
@@ -3142,32 +3080,31 @@ onUnmounted(() => {
 }
 
 .card-title {
-  font-size: 1.2rem;
+  font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: #333;
   margin-bottom: 8px;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  line-height: 1.3;
 }
 
-.card-number {
-  font-size: 2.5rem;
+.card-value {
+  font-size: 32px;
   font-weight: 700;
   color: #286660;
-  margin: 8px 0;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+  line-height: 1;
+  margin-top: 8px;
 }
 
 .card-description {
-  font-size: 0.9rem;
-  color: #34495e;
+  font-size: 14px;
+  color: #666;
   line-height: 1.4;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+  margin-bottom: 8px;
 }
 
 .card-icon {
   margin-left: 16px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  color: #286660;
   opacity: 0.8;
   transition: all 0.3s ease;
 }
@@ -3177,37 +3114,130 @@ onUnmounted(() => {
   transform: scale(1.1);
 }
 
-/* Colorful and relevant icons - matching Doctor Dashboard colors */
-.task-icon {
-  color: #2196f3; /* Blue for tasks/appointments */
+/* Card-specific backgrounds and colors to match DoctorDashboard */
+.tasks-card {
+  background: linear-gradient(135deg,
+    rgba(33, 150, 243, 0.15) 0%,
+    rgba(66, 165, 245, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+.tasks-card:hover {
+  background: linear-gradient(135deg,
+    rgba(33, 150, 243, 0.25) 0%,
+    rgba(66, 165, 245, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.5);
 }
 
-.patients-icon {
-  color: #4caf50; /* Green for patients */
+.patients-card {
+  background: linear-gradient(135deg,
+    rgba(76, 175, 80, 0.15) 0%,
+    rgba(102, 187, 106, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+.patients-card:hover {
+  background: linear-gradient(135deg,
+    rgba(76, 175, 80, 0.25) 0%,
+    rgba(102, 187, 106, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(76, 175, 80, 0.5);
 }
 
-.vitals-icon {
-  color: #ff9800; /* Orange for completed/vitals */
+.vitals-card {
+  background: linear-gradient(135deg,
+    rgba(255, 152, 0, 0.15) 0%,
+    rgba(255, 183, 77, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+}
+.vitals-card:hover {
+  background: linear-gradient(135deg,
+    rgba(255, 152, 0, 0.25) 0%,
+    rgba(255, 183, 77, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(255, 152, 0, 0.5);
 }
 
-.medications-icon {
-  color: #9c27b0; /* Purple for medications/assessment */
+.medications-card {
+  background: linear-gradient(135deg,
+    rgba(156, 39, 176, 0.15) 0%,
+    rgba(186, 104, 200, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.3);
 }
+.medications-card:hover {
+  background: linear-gradient(135deg,
+    rgba(156, 39, 176, 0.25) 0%,
+    rgba(186, 104, 200, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(156, 39, 176, 0.5);
+}
+
+/* Add blue-tinted glassmorphism for Tasks card to match its color */
+.tasks-card {
+  background: linear-gradient(135deg,
+    rgba(33, 150, 243, 0.15) 0%,
+    rgba(100, 181, 246, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.3);
+}
+.tasks-card:hover {
+  background: linear-gradient(135deg,
+    rgba(33, 150, 243, 0.25) 0%,
+    rgba(100, 181, 246, 0.2) 25%,
+    rgba(255, 255, 255, 0.3) 100%);
+  border: 1px solid rgba(33, 150, 243, 0.5);
+}
+
+/* Card-specific value colors */
+.tasks-card .card-value { color: #2196f3; }
+.patients-card .card-value { color: #4caf50; }
+.vitals-card .card-value { color: #ff9800; }
+.medications-card .card-value { color: #9c27b0; }
 
 /* Queueing Section */
 .queueing-section {
   padding: 0 24px 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .queueing-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   overflow: hidden;
+  position: relative;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.queueing-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.queueing-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.queueing-card:hover::before {
+  opacity: 1;
 }
 
 .queueing-header {
@@ -3245,11 +3275,39 @@ onUnmounted(() => {
 }
 
 .queue-panel {
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(25px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   padding: 20px;
   min-height: 200px;
+  position: relative;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.queue-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 16px 16px 0 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.queue-panel:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.queue-panel:hover::before {
+  opacity: 1;
 }
 
 .queue-panel-title {
@@ -3455,7 +3513,7 @@ onUnmounted(() => {
     padding: 12px;
   }
 
-  .dashboard-cards {
+  .dashboard-cards-grid {
     gap: 12px;
     margin-bottom: 20px;
   }
@@ -3468,7 +3526,7 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .card-number {
+  .card-value {
     font-size: 2rem;
   }
 

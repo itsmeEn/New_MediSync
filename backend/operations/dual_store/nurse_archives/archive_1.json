@@ -1,0 +1,37 @@
+{
+  "assessment": {
+    "allergies": [
+      {
+        "reaction": "Rash",
+        "substance": "Penicillin"
+      }
+    ],
+    "archived": true,
+    "archived_at": "2025-11-02T14:06:05.358Z",
+    "assessed_at": "2025-11-02T14:06:04.478Z",
+    "chief_complaint": "Asthma monitoring",
+    "current_medications": [],
+    "fall_risk_score": 10,
+    "height_cm": 186,
+    "mental_status": "alert",
+    "nurse_name": "Eunice Ibardaloza",
+    "pain_score": 2,
+    "vitals": {
+      "bp": "120/80",
+      "hr": 72,
+      "o2_sat": 98,
+      "rr": 16,
+      "temp_c": 36.7
+    },
+    "weight_kg": 86.8
+  },
+  "assessment_type": "intake",
+  "diagnostics": {},
+  "hospital_name": "Catanduanes Medical Hospital",
+  "id": 1,
+  "last_assessed_at": "2025-11-02T14:06:05.411005+00:00",
+  "medical_condition": "Bronchial Asthma",
+  "medical_history_summary": "",
+  "patient_id": 341,
+  "patient_name": "Alfred Fernandez"
+}

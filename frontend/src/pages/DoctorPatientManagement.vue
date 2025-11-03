@@ -103,15 +103,14 @@
                           :alt="patient.full_name"
                           @error="patient.profile_picture = ''"
                         />
-                        <q-icon v-else name="person" size="25px" color="white" />
+                        <div v-else class="avatar-initials">{{ getInitials(patient.full_name || 'User') }}</div>
                       </q-avatar>
                     </div>
 
                     <div class="patient-info">
                       <h6 class="patient-name">{{ patient.full_name }}</h6>
                       <p class="patient-details">
-                        Assigned by: {{ patient.assigned_by || 'N/A' }} | 
-                        Specialization: {{ patient.specialization_required || 'General' }}
+                        Assigned by: {{ patient.assigned_by || 'N/A' }}
                       </p>
                       <p class="patient-condition">
                         {{ patient.assignment_reason || 'No reason specified' }}
@@ -162,30 +161,29 @@
                       >
                         <q-tooltip>Edit Patient</q-tooltip>
                       </q-btn>
-                      <q-btn-dropdown flat dense color="primary" label="Forms" icon="description" class="q-ml-xs">
-                        <q-list>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'hp')">
-                            <q-item-section>
-                              <q-item-label>History & Physical (H&P)</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'soap')">
-                            <q-item-section>
-                              <q-item-label>Progress Note (SOAP)</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'orders')">
-                            <q-item-section>
-                              <q-item-label>Provider Order Sheet</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'procedure')">
-                            <q-item-section>
-                              <q-item-label>Operative/Procedure Report</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                        </q-list>
-                      </q-btn-dropdown>
+                      <q-btn
+                        flat
+                        round
+                        icon="assignment"
+                        color="primary"
+                        size="sm"
+                        @click.stop="openNurseIntake(patient)"
+                        unelevated
+                      >
+                        <q-tooltip>Nurse Intake</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        flat
+                        round
+                        icon="archive"
+                        color="warning"
+                        size="sm"
+                        @click.stop="archivePatient(patient)"
+                        unelevated
+                      >
+                        <q-tooltip>Archive</q-tooltip>
+                      </q-btn>
+                      <!-- Forms dropdown removed per request to keep UI clean -->
                     </div>
                   </div>
                 </div>
@@ -196,49 +194,26 @@
           <!-- Right Column: Statistics + Medical Requests -->
           <div class="right-column">
             <!-- Patient Statistics Card -->
-            <q-card class="dashboard-card statistics-card">
+            <q-card class="dashboard-card statistics-card q-mb-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Patient Statistics</div>
-                  <div class="card-description">Overview of patient activity</div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="insights" size="2.2rem" />
                 </div>
               </q-card-section>
 
               <q-card-section class="card-content">
                 <div class="stats-grid">
                   <div class="stat-item">
-                    <div class="stat-number">{{ patients.length }}</div>
-                    <div class="stat-label">Total Assignments</div>
+                    <div class="stat-number">{{ stats.total_patients }}</div>
+                    <div class="stat-label">Total Patients</div>
                   </div>
                   <div class="stat-item">
-                    <div class="stat-number">{{ pendingAssignmentsCount }}</div>
-                    <div class="stat-label">Pending</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number">{{ acceptedAssignmentsCount }}</div>
-                    <div class="stat-label">Accepted</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number">{{ completedAssignmentsCount }}</div>
-                    <div class="stat-label">Completed</div>
+                    <div class="stat-number">{{ stats.active_cases }}</div>
+                    <div class="stat-label">Active Patients</div>
                   </div>
                 </div>
               </q-card-section>
-              <q-card-actions align="right" class="q-px-md q-pb-md">
-                <q-btn
-                  color="primary"
-                  icon="refresh"
-                  size="sm"
-                  label="Refresh"
-                  @click="loadDoctorStats"
-                  :loading="statsLoading"
-                  aria-label="Refresh patient statistics"
-                  unelevated
-                />
-              </q-card-actions>
+              
               <q-card-section class="card-content">
                 <div v-if="statsLoading" class="loading-section" aria-live="polite">
                   <q-spinner color="primary" size="2em" />
@@ -257,45 +232,10 @@
               </q-card-section>
             </q-card>
 
-            <!-- Medical Requests Card -->
-            <q-card class="dashboard-card medical-requests-card">
-              <q-card-section class="card-content">
-                <div class="card-text">
-                  <div class="card-title">Medical Requests</div>
-                  <div class="card-description">Pending approvals and lab requests</div>
-                  <div class="card-value">
-                    <q-spinner v-if="medicalRequestsLoading" size="md" />
-                    <span v-else>{{ medicalRequests.length }}</span>
-                  </div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="assignment" size="2.2rem" />
-                </div>
-              </q-card-section>
-
-              <q-card-actions align="right" class="q-px-md q-pb-md">
-                <q-btn
-                  color="primary"
-                  icon="refresh"
-                  size="sm"
-                  @click="loadMedicalRequests"
-                  :loading="medicalRequestsLoading"
-                  label="Refresh"
-                  unelevated
-                />
-                <q-btn
-                  color="secondary"
-                  icon="visibility"
-                  size="sm"
-                  label="View"
-                  @click="showMedicalRequestsModal = true"
-                  unelevated
-                />
-              </q-card-actions>
-            </q-card>
+            <!-- Medical Requests Card removed per refactor -->
 
             <!-- List of Available Nurses Card -->
-            <q-card class="dashboard-card nurses-card">
+            <q-card class="dashboard-card nurses-card q-mt-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Available Nurses</div>
@@ -315,7 +255,7 @@
                   <p class="empty-text">No available nurses</p>
                 </div>
                 <div v-else class="nurses-list">
-                  <div v-for="(nurse, idx) in availableNurses" :key="String(nurse.id ?? nurse.email ?? nurse.full_name ?? idx)" class="nurse-row">
+                  <div v-for="(nurse, idx) in paginatedNurses" :key="String(nurse.id ?? nurse.email ?? nurse.full_name ?? idx)" class="nurse-row">
                     <div class="nurse-avatar">
                       <q-avatar size="40px" color="teal-8" text-color="white">
                         {{ getInitials(nurse.full_name || '') }}
@@ -338,90 +278,27 @@
                       <div class="nurse-contact">Contact: {{ nurse.email || '—' }}</div>
                     </div>
                   </div>
+                  <div class="row items-center justify-between q-mt-sm" aria-label="Nurses pagination controls">
+                    <div class="text-caption text-grey-7">
+                      Showing {{ nursesStartIndex }}–{{ nursesEndIndex }} of {{ availableNurses.length }}
+                    </div>
+                    <q-pagination
+                      v-model="nursesPage"
+                      :max="nurseTotalPages"
+                      max-pages="7"
+                      boundary-numbers
+                      size="sm"
+                      color="primary"
+                      aria-label="Available nurses pagination"
+                    />
+                  </div>
                 </div>
               </q-card-section>
             </q-card>
 
-            <!-- Medical Records Card -->
-            <q-card class="dashboard-card medical-records-card">
-              <q-card-section class="card-content">
-                <div class="card-text">
-                  <div class="card-title">Medical Records</div>
-                  <div class="card-description">Organized patient medical history and archives</div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="folder" size="2.2rem" />
-                </div>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <q-tabs v-model="recordsTab" dense class="q-mb-sm" aria-label="Patient archives navigation">
-                  <q-tab name="all" label="All" />
-                  <q-tab name="hp" label="H&P" />
-                  <q-tab name="soap" label="SOAP" />
-                  <q-tab name="orders" label="Orders" />
-                  <q-tab name="procedure" label="Procedure" />
-                </q-tabs>
-                <div class="row items-center q-col-gutter-sm q-mb-sm">
-                  <div class="col-12 col-sm-8">
-                    <q-input v-model="recordsSearch" outlined dense label="Search records" debounce="300" aria-label="Search medical records" />
-                  </div>
-                  <div class="col-12 col-sm-4 flex justify-end">
-                    <q-btn color="primary" icon="refresh" size="sm" label="Refresh" @click="loadMedicalRecords" :loading="recordsLoading" aria-label="Refresh medical records" />
-                  </div>
-                </div>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <div v-if="recordsLoading" class="loading-section" aria-live="polite">
-                  <q-spinner color="primary" size="2em" />
-                  <p class="loading-text">Loading medical records...</p>
-                </div>
-                <div v-else-if="filteredRecords.length === 0" class="empty-section">
-                  <q-icon name="folder_open" size="48px" color="grey-5" />
-                  <p class="empty-text">No records found</p>
-                </div>
-                <div v-else class="records-list">
-                  <q-list bordered separator>
-                    <q-item v-for="rec in filteredRecords" :key="String(rec.id)" clickable>
-                      <q-item-section>
-                        <q-item-label>{{ rec.patient_name }} — {{ (rec.assessment_type || '').toUpperCase() }}</q-item-label>
-                        <q-item-label caption>
-                          {{ rec.medical_condition || 'N/A' }} • {{ formatDate(rec.last_assessed_at) }} • {{ rec.hospital_name || 'Unknown Hospital' }}
-                        </q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <q-btn icon="visibility" color="primary" size="sm" @click.stop="previewRecord(rec)" aria-label="Preview record" />
-                        <q-btn icon="download" color="secondary" size="sm" class="q-ml-xs" @click.stop="downloadRecord(rec)" aria-label="Download record" />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </div>
-              </q-card-section>
-            </q-card>
+            <!-- Medical Records Card removed per refactor -->
 
-            <!-- Record Preview Dialog -->
-            <q-dialog v-model="showRecordDialog" transition-show="scale" transition-hide="scale" :persistent="false" content-class="record-dialog-container" aria-label="Record preview dialog">
-              <q-card class="record-dialog-card" style="min-width:600px;max-width:95vw;">
-                <q-card-section class="card-header">
-                  <div class="row items-center justify-between">
-                    <div class="text-h6">Record Preview</div>
-                    <q-btn flat round dense icon="close" aria-label="Close record preview" @click="showRecordDialog = false" />
-                  </div>
-                </q-card-section>
-                <q-separator />
-                <q-card-section class="card-content">
-                  <div class="q-mb-sm"><strong>Patient:</strong> {{ selectedRecord?.patient_name }}</div>
-                  <div class="q-mb-sm"><strong>Type:</strong> {{ (selectedRecord?.assessment_type || '').toUpperCase() }}</div>
-                  <div class="q-mb-sm"><strong>Condition:</strong> {{ selectedRecord?.medical_condition || 'N/A' }}</div>
-                  <q-banner dense class="q-mt-md q-mb-md" icon="description">
-                    Decrypted Assessment Data
-                  </q-banner>
-                  <pre class="record-json" aria-label="Decrypted assessment data"><code>{{ JSON.stringify(selectedRecord?.decrypted_assessment_data || {}, null, 2) }}</code></pre>
-                </q-card-section>
-                <q-card-actions align="right" class="q-px-md q-pb-md">
-                  <q-btn color="secondary" icon="download" size="sm" label="Download" @click="selectedRecord && downloadRecord(selectedRecord)" aria-label="Download record" />
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
+            <!-- Record Preview Dialog removed per refactor -->
 
 
           </div>
@@ -475,37 +352,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Medical Requests Modal -->
-    <q-dialog v-model="showMedicalRequestsModal" persistent>
-      <q-card class="modal-card" style="width: 520px; max-width: 95vw">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Medical Requests</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <div v-if="medicalRequests.length === 0" class="text-center text-grey-6 q-py-lg">
-            No medical requests found
-          </div>
-          <div v-else>
-            <q-list separator>
-              <q-item v-for="req in medicalRequests" :key="req.id" class="q-pa-md">
-                <q-item-section>
-                  <q-item-label>{{ req.title || 'Request' }}</q-item-label>
-                  <q-item-label caption>
-                    {{ req.status || 'pending' }} • {{ formatDateTime(req.created_at) }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn color="primary" icon="refresh" size="sm" label="Refresh" @click="loadMedicalRequests" :loading="medicalRequestsLoading" />
-          <q-btn flat label="Close" color="primary" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <!-- Medical Requests Modal removed per refactor -->
 
     <!-- Doctor Form Dialog -->
     <q-dialog v-model="showDoctorFormDialog" persistent :maximized="$q.screen.lt.md" transition-show="slide-up" transition-hide="slide-down">
@@ -1000,14 +847,68 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <!-- Nurse Intake Dialog -->
+    <q-dialog v-model="showNurseIntakeDialog">
+      <q-card class="doctor-form-card" style="max-width: 860px; width: 92vw;">
+        <q-card-section class="card-header">
+          <div class="card-title">Nurse Intake Assessment</div>
+        </q-card-section>
+        <q-card-section class="card-content">
+          <div v-if="nurseIntakeLoading" class="loading-section">
+            <q-spinner color="primary" size="2em" />
+            <p class="loading-text">Loading assessment...</p>
+          </div>
+          <div v-else>
+            <div v-if="hasNurseIntakeData" class="q-gutter-md">
+              <div v-if="nurseIntakeView.chief_complaint">
+                <strong>Chief Complaint:</strong> {{ nurseIntakeView.chief_complaint }}
+              </div>
+              <div v-if="nurseIntakeView.allergies">
+                <strong>Allergies:</strong> {{ nurseIntakeView.allergies }}
+              </div>
+              <div v-if="nurseIntakeView.current_medications">
+                <strong>Current Medications:</strong> {{ nurseIntakeView.current_medications }}
+              </div>
+              <div v-if="nurseIntakeView.medical_history">
+                <strong>Medical History:</strong> {{ nurseIntakeView.medical_history }}
+              </div>
+              <div v-if="nurseIntakeView.assessment_notes">
+                <strong>Assessment Notes:</strong> {{ nurseIntakeView.assessment_notes }}
+              </div>
+
+              <div class="vitals" v-if="nurseIntakeView.vitals && (nurseIntakeView.vitals.blood_pressure || nurseIntakeView.vitals.heart_rate || nurseIntakeView.vitals.temperature || nurseIntakeView.vitals.respiratory_rate || nurseIntakeView.vitals.oxygen_saturation)">
+                <div class="text-subtitle2 q-mb-xs">Vitals</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.blood_pressure"><strong>BP:</strong> {{ nurseIntakeView.vitals.blood_pressure }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.heart_rate"><strong>HR:</strong> {{ nurseIntakeView.vitals.heart_rate }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.temperature"><strong>Temp:</strong> {{ nurseIntakeView.vitals.temperature }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.respiratory_rate"><strong>RR:</strong> {{ nurseIntakeView.vitals.respiratory_rate }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.oxygen_saturation"><strong>SpO₂:</strong> {{ nurseIntakeView.vitals.oxygen_saturation }}</div>
+                </div>
+              </div>
+
+              
+            </div>
+            <div v-else class="empty-intake q-pa-md">
+              <div class="text-subtitle1 q-mb-sm">No nurse intake data available</div>
+              <div class="text-caption text-grey-7 q-mb-md">The nursing team has not recorded an intake assessment for this patient yet.</div>
+              
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
+import { useRouter } from 'vue-router';
 import type { AxiosError } from 'axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
@@ -1027,7 +928,6 @@ interface Patient {
   user_id: number;
   full_name: string;
   patient_name?: string;
-  // Optional identifiers commonly used across forms
   date_of_birth?: string;
   mrn?: string;
   email?: string;
@@ -1047,7 +947,6 @@ interface Patient {
   assigned_doctor?: string | null;
   profile_picture?: string | null;
   is_dummy?: boolean;
-  // Assignment-related fields
   assignment_id?: number;
   assignment_status?: string;
   assigned_by?: string;
@@ -1066,15 +965,9 @@ type DoctorNotification = {
   created_at: string;
 };
 
-type MedicalRequest = {
-  id: number;
-  title?: string;
-  status?: string;
-  created_at?: string | Date;
-};
-
 // Reactive data
 const $q = useQuasar();
+const router = useRouter();
 const rightDrawerOpen = ref(false);
 const loading = ref(false);
 const searchText = ref('');
@@ -1096,8 +989,6 @@ const orderOptions = [
   { label: 'Descending', value: 'desc' },
 ];
 
-// OPD form selection watcher removed; OPD forms now live in DoctorPatientArchive.vue.
-
 // User profile data
 const userProfile = ref<{
   id: number;
@@ -1115,47 +1006,182 @@ const userProfile = ref<{
   verification_status: '',
 });
 
-// Weather data is now handled by DoctorHeader component
-
 // Notification system
 const notifications = ref<DoctorNotification[]>([]);
 
 const loadNotifications = async (): Promise<void> => {
   try {
-    console.log('📬 Loading doctor notifications...');
+    console.log('Loading doctor notifications...');
     const response = await api.get('/operations/notifications/');
     notifications.value = response.data || [];
-    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+    console.log('Doctor notifications loaded:', notifications.value.length);
   } catch (error) {
-    console.error('❌ Error loading doctor notifications:', error);
+    console.error('Error loading doctor notifications:', error);
     $q.notify({ type: 'negative', message: 'Failed to load notifications' });
   }
 };
 
-// Medical Requests state
-const medicalRequests = ref<MedicalRequest[]>([]);
-const medicalRequestsLoading = ref(false);
-const showMedicalRequestsModal = ref(false);
+// Nurse Intake dialog state
+const showNurseIntakeDialog = ref(false)
+const nurseIntakeLoading = ref(false)
+const nurseIntakeData = ref<Record<string, unknown>>({})
+const hasNurseIntakeData = computed(() => {
+  const d = nurseIntakeData.value
+  return !!d && Object.keys(d).length > 0
+})
+// Derive human-readable fields from nurse intake
+const nurseIntakeView = computed(() => {
+  // Avoid unnecessary assertions; value already typed as Record<string, unknown>
+  const d: Record<string, unknown> = nurseIntakeData.value || {}
 
-const loadMedicalRequests = async () => {
-  medicalRequestsLoading.value = true;
+  const str = (v: unknown): string => {
+    if (v === null || v === undefined) return ''
+    if (Array.isArray(v)) {
+      const parts = v
+        .map((item) => {
+          if (item === null || item === undefined) return ''
+          if (typeof item === 'string') return item.trim()
+          if (typeof item === 'number' || typeof item === 'boolean') return String(item)
+          if (typeof item === 'object') {
+            try { return JSON.stringify(item) } catch { return '' }
+          }
+          return String(item)
+        })
+        .filter((s) => s.length > 0)
+      return parts.join(', ')
+    }
+    if (typeof v === 'object') {
+      try { return JSON.stringify(v) } catch { return '' }
+    }
+    if (typeof v === 'string') return v
+    if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint' || typeof v === 'symbol') return String(v)
+    // Avoid base-to-string on unknown/function types
+    return ''
+  }
+
+  const vitalsRaw = (d['vitals'] || d['vital_signs'] || {}) as Record<string, unknown>
+  const vitals = {
+    blood_pressure: str(vitalsRaw['blood_pressure'] || vitalsRaw['bp']),
+    heart_rate: str(vitalsRaw['heart_rate'] || vitalsRaw['pulse']),
+    respiratory_rate: str(vitalsRaw['respiratory_rate'] || vitalsRaw['rr']),
+    temperature: str(vitalsRaw['temperature'] || vitalsRaw['temp']),
+    oxygen_saturation: str(vitalsRaw['oxygen_saturation'] || vitalsRaw['spo2']),
+  }
+
+  return {
+    chief_complaint: str(d['chief_complaint'] || d['complaint']),
+    allergies: str(d['allergies'] || d['known_allergies']),
+    current_medications: str(d['current_medications'] || d['medications']),
+    medical_history: str(d['medical_history'] || d['history']),
+    assessment_notes: str(d['assessment_notes'] || d['notes'] || d['nurse_notes']),
+    vitals,
+  }
+})
+
+const openNurseIntake = async (patient: Patient): Promise<void> => {
   try {
-    const response = await api.get('/operations/medical-requests/').catch(() => ({ data: [] }));
-    medicalRequests.value = (response?.data || []) as MedicalRequest[];
+    selectedPatient.value = patient
+    showNurseIntakeDialog.value = true
+    nurseIntakeLoading.value = true
+    // Non-blocking specialization mismatch warning
+    try {
+      const normalizeSpec = (s: string): string => {
+        const v = String(s || '').trim().toLowerCase()
+        const synonyms: Record<string, string> = {
+          'pulmonary medicine': 'pulmonology',
+          'respiratory medicine': 'pulmonology',
+          'cardiovascular medicine': 'cardiology',
+          'ob-gyn': 'gynecology',
+          'obgyn': 'gynecology',
+        }
+        return synonyms[v] || v
+      }
+      const titleCase = (s: string): string => {
+        const tokens = String(s || '').trim().split(/\s+/)
+        return tokens.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      }
+
+      const requiredSpecRaw = String(patient.specialization_required || '')
+      const doctorSpecRaw = String(userProfile.value?.specialization || '')
+      const requiredSpec = normalizeSpec(requiredSpecRaw)
+      const doctorSpec = normalizeSpec(doctorSpecRaw)
+      if (requiredSpec && doctorSpec && requiredSpec !== doctorSpec) {
+        console.warn('The specialization is not aligned with the doctor\'s specialization')
+        $q.notify({ type: 'warning', message: `Specialization mismatch: patient requires ${titleCase(requiredSpec)}, you are ${titleCase(doctorSpec)}.`, position: 'top' })
+      }
+    } catch { 
+      /* ignore */ 
+    }
+    const pid = patient.user_id ?? patient.id
+    const endpoint = `/users/doctor/patient/${pid}/nurse-intake/`
+    const resp = await api.get(endpoint)
+    nurseIntakeData.value = resp.data?.data ?? {}
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'doctor_view_nurse_intake_succeeded',
+      route: 'DoctorPatientManagement',
+      context: { patient_id: String(pid), has_data: Boolean(nurseIntakeData.value && Object.keys(nurseIntakeData.value).length) }
+    }).catch(() => { /* non-blocking */ })
   } catch (error) {
-    console.error('Failed to load medical requests:', error);
-    medicalRequests.value = [];
-    $q.notify({ type: 'negative', message: 'Failed to load medical requests' });
+    console.error('Failed to load nurse intake:', error)
+    const status = (error as { response?: { status?: number } })?.response?.status
+    const msg = status === 403 ? 'Not authorized for this patient' : 'Failed to load nurse intake'
+    $q.notify({ type: status === 403 ? 'warning' : 'negative', message: msg, position: 'top' })
     void api.post('/operations/client-log/', {
       level: 'error',
-      message: 'loadMedicalRequests failed',
+      message: 'doctor_view_nurse_intake_failed',
       route: 'DoctorPatientManagement',
-      context: { error: String(error) },
-    });
+      context: { patient_id: String((patient.user_id ?? patient.id) || ''), status: String(status || ''), error: String(error) }
+    }).catch(() => { /* non-blocking */ })
+    nurseIntakeData.value = {}
   } finally {
-    medicalRequestsLoading.value = false;
+    nurseIntakeLoading.value = false
   }
-};
+}
+
+// Inline archive action from doctor patient list
+const archivePatient = async (patient: Patient): Promise<void> => {
+  try {
+    const patientUserIdNum = Number(patient.user_id ?? patient.id)
+    if (!Number.isFinite(patientUserIdNum)) {
+      throw new Error('Invalid patient ID')
+    }
+
+    // Minimal assessment payload; nurses’ intake is primary source
+    const assessmentData: Record<string, unknown> = {
+      archived_at: new Date().toISOString(),
+      doctor_name: userProfile.value.full_name,
+      note: 'Archived from doctor patient list'
+    }
+
+    // Derive hospital name safely without relying on userProfile.hospital_name
+    let hospitalName = patient.hospital || ''
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}') as Record<string, unknown>
+      const maybeHospital = typeof storedUser.hospital_name === 'string' ? storedUser.hospital_name : ''
+      hospitalName = hospitalName || maybeHospital
+    } catch { /* ignore parse errors */ }
+
+    const payload: Record<string, unknown> = {
+      patient_id: patientUserIdNum,
+      assessment_type: 'intake',
+      assessment_data: assessmentData,
+      medical_condition: patient.medical_condition || '',
+      hospital_name: hospitalName,
+      doctor_id: userProfile.value.id,
+      specialization: userProfile.value.specialization || 'General'
+    }
+
+    await api.post('/operations/archives/create/', payload)
+    $q.notify({ type: 'positive', message: 'Record archived' })
+    void router.push({ name: 'DoctorPatientArchive' })
+  } catch (err) {
+    console.error('Archive failed:', err)
+    $q.notify({ type: 'negative', message: 'Failed to archive record' })
+  }
+}
+
+// loadMedicalRequests removed per refactor
 
 // Available Nurses list
 interface NurseSummary {
@@ -1174,9 +1200,37 @@ const nursesLoading = ref(false);
 const nursesError = ref<string | null>(null);
 const nursesCheckedAt = ref<string | null>(null);
 
+// Pagination for Available Nurses (10 per page)
+const nursesPage = ref(1);
+const nursesPerPage = 10;
+const nurseTotalPages = computed(() => {
+  const total = availableNurses.value.length;
+  return Math.max(1, Math.ceil(total / nursesPerPage));
+});
+const paginatedNurses = computed(() => {
+  const start = (nursesPage.value - 1) * nursesPerPage;
+  return availableNurses.value.slice(start, start + nursesPerPage);
+});
+const nursesStartIndex = computed(() => {
+  if (availableNurses.value.length === 0) return 0;
+  return (nursesPage.value - 1) * nursesPerPage + 1;
+});
+const nursesEndIndex = computed(() => {
+  const end = nursesPage.value * nursesPerPage;
+  return Math.min(availableNurses.value.length, end);
+});
+watch(availableNurses, (list) => {
+  const max = Math.max(1, Math.ceil(list.length / nursesPerPage));
+  if (nursesPage.value > max) nursesPage.value = max;
+  if (nursesPage.value < 1) nursesPage.value = 1;
+});
+
 const getInitials = (name: string): string => {
-  const parts = (name || '').trim().split(/\s+/);
-  return parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  const safe = (name || '').trim();
+  if (!safe) return 'U';
+  const parts = safe.split(/\s+/);
+  const initials = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  return initials || safe.charAt(0).toUpperCase();
 };
 
 const getAvailabilityColor = (status: string): string => {
@@ -1202,7 +1256,7 @@ const loadAvailableNurses = async (): Promise<void> => {
   nursesError.value = null;
   try {
     // New secured endpoint dedicated for nurse availability, includes timestamp and shift info
-    const url = `/api/operations/availability/nurses/`;
+    const url = `/operations/availability/nurses/`;
     const response = await api.get(url);
     type ApiNurse = {
       id: number | string;
@@ -1234,10 +1288,24 @@ const loadAvailableNurses = async (): Promise<void> => {
       localStorage.setItem('available_nurses_checked_at', checkedAt);
       nursesCheckedAt.value = checkedAt;
     }
+    // Optional: lightweight client log for success
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'loadAvailableNurses succeeded',
+      route: 'DoctorPatientManagement',
+      context: { count: list.length, checked_at: checkedAt }
+    }).catch(() => { /* non-blocking */ });
   } catch (error) {
     console.error('Failed to load available nurses:', error);
     const msg = getErrorMessage(error);
     nursesError.value = msg || 'Unable to load nurses';
+    $q.notify({ type: 'negative', message: 'Failed to load available nurses', position: 'top' });
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadAvailableNurses failed',
+      route: 'DoctorPatientManagement',
+      context: { error: String(error) }
+    }).catch(() => { /* non-blocking */ });
     // Try to use cached data as fallback
     try {
       const cached = localStorage.getItem('available_nurses');
@@ -1283,19 +1351,7 @@ const filteredPatients = computed(() => {
 });
 
 
-
-// Assignment-based statistics
-const pendingAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'pending').length,
-);
-
-const acceptedAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'accepted' || p.assignment_status === 'in_progress').length,
-);
-
-const completedAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'completed').length,
-);
+// Assignment-based statistics removed; card now uses aggregated `stats` only
 
 // Patient statistics state and loader
 const stats = ref<{ total_patients: number; active_cases: number; recovery_rate: number; active_rate: number }>({ total_patients: 0, active_cases: 0, recovery_rate: 0, active_rate: 0 })
@@ -1347,113 +1403,7 @@ const loadDoctorStats = async (): Promise<void> => {
   }
 }
 
-// Medical records state and loader
-interface MedicalRecord {
-  id: number | string
-  patient_id?: number | string
-  patient_name: string
-  assessment_type: string
-  medical_condition?: string
-  decrypted_assessment_data?: Record<string, unknown> | null
-  last_assessed_at?: string
-  hospital_name?: string
-}
-
-const records = ref<MedicalRecord[]>([])
-const recordsLoading = ref(false)
-const recordsTab = ref<'all' | 'hp' | 'soap' | 'orders' | 'procedure'>('all')
-const recordsSearch = ref('')
-const showRecordDialog = ref(false)
-const selectedRecord = ref<MedicalRecord | null>(null)
-
-const loadMedicalRecords = async (): Promise<void> => {
-  recordsLoading.value = true
-  try {
-    type ArchiveItem = {
-      id?: number | string;
-      archive_id?: number | string;
-      _id?: number | string;
-      patient_id?: number | string;
-      patient_name?: string;
-      name?: string;
-      assessment_type?: string;
-      medical_condition?: string;
-      decrypted_assessment_data?: Record<string, unknown> | null;
-      last_assessed_at?: string;
-      updated_at?: string;
-      created_at?: string;
-      hospital_name?: string;
-    };
-    type ArchiveResponse = { results?: ArchiveItem[] } | ArchiveItem[];
-
-    const res = await api.get('/operations/archives/')
-    const data = (res as { data: ArchiveResponse }).data
-    const list: ArchiveItem[] = Array.isArray(data) ? (data as ArchiveItem[]) : (data.results ?? [])
-    records.value = list.map((r): MedicalRecord => {
-      const last = r.last_assessed_at ?? r.updated_at ?? r.created_at;
-      return {
-        id: r.id ?? r.archive_id ?? r._id ?? Math.random(),
-        ...(r.patient_id != null ? { patient_id: r.patient_id } : {}),
-        patient_name: r.patient_name ?? r.name ?? 'Unknown Patient',
-        assessment_type: String(r.assessment_type || 'unknown').toLowerCase(),
-        medical_condition: r.medical_condition ?? '',
-        decrypted_assessment_data: r.decrypted_assessment_data ?? null,
-        ...(last != null ? { last_assessed_at: last } : {}),
-        hospital_name: r.hospital_name ?? ''
-      };
-    })
-  } catch (error) {
-    console.error('Failed to load medical records:', error)
-    records.value = []
-    $q.notify({ type: 'negative', message: 'Failed to load medical records', position: 'top' })
-    void api.post('/operations/client-log/', {
-      level: 'error',
-      message: 'loadMedicalRecords failed',
-      route: 'DoctorPatientManagement',
-      context: { error: String(error) }
-    })
-  } finally {
-    recordsLoading.value = false
-  }
-}
-
-const filteredRecords = computed(() => {
-  const tab = recordsTab.value
-  const search = recordsSearch.value.trim().toLowerCase()
-  return records.value.filter(r => {
-    const matchTab = tab === 'all' ? true : r.assessment_type === tab
-    const matchSearch = !search
-      || (r.patient_name || '').toLowerCase().includes(search)
-      || (r.medical_condition || '').toLowerCase().includes(search)
-      || (r.assessment_type || '').toLowerCase().includes(search)
-    return matchTab && matchSearch
-  })
-})
-
-const previewRecord = (rec: MedicalRecord): void => {
-  selectedRecord.value = rec
-  showRecordDialog.value = true
-}
-
-const downloadRecord = (rec: MedicalRecord): void => {
-  try {
-    const url = `/api/operations/archives/${rec.id}/export/`
-    window.open(url, '_blank')
-  } catch (error) {
-    console.error('Download record failed:', error)
-    $q.notify({ type: 'negative', message: 'Failed to download record', position: 'top' })
-  }
-}
-
-const formatDate = (iso?: string): string => {
-  if (!iso) return '—'
-  try {
-    const d = new Date(iso)
-    return d.toLocaleString()
-  } catch {
-    return String(iso)
-  }
-}
+// Medical records UI and loader removed per refactor
 
 // Patient assignment data loading and actions
 const loadPatients = async () => {
@@ -1613,9 +1563,8 @@ const loadVerificationStatus = async (patient: Patient) => {
 };
 
 const viewPatientDetails = (patient: Patient) => {
-  const currentId = selectedPatient.value?.id;
-  console.log('Viewing patient:', patient.full_name, 'Currently selected:', currentId);
-  $q.notify({ type: 'info', message: `Viewing details for ${patient.full_name}`, position: 'top' });
+  // For now, 'View' opens the nurse intake assessment for the selected patient
+  void openNurseIntake(patient)
 };
 
 const editPatient = (patient: Patient) => {
@@ -1628,14 +1577,29 @@ const fetchUserProfile = async () => {
   try {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
+
+    // Prefer doctor_profile specialization; ensure strings only
+    const docSpec = typeof userData?.doctor_profile?.specialization === 'string'
+      ? userData.doctor_profile.specialization
+      : '';
+
+    // In doctor-facing components, do not let role be coerced by stale data
+    const roleFromApi = typeof userData?.role === 'string' ? userData.role : 'doctor';
+    const safeRole = roleFromApi === 'doctor' ? 'doctor' : 'doctor';
+
     userProfile.value = {
       id: userData.id,
       full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization,
-      role: userData.role,
+      specialization: docSpec,
+      role: safeRole,
       profile_picture: userData.profile_picture || null,
       verification_status: userData.verification_status,
     };
+
+    if (roleFromApi !== 'doctor') {
+      console.warn('Profile API returned non-doctor role on doctor page; enforcing doctor context. Received:', roleFromApi);
+    }
+
     console.log('Loaded user profile role:', userProfile.value.role);
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
@@ -2076,6 +2040,7 @@ const saveDoctorForm = async (): Promise<void> => {
     } else {
       await api.post(endpoint, data)
       $q.notify({ type: 'positive', message: 'Form submitted successfully', position: 'top' })
+      void router.push({ name: 'DoctorPatientArchive' })
     }
     showDoctorFormDialog.value = false
   } catch (error) {
@@ -2263,6 +2228,7 @@ const stopAssignmentsPolling = (): void => {
 
 // Doctor messaging WebSocket for real-time patient assignments
 let doctorMessagingWS: WebSocket | null = null;
+let wsRetries = 0;
 
 const setupDoctorMessagingWS = (): void => {
   try {
@@ -2284,6 +2250,7 @@ const setupDoctorMessagingWS = (): void => {
 
     ws.onopen = () => {
       console.log('DoctorPatientManagement messaging WebSocket connected');
+      wsRetries = 0;
     };
 
     ws.onmessage = async (event: MessageEvent) => {
@@ -2307,7 +2274,6 @@ const setupDoctorMessagingWS = (): void => {
               setTimeout(() => { void loadPatients(); }, 2000);
             }
             void loadNotifications();
-            void loadMedicalRequests();
           }
         }
       } catch (err) {
@@ -2315,10 +2281,16 @@ const setupDoctorMessagingWS = (): void => {
       }
     };
 
+    ws.onerror = (ev) => {
+      // Reduce noise: log at debug level, notify only via assignment events
+      console.debug('DoctorPatientManagement messaging WebSocket error', ev);
+    };
+
     ws.onclose = () => {
       console.log('DoctorPatientManagement messaging WebSocket disconnected');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => setupDoctorMessagingWS(), 5000);
+      // Exponential backoff with cap to reduce noise
+      const delay = Math.min(30000, 2000 * Math.pow(2, wsRetries++));
+      setTimeout(() => setupDoctorMessagingWS(), delay);
     };
   } catch (e) {
     console.warn('Failed to setup doctor messaging WebSocket', e);
@@ -2330,10 +2302,8 @@ onMounted(() => {
   void fetchUserProfile();
   void loadNotifications();
   void loadPatients();
-  void loadMedicalRequests();
   void loadAvailableNurses();
   void loadDoctorStats();
-  void loadMedicalRecords();
   startAssignmentsPolling();
   setupDoctorMessagingWS();
 });

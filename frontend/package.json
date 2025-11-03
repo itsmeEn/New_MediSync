@@ -12,7 +12,8 @@
     "test": "vitest --run",
     "dev": "quasar dev",
     "build": "quasar build",
-    "postinstall": "quasar prepare"
+    "postinstall": "quasar prepare",
+    "populate-dummy-data": "python ../manage.py populate_demo_data --records=300 --inventory-count=40"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",

@@ -501,13 +501,17 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
-    // Check localStorage for updated profile picture
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const docSpec = typeof userData?.doctor_profile?.specialization === 'string' ? userData.doctor_profile.specialization : '';
+    const roleFromApi = typeof userData?.role === 'string' ? userData.role : 'doctor';
+    if (roleFromApi !== 'doctor') {
+      console.warn('Profile API returned non-doctor role on doctor messaging; enforcing doctor context. Received:', roleFromApi);
+    }
 
     userProfile.value = {
       full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization,
-      role: userData.role,
+      specialization: docSpec,
+      role: 'doctor',
       profile_picture: storedUser.profile_picture || userData.profile_picture || null,
       verification_status: userData.verification_status,
     };
@@ -516,14 +520,14 @@ const fetchUserProfile = async () => {
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
 
-    // Fallback to localStorage
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
+    // Fallback to localStorage; enforce doctor role
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const user = JSON.parse(raw);
       userProfile.value = {
         full_name: user.full_name,
-        specialization: user.doctor_profile?.specialization,
-        role: user.role,
+        specialization: typeof user.doctor_profile?.specialization === 'string' ? user.doctor_profile.specialization : '',
+        role: 'doctor',
         profile_picture: user.profile_picture || null,
         verification_status: user.verification_status || 'not_submitted',
       };
@@ -536,7 +540,7 @@ const loadAvailableUsers = async (): Promise<void> => {
     loading.value = true;
     console.log('📞 Loading available users...');
 
-    const response = await api.get('/api/operations/messaging/available-users/');
+    const response = await api.get('/operations/messaging/available-users/');
     
     // Handle new API response format
     if (response.data.users) {
@@ -551,10 +555,26 @@ const loadAvailableUsers = async (): Promise<void> => {
         message: response.data.message || `Found ${response.data.total_count} verified users`,
         timeout: 3000
       });
+
+      // Informative notice when no users are returned
+      if (response.data.total_count === 0) {
+        $q.notify({
+          type: 'warning',
+          message: 'No verified users found in your hospital. Check your profile hospital and verification status.',
+          timeout: 4000
+        });
+      }
     } else {
       // Fallback for old API format
       availableUsers.value = response.data;
       console.log('Available users loaded (legacy format):', availableUsers.value);
+      if (Array.isArray(availableUsers.value) && availableUsers.value.length === 0) {
+        $q.notify({
+          type: 'warning',
+          message: 'No verified users found in your hospital. Check your profile hospital and verification status.',
+          timeout: 4000
+        });
+      }
     }
 
     // Log each user's verification status

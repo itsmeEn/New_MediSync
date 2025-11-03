@@ -1417,9 +1417,8 @@ def get_available_users(request):
             available_users = User.objects.filter(
                 role__in=['doctor', 'nurse'],
                 is_active=True,
-                is_verified=True,
                 verification_status='approved',  # Only admin-verified users for security
-                hospital_name=user.hospital_name
+                hospital_name__iexact=(user.hospital_name or '').strip()
             ).filter(
                 Q(doctor_profile__isnull=False) | Q(nurse_profile__isnull=False)
             ).exclude(id=user.id)
@@ -1433,6 +1432,15 @@ def get_available_users(request):
             )
         
         serializer = UserSerializer(available_users, many=True)
+        # Debug: log counts and context to aid investigations
+        try:
+            logger.info(
+                f"get_available_users: user_id={getattr(user,'id',None)} role={getattr(user,'role',None)} "
+                f"hospital='{(getattr(user,'hospital_name', '') or '').strip()}' "
+                f"search='{search_query}' count={available_users.count()} filter='approved_only'"
+            )
+        except Exception:
+            pass
         return Response({
             'users': serializer.data,
             'total_count': available_users.count(),
@@ -1477,13 +1485,13 @@ def available_doctors_free(request):
         today = timezone.localdate()
         active_statuses = ['scheduled', 'rescheduled', 'checked_in', 'in_progress']
 
-        # Base queryset: verified doctors in same hospital
+        # Base queryset: admin-approved doctors in same hospital (case-insensitive)
+        # Note: rely on verification_status='approved' and avoid legacy is_verified flag
         doctors_qs = GeneralDoctorProfile.objects.select_related('user').filter(
             user__role='doctor',
             user__is_active=True,
-            user__is_verified=True,
             user__verification_status='approved',
-            user__hospital_name=user.hospital_name,
+            user__hospital_name__iexact=(user.hospital_name or ''),
         )
 
         if specialization:
@@ -1553,12 +1561,12 @@ def available_nurses(request):
         if cached:
             return Response(cached, status=status.HTTP_200_OK)
 
+        # Admin-approved nurses in same hospital (case-insensitive)
         nurses_qs = NurseProfile.objects.select_related('user').filter(
             user__role='nurse',
             user__is_active=True,
-            user__is_verified=True,
             user__verification_status='approved',
-            user__hospital_name=user.hospital_name,
+            user__hospital_name__iexact=(user.hospital_name or ''),
         )
 
         if search:
@@ -1621,6 +1629,113 @@ def available_nurses(request):
         return Response({'error': 'Database error while fetching nurses.', 'detail': str(db_err)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     except Exception as e:
         return Response({'error': 'Failed to fetch available nurses.', 'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def nurse_capacity_validate(request):
+    """
+    Validate if a nurse has capacity to accept queue patients in a department.
+    Params: nurse_id, department
+    Returns: on_duty, has_active_schedule, department, nurse_name
+    """
+    try:
+        nurse_id = int(request.GET.get('nurse_id', '0'))
+    except Exception:
+        return Response({'error': 'nurse_id is required and must be integer'}, status=status.HTTP_400_BAD_REQUEST)
+    department = (request.GET.get('department') or '').strip() or 'OPD'
+
+    nurse = NurseProfile.objects.select_related('user').filter(user_id=nurse_id).first()
+    if not nurse:
+        return Response({'error': 'Nurse not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    schedules = list(QueueSchedule.objects.filter(nurse_id=nurse.id, department=department, is_active=True))
+    has_active_schedule = len(schedules) > 0
+    on_duty = False
+    active_schedule = None
+    for sched in schedules:
+        try:
+            if hasattr(sched, 'is_queue_open') and sched.is_queue_open():
+                on_duty = True
+                active_schedule = sched
+                break
+        except Exception:
+            continue
+
+    payload = {
+        'nurse_id': nurse.user.id,
+        'nurse_name': nurse.user.full_name,
+        'department': department,
+        'has_active_schedule': has_active_schedule,
+        'on_duty': on_duty,
+        'schedule': None,
+    }
+    if active_schedule:
+        payload['schedule'] = {
+            'start_time': active_schedule.start_time.isoformat(),
+            'end_time': active_schedule.end_time.isoformat(),
+            'days_of_week': active_schedule.days_of_week,
+            'manual_override': active_schedule.manual_override,
+            'override_status': active_schedule.override_status,
+        }
+    return Response(payload, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def nurses_list(request):
+    """
+    Paginated nurses list in the same hospital, with sorting and search.
+    Query: page, page_size, search, sort_by (full_name|department|email), order (asc|desc)
+    """
+    user = request.user
+    if getattr(user, 'verification_status', 'pending') != 'approved':
+        return Response({'error': 'Account verification required.', 'verification_status': user.verification_status}, status=status.HTTP_403_FORBIDDEN)
+    if not user.hospital_name:
+        return Response({'error': 'Hospital context is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    search = (request.GET.get('search') or '').strip()
+    sort_by = (request.GET.get('sort_by') or 'full_name').strip()
+    order = (request.GET.get('order') or 'asc').strip().lower()
+    page = max(1, int(request.GET.get('page', '1')))
+    page_size = max(1, min(50, int(request.GET.get('page_size', '10'))))
+
+    qs = NurseProfile.objects.select_related('user').filter(
+        user__role='nurse',
+        user__is_active=True,
+        user__verification_status='approved',
+        user__hospital_name__iexact=(user.hospital_name or ''),
+    )
+    if search:
+        qs = qs.filter(Q(user__full_name__icontains=search) | Q(user__email__icontains=search) | Q(department__icontains=search))
+
+    sort_map = {
+        'full_name': 'user__full_name',
+        'department': 'department',
+        'email': 'user__email',
+    }
+    sort_field = sort_map.get(sort_by, 'user__full_name')
+    if order == 'desc':
+        sort_field = f'-{sort_field}'
+    qs = qs.order_by(sort_field)
+
+    total = qs.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    items = []
+    now_iso = timezone.now().isoformat()
+    for nurse in qs[start:end]:
+        items.append({
+            'id': nurse.user.id,
+            'full_name': nurse.user.full_name,
+            'email': nurse.user.email,
+            'department': nurse.department,
+            'is_active': nurse.user.is_active,
+            'verification_status': nurse.user.verification_status,
+            'checked_at': now_iso,
+        })
+
+    return Response({'items': items, 'total_count': total, 'page': page, 'page_size': page_size}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -2452,6 +2567,14 @@ def assign_patient_to_doctor(request):
     """
     try:
         user = request.user
+        # Audit: start of assignment flow with basic context
+        try:
+            logger.info(
+                f"assign_patient_to_doctor:start nurse_user_id={getattr(user,'id',None)} payload_keys={list(getattr(request,'data',{}).keys())}"
+            )
+        except Exception:
+            # non-blocking audit
+            pass
         
         # Check if user is a nurse
         if user.role != 'nurse':
@@ -2487,6 +2610,83 @@ def assign_patient_to_doctor(request):
                 'error': 'Patient not found'
             }, status=status.HTTP_404_NOT_FOUND)
         
+        # Enforce specialization matching before creating any side effects
+        requested_specialty = (specialization or '').strip()
+        doctor_specialty = (getattr(doctor_profile, 'specialization', '') or '').strip()
+        # Try to infer required specialty from latest provider orders (consultation_orders.specialty)
+        inferred_specialty = requested_specialty
+        try:
+            orders = getattr(patient_profile, 'provider_order_sheets', []) or []
+            for entry in reversed(orders):
+                try:
+                    cons = (entry or {}).get('consultation_orders') or {}
+                    spec = (cons.get('specialty') or '').strip()
+                    if spec:
+                        inferred_specialty = spec
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            # If provider orders not accessible, stick to requested_specialty
+            pass
+
+        # Normalize specialties to avoid false mismatches due to case/spacing/synonyms
+        def _normalize_specialty(s: str) -> str:
+            s = (s or '').strip().lower()
+            if not s:
+                return ''
+            synonyms = {
+                'pulmonary medicine': 'pulmonology',
+                'respiratory medicine': 'pulmonology',
+                'cardiovascular medicine': 'cardiology',
+                'ob-gyn': 'gynecology',
+                'obgyn': 'gynecology',
+            }
+            canonical = synonyms.get(s, s)
+            # Title-case the canonical value for consistent storage/display
+            return ' '.join(w.capitalize() for w in canonical.split())
+
+        def _spec_matches(a: str, b: str) -> bool:
+            a = (a or '').strip().lower()
+            b = (b or '').strip().lower()
+            if not a or not b:
+                return False
+            return a in b or b in a
+
+        if not doctor_specialty:
+            logger.warning(
+                f"assign_patient_to_doctor:specialization_missing doctor_user_id={getattr(doctor_profile.user,'id',None)}"
+            )
+            return Response({
+                'error': 'Doctor specialization is not set. Assignment blocked.',
+                'code': 'ERR_DOCTOR_SPECIALIZATION_MISSING',
+                'doctor_specialization': doctor_specialty,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Compare normalized values for robust matching
+        normalized_doctor_specialty = _normalize_specialty(doctor_specialty)
+        normalized_inferred_specialty = _normalize_specialty(inferred_specialty)
+        normalized_requested_specialty = _normalize_specialty(requested_specialty)
+
+        if not _spec_matches(normalized_doctor_specialty, normalized_inferred_specialty):
+            logger.warning(
+                (
+                    "assign_patient_to_doctor:specialization_mismatch "
+                    f"nurse_user_id={getattr(user,'id',None)} patient_id={patient_id} doctor_id={doctor_id} "
+                    f"required='{normalized_inferred_specialty}' doctor_specialization='{normalized_doctor_specialty}' requested='{normalized_requested_specialty}'"
+                )
+            )
+            return Response({
+                'error': f"Specialization mismatch: patient requires {normalized_inferred_specialty or 'Unknown'}, you are {normalized_doctor_specialty or 'Unset'}.",
+                'code': 'ERR_SPECIALIZATION_MISMATCH',
+                'details': {
+                    'required_specialty': normalized_inferred_specialty,
+                    'doctor_specialization': normalized_doctor_specialty,
+                    'requested_specialization': normalized_requested_specialty,
+                },
+                'resolution': 'Select a doctor with the matching specialty or adjust consultation order.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         # Create appointment
         scheduled_time = timezone.now() + timedelta(minutes=15)
         # Allocate a unique queue number for the appointment
@@ -2502,6 +2702,14 @@ def assign_patient_to_doctor(request):
             queue_number=next_queue_number
         )
         logger.info(f"assign_patient_to_doctor:appointment_created appointment_id={getattr(appointment,'appointment_id',None)} patient_profile_id={getattr(patient_profile,'id',None)} doctor_profile_id={getattr(doctor_profile,'id',None)} queue_number={next_queue_number}")
+
+        # Ensure doctor authorization for patient-specific endpoints
+        try:
+            patient_profile.assigned_doctor = doctor_profile.user
+            patient_profile.save(update_fields=['assigned_doctor'])
+            logger.info(f"assign_patient_to_doctor:assigned_doctor_set patient_profile_id={getattr(patient_profile,'id',None)} assigned_doctor_user_id={getattr(doctor_profile.user,'id',None)}")
+        except Exception as e:
+            logger.warning(f"assign_patient_to_doctor:assigned_doctor_set_failed patient_profile_id={getattr(patient_profile,'id',None)} doctor_user_id={getattr(doctor_profile.user,'id',None)} error={e}")
         
         # Remove patient from queue if they were in queue
         QueueManagement.objects.filter(
@@ -2513,10 +2721,26 @@ def assign_patient_to_doctor(request):
             patient=patient_profile
         ).delete()
         
-        # Create notification for doctor
+        # Create notification for doctor (include intake summary when available)
+        try:
+            intake = getattr(patient_profile, 'nursing_intake_assessment', {}) or {}
+            chief_complaint = (intake.get('chief_complaint') or '').strip()
+            vitals = intake.get('vitals') or {}
+            vitals_str = \
+                f"BP {vitals.get('bp') or ''}, HR {vitals.get('hr')}, RR {vitals.get('rr')}, Temp {vitals.get('temp_c')}, O2 {vitals.get('o2_sat')}".strip()
+            message_text = (
+                f"New patient {patient_profile.user.full_name} assigned for {normalized_inferred_specialty or normalized_requested_specialty} consultation. "
+                f"Queue #{next_queue_number}. "
+                f"Chief complaint: {chief_complaint or 'N/A'}. Vitals: {vitals_str}."
+            )
+        except Exception:
+            message_text = (
+                f"New patient {patient_profile.user.full_name} assigned for {normalized_inferred_specialty or normalized_requested_specialty} consultation. "
+                f"Queue #{next_queue_number}."
+            )
         Notification.objects.create(
             user=doctor_profile.user,
-            message=f'New patient {patient_profile.user.full_name} assigned to you for {specialization} consultation',
+            message=message_text,
             is_read=False
         )
 
@@ -2527,7 +2751,7 @@ def assign_patient_to_doctor(request):
                 patient=patient_profile,
                 doctor=doctor_profile,
                 assigned_by=user,
-                specialization_required=specialization,
+                specialization_required=normalized_inferred_specialty or normalized_requested_specialty,
                 assignment_reason=request.data.get('assignment_reason', ''),
                 status='pending',
                 priority=request.data.get('priority', 'medium')
@@ -2539,14 +2763,24 @@ def assign_patient_to_doctor(request):
         # Broadcast real-time notification to the doctor via WebSocket
         try:
             channel_layer = get_channel_layer()
+            intake = getattr(patient_profile, 'nursing_intake_assessment', {}) or {}
             notif_payload = {
                 'event': 'patient_assigned',
                 'patient': {
                     'id': patient_profile.id,
                     'user_id': patient_profile.user.id,
                     'full_name': patient_profile.user.full_name,
+                    'hospital': patient_profile.hospital,
+                    'medical_condition': patient_profile.medical_condition,
                 },
-                'specialization': specialization,
+                'specialization_required': normalized_inferred_specialty,
+                'doctor_specialization': normalized_doctor_specialty,
+                'queue_number': next_queue_number,
+                'intake_summary': {
+                    'chief_complaint': intake.get('chief_complaint'),
+                    'vitals': intake.get('vitals'),
+                    'assessed_at': intake.get('assessed_at'),
+                },
             }
             # Include assignment data if created
             if assignment is not None:
