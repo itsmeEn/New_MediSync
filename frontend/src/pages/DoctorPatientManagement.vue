@@ -234,6 +234,7 @@
 
             <!-- Medical Requests Card removed per refactor -->
 
+
             <!-- List of Available Nurses Card -->
             <q-card class="dashboard-card nurses-card q-mt-lg">
               <q-card-section class="card-content">
@@ -853,6 +854,28 @@
         <q-card-section class="card-header">
           <div class="card-title">Nurse Intake Assessment</div>
         </q-card-section>
+        <!-- Inline Patient Demographics positioned on top of intake content -->
+        <q-card-section class="card-content">
+          <div class="row items-center justify-between q-mb-xs">
+            <div class="text-subtitle2">Patient Demographics</div>
+            <q-btn flat dense size="sm" icon="refresh" label="Refresh" @click="refreshDemographics" />
+          </div>
+          <div v-if="demoLoading" class="row items-center q-gutter-sm q-mb-sm">
+            <q-spinner color="primary" size="1.5em" />
+            <span class="text-caption">Loading demographics...</span>
+          </div>
+          <div v-else-if="demographics" class="row q-col-gutter-sm q-mb-md demographics-inline">
+            <div class="col-12 text-weight-medium">{{ demographicFullName || selectedPatient?.full_name }}</div>
+            <div class="col-6"><strong>DOB:</strong> {{ formattedDOB || '—' }}</div>
+            <div class="col-6"><strong>Age:</strong> {{ demographicAge || (demographics.age ?? '') || (selectedPatient?.age ?? '') || '—' }}</div>
+            <div class="col-6"><strong>Sex:</strong> {{ demographics.sex || selectedPatient?.gender || '—' }}</div>
+            <div v-if="demographics.mrn || selectedPatient?.mrn" class="col-6"><strong>MRN:</strong> {{ demographics.mrn || selectedPatient?.mrn }}</div>
+            <div class="col-12"><strong>Email:</strong> {{ demographics.email || selectedPatient?.email || '—' }}</div>
+          </div>
+          <div v-else class="q-mb-md">
+            <q-banner dense icon="info">No demographics found</q-banner>
+          </div>
+        </q-card-section>
         <q-card-section class="card-content">
           <div v-if="nurseIntakeLoading" class="loading-section">
             <q-spinner color="primary" size="2em" />
@@ -1059,6 +1082,51 @@ const nurseIntakeView = computed(() => {
     return ''
   }
 
+  // Render allergies in a human-readable form instead of JSON
+  const formatAllergies = (v: unknown): string => {
+    const toText = (x: unknown): string => {
+      if (x === null || x === undefined) return ''
+      if (typeof x === 'string') return x.trim()
+      if (typeof x === 'number' || typeof x === 'boolean') return String(x)
+      return ''
+    }
+
+    if (v === null || v === undefined) return ''
+
+    // Array of objects [{substance, reaction}] or [{name, reaction}] → "Penicillin — Rash"
+    if (Array.isArray(v)) {
+      const items = v
+        .map((it) => {
+          if (it && typeof it === 'object') {
+            const obj = it as Record<string, unknown>
+            const substance = toText(obj['substance'] ?? obj['name'])
+            const reaction = toText(obj['reaction'])
+            if (substance && reaction) return `${substance} — ${reaction}`
+            if (substance) return substance
+            if (reaction) return reaction
+            return ''
+          }
+          return toText(it)
+        })
+        .filter((s) => s.length > 0)
+      return items.join(', ')
+    }
+
+    // Single object {substance, reaction}
+    if (typeof v === 'object') {
+      const obj = v as Record<string, unknown>
+      const substance = toText(obj['substance'] ?? obj['name'])
+      const reaction = toText(obj['reaction'])
+      if (substance && reaction) return `${substance} — ${reaction}`
+      if (substance) return substance
+      if (reaction) return reaction
+      return ''
+    }
+
+    // Fallback: primitives only
+    return toText(v)
+  }
+
   const vitalsRaw = (d['vitals'] || d['vital_signs'] || {}) as Record<string, unknown>
   const vitals = {
     blood_pressure: str(vitalsRaw['blood_pressure'] || vitalsRaw['bp']),
@@ -1070,7 +1138,7 @@ const nurseIntakeView = computed(() => {
 
   return {
     chief_complaint: str(d['chief_complaint'] || d['complaint']),
-    allergies: str(d['allergies'] || d['known_allergies']),
+    allergies: formatAllergies(d['allergies'] || d['known_allergies']),
     current_medications: str(d['current_medications'] || d['medications']),
     medical_history: str(d['medical_history'] || d['history']),
     assessment_notes: str(d['assessment_notes'] || d['notes'] || d['nurse_notes']),
@@ -1705,7 +1773,9 @@ const loadVerificationStatus = async (patient: Patient) => {
 };
 
 const viewPatientDetails = (patient: Patient) => {
-  // For now, 'View' opens the nurse intake assessment for the selected patient
+  // Ensure the clicked patient is selected so demographics load and bind correctly
+  selectedPatient.value = patient;
+  // Open the nurse intake assessment dialog
   void openNurseIntake(patient)
 };
 

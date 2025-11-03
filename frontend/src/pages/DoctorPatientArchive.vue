@@ -72,6 +72,7 @@
                 <q-separator/>
                 <q-card-section>
                   <div class="q-mb-sm"><b>Patient:</b> {{ selectedArchive?.patient_name }}</div>
+                  <div class="q-mb-sm"><b>MRN:</b> {{ getAssessmentField('mrn', selectedArchive) || '—' }}</div>
                   <div class="q-mb-sm"><b>Assessment:</b> {{ selectedArchive?.assessment_type }}</div>
                   <div class="q-mb-sm"><b>Last Assessed:</b> {{ formatDateDisplay(selectedArchive?.last_assessed_at || '') }}</div>
                   <div class="q-mb-sm"><b>Condition:</b> {{ selectedArchive?.medical_condition || '—' }}</div>
@@ -147,6 +148,13 @@ const formatJson = (obj: unknown): string => {
   } catch {
     return obj ? '[Unable to format object]' : ''
   }
+}
+
+// Safely read a primitive field from decrypted assessment data
+const getAssessmentField = (key: string, rec?: ArchiveRecord | null): string | number | undefined => {
+  const data = rec?.decrypted_assessment_data
+  const val = data ? data[key] : undefined
+  return typeof val === 'string' || typeof val === 'number' ? val : undefined
 }
 
 const buildArchiveParams = (): Record<string, string> => {
