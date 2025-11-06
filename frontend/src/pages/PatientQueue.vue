@@ -238,7 +238,7 @@
               </div>
 
               <div class="text-body2 q-mb-md">
-                Request a text message alert when you are the <strong>next patient</strong> in line.
+                Receive a text notification when you're next in line for your appointment.
               </div>
 
               <q-banner class="bg-orange-1 text-orange-8 q-mb-md" rounded>
@@ -248,18 +248,40 @@
                 Current estimated total wait time: ~{{ estimatedWaitMins }} minutes.
               </q-banner>
 
-              <q-btn
-                color="indigo"
-                icon="sms"
-                label="Activate SMS Alert"
-                class="full-width"
-                @click="activateSMSAlert"
-                :disable="smsAlertActive"
-                unelevated
-              />
+              <div class="row q-col-gutter-md">
+                <div class="col">
+                  <q-btn
+                    v-if="!notificationsEnabled"
+                    color="indigo"
+                    icon="notifications"
+                    label="Enable Real-Time Notifications"
+                    class="full-width"
+                    @click="enableNotifications"
+                    :disable="!myPosition || !isQueueAvailableApi"
+                    unelevated
+                  >
+                    <q-tooltip>
+                      Notifications require you to be in the active queue.
+                    </q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-else
+                    color="grey-7"
+                    icon="notifications_off"
+                    label="Disable Queue Notifications"
+                    class="full-width"
+                    @click="disableNotifications"
+                    unelevated
+                  >
+                    <q-tooltip>
+                      Turn off real-time queue notifications.
+                    </q-tooltip>
+                  </q-btn>
+                </div>
+              </div>
 
-              <div v-if="smsAlertActive" class="text-center q-mt-md">
-                <q-badge color="green" icon="check_circle" label="SMS Alert Active" />
+              <div v-if="notificationsEnabled" class="text-center q-mt-md">
+                <q-badge color="green" icon="check_circle" label="Notifications Active" />
               </div>
             </q-card-section>
           </q-card>
@@ -272,18 +294,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 import logoUrl from 'src/assets/logo.png'
 import PatientBottomNav from 'src/components/PatientBottomNav.vue'
+import {
+  getQueuePreference,
+  setQueuePreference,
+  clearQueuePreference,
+  shouldSendQueueNotification,
+  getCurrentPatientId
+} from 'src/utils/queueNotificationService'
 
 const router = useRouter()
 const $q = useQuasar()
 
 // Navigation and UI state
-const smsAlertActive = ref(false)
+const notificationsEnabled = ref(false)
 const showUserMenu = ref(false)
 const unreadCount = ref(0)
 
@@ -420,6 +449,7 @@ const joinQueue = async () => {
     })
     $q.notify({ type: 'positive', message: 'Successfully joined the queue!', position: 'top' })
     await fetchQueueData()
+    notifyQueueUpdate('joined_queue', myPosition.value, estimatedWaitMins.value)
   } catch (error: unknown) {
     const errorMessage = error instanceof Error && 'response' in error 
       ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to join queue'
@@ -428,6 +458,24 @@ const joinQueue = async () => {
   } finally {
     joiningQueue.value = false
   }
+}
+
+// Narrow Axios-like errors without using `any`
+interface AxiosErrorLike {
+  response?: {
+    status?: number
+    data?: unknown
+  }
+}
+function isAxiosErrorLike(err: unknown): err is AxiosErrorLike {
+  return !!(err && typeof err === 'object' && 'response' in (err as Record<string, unknown>))
+}
+
+// Expected payload shape from queue status endpoint when errors occur
+interface QueueStatusErrorPayload {
+  error?: string
+  status_message?: string
+  is_open?: boolean
 }
 
 const fetchQueueData = async () => {
@@ -459,8 +507,27 @@ const fetchQueueData = async () => {
 
     // No patient-visible queue list endpoint; keep empty
     queueEntries.value = []
-  } catch (e) {
-    console.warn('Failed to fetch queue data', e)
+  } catch (err: unknown) {
+    // Handle 404 (queue not configured) gracefully with clear UI messaging
+    if (isAxiosErrorLike(err)) {
+      const statusCode = err.response?.status
+      const errData = err.response?.data as QueueStatusErrorPayload | undefined
+      if (statusCode === 404) {
+        isQueueAvailableApi.value = false
+        availabilityReason.value = errData?.error || 'Queue system is not configured for this department yet'
+        // Reset derived UI values to safe defaults
+        nowServing.value = ''
+        currentPatient.value = ''
+        myPosition.value = ''
+        estimatedWaitMins.value = 0
+        progressValue.value = 0
+        queueEntries.value = []
+        // Avoid noisy console error; log concise info
+        console.info('Queue status 404: treating as not configured')
+        return
+      }
+    }
+    console.warn('Failed to fetch queue data', err)
   }
 }
 
@@ -470,8 +537,18 @@ const refreshAvailability = async () => {
     const statusRes = await api.get(`/operations/queue/status/?department=${dept}`)
     isQueueAvailableApi.value = !!statusRes.data?.is_open
     availabilityReason.value = statusRes.data?.is_open ? null : (statusRes.data?.status_message || 'Queue is currently closed')
-  } catch (e) {
-    console.warn('Failed to refresh queue availability', e)
+  } catch (err: unknown) {
+    if (isAxiosErrorLike(err)) {
+      const statusCode = err.response?.status
+      const errData = err.response?.data as QueueStatusErrorPayload | undefined
+      if (statusCode === 404) {
+        isQueueAvailableApi.value = false
+        availabilityReason.value = errData?.error || 'Queue system is not configured for this department yet'
+        console.info('Availability 404: queue not configured')
+        return
+      }
+    }
+    console.warn('Failed to refresh queue availability', err)
   }
 }
 
@@ -525,6 +602,7 @@ const setupWebSocket = () => {
       } else if (data.type === 'queue_position_update') {
         myPosition.value = data.position.position
         estimatedWaitMins.value = data.position.estimated_wait_time
+        notifyQueueUpdate('position_update', myPosition.value, estimatedWaitMins.value)
       } else if (data.type === 'queue_notification') {
         const n = data.notification || {}
         const event_type = n.event || ''
@@ -571,6 +649,8 @@ const setupWebSocket = () => {
             message: msg,
             position: 'top'
           })
+          // Push a standardized queue update notification with position and wait time
+          notifyQueueUpdate(event_type || 'queue_update', myPosition.value, estimatedWaitMins.value)
         }
       } else if (data.type === 'patient_joined_queue') {
         // Legacy event support
@@ -579,6 +659,7 @@ const setupWebSocket = () => {
           message: 'Successfully joined the queue!',
           position: 'top'
         })
+        notifyQueueUpdate('joined_queue', myPosition.value, estimatedWaitMins.value)
       }
       }
       
@@ -608,6 +689,23 @@ onMounted(async () => {
     }
     ;(window as WindowWithLucide).lucide?.createIcons()
   } catch (e) { console.warn('lucide icons init failed', e) }
+
+  // Restore persisted preference
+  try {
+    const pid = getCurrentPatientId()
+    const pref = getQueuePreference(pid ?? undefined)
+    notificationsEnabled.value = !!pref.enabled
+  } catch { /* ignore */ }
+
+  // Auto-disable notifications if patient leaves queue or queue closes
+  watch([myPosition, isQueueAvailableApi], () => {
+    const pid = getCurrentPatientId()
+    const inQueue = !!myPosition.value
+    if (!inQueue || !isQueueAvailableApi.value) {
+      notificationsEnabled.value = false
+      clearQueuePreference(pid)
+    }
+  })
 })
 
 onUnmounted(() => {
@@ -624,18 +722,88 @@ const logout = () => {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   localStorage.removeItem('user')
+  try { clearQueuePreference(getCurrentPatientId()) } catch { /* ignore */ }
   void router.push('/login')
 }
 
-const activateSMSAlert = async () => {
+// Real-time notification system
+const lastNotifiedAt = ref<number>(0)
+const notificationThrottleMs = 4000
+
+const enableNotifications = async () => {
   try {
-    await api.post('/patient/queue/alerts/sms/')
-    smsAlertActive.value = true
-    $q.notify({ type: 'positive', message: 'SMS alert activated', position: 'top' })
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to activate SMS alert', position: 'top' })
+    const pid = getCurrentPatientId()
+    const inQueue = !!myPosition.value
+    if (!inQueue || !isQueueAvailableApi.value) {
+      $q.notify({ type: 'warning', message: 'Join the queue to enable notifications', position: 'top' })
+      return
+    }
+    if (!("Notification" in window)) {
+      $q.notify({ type: 'warning', message: 'Browser notifications not supported', position: 'top' })
+      notificationsEnabled.value = false
+      setQueuePreference(pid, { enabled: false, department: selectedDepartment.value })
+      return
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') {
+      notificationsEnabled.value = false
+      setQueuePreference(pid, { enabled: false, department: selectedDepartment.value })
+      $q.notify({ type: 'warning', message: 'Notifications permission not granted', position: 'top' })
+      return
+    }
+    notificationsEnabled.value = true
+    setQueuePreference(pid, { enabled: true, department: selectedDepartment.value })
+    $q.notify({ type: 'positive', message: 'Queue notifications enabled', position: 'top' })
+  } catch (e) {
+    console.warn('Notification enable error', e)
+    $q.notify({ type: 'negative', message: 'Failed to enable notifications', position: 'top' })
   }
 }
+
+const disableNotifications = () => {
+  try {
+    const pid = getCurrentPatientId()
+    notificationsEnabled.value = false
+    clearQueuePreference(pid)
+    $q.notify({ type: 'info', message: 'Queue notifications disabled', position: 'top' })
+  } catch (e) {
+    console.warn('Notification disable error', e)
+  }
+}
+
+const notifyQueueUpdate = (source: string, position?: number | string, waitMins?: number) => {
+  try {
+    const pos = position ?? myPosition.value
+    const wait = waitMins ?? estimatedWaitMins.value
+    const ts = new Date().toLocaleString()
+    const message = `Position: ${pos || '—'} • Wait: ~${wait || 0} mins • ${ts}`
+
+    const now = Date.now()
+    const tooSoon = now - (lastNotifiedAt.value || 0) < notificationThrottleMs
+    lastNotifiedAt.value = now
+
+    const inQueue = !!myPosition.value
+    const canNotify = shouldSendQueueNotification({ enabled: notificationsEnabled.value, isOpen: isQueueAvailableApi.value, inQueue })
+    if (canNotify && 'Notification' in window && Notification.permission === 'granted' && document.hidden && !tooSoon) {
+      try {
+        new Notification('Queue Update', {
+          body: message,
+          tag: 'patient-queue-update'
+        })
+      } catch (err) {
+        console.warn('Browser notification failed; falling back', err)
+        $q.notify({ type: 'info', message, position: 'top', timeout: 4000, icon: 'notifications' })
+      }
+    } else if (canNotify) {
+      $q.notify({ type: 'info', message, position: 'top', timeout: tooSoon ? 1500 : 4000, icon: 'notifications' })
+    }
+  } catch (e) {
+    console.warn('notifyQueueUpdate error', e)
+    $q.notify({ type: 'negative', message: 'Failed to show queue update', position: 'top' })
+  }
+}
+
+// (duplicate removed) original joinQueue above now triggers notification
 </script>
 
 <style scoped>

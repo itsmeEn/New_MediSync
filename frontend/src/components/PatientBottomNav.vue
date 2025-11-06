@@ -154,9 +154,8 @@ onUnmounted(() => {
   right: 0;
   width: 100%;
   z-index: 1000;
-  /* Light gray background for the bottom navigation area */
-  background: #f3f4f6;
   padding: 8px 10px 16px;
+  background-color: transparent;
 }
 
 .nav-wrapper {
