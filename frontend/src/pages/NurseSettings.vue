@@ -388,10 +388,25 @@ const userProfile = ref<{
 
 
 const userInitials = computed(() => {
-  if (!userProfile.value.first_name || !userProfile.value.last_name) {
-    return 'NU';
+  const fn = (userProfile.value.first_name || '').trim();
+  const ln = (userProfile.value.last_name || '').trim();
+  if (fn && ln) {
+    return `${fn[0]}${ln[0]}`.toUpperCase();
   }
-  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
+
+  const full = (userProfile.value.full_name || profileForm.value.fullName || '').trim();
+  if (full) {
+    const parts = full.split(/\s+/);
+    const initials = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
+    return initials || (full[0]?.toUpperCase() ?? 'N');
+  }
+
+  const email = (userProfile.value.email || '').trim();
+  if (email) {
+    return (email[0]?.toUpperCase() ?? 'N');
+  }
+
+  return 'NU';
 });
 
 // Header methods

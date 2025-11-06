@@ -106,13 +106,16 @@
                 </div>
                 <div class="form-group">
                   <label for="specialization">Specialization *</label>
-                  <input
+                  <select
                     id="specialization"
                     v-model="formData.specialization"
-                    type="text"
                     required
-                    placeholder="e.g., Cardiology, Pediatrics"
-                  />
+                  >
+                    <option value="">Select specialization</option>
+                    <option v-for="spec in specializationOptions" :key="spec" :value="spec">
+                      {{ spec }}
+                    </option>
+                  </select>
                 </div>
               </div>
 
@@ -128,14 +131,16 @@
                   />
                 </div>
                 <div class="form-group">
-                  <label for="department">Department *</label>
-                  <input
+                  <label for="department">Department Selection *</label>
+                  <select
                     id="department"
                     v-model="formData.department"
-                    type="text"
                     required
-                    placeholder="e.g., Emergency, ICU, Pediatrics"
-                  />
+                  >
+                    <option value="">Select department</option>
+                    <option value="OPD">Outpatient Department (OPD)</option>
+                    <option value="OPD Pharmacy">OPD Pharmacy</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -164,6 +169,7 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import type { AxiosError } from 'axios';
 import HospitalSelection from '../components/HospitalSelection.vue';
+import { departmentOptions } from '../utils/departments';
 
 interface RegistrationFormData {
   full_name: string;
@@ -232,6 +238,39 @@ const roleTitle = computed(() => {
 // (Legacy fetchHospitals removed; HospitalSelection handles fetching/persistence)
 onMounted(() => {
   role.value = String(route.params.role || '').toLowerCase();
+  if (role.value === 'doctor') {
+    void loadSpecializations();
+  }
+});
+
+// Specializations dropdown options
+const specializationOptions = ref<string[]>([]);
+const specializationLoading = ref(false);
+const specializationError = ref<string | null>(null);
+
+const loadSpecializations = async () => {
+  if (specializationLoading.value) return;
+  specializationLoading.value = true;
+  specializationError.value = null;
+  try {
+    const resp = await api.get('/users/specializations/');
+    const specs = Array.isArray(resp.data?.specializations) ? resp.data.specializations : [];
+    specializationOptions.value = specs;
+    // If nothing loaded, keep dropdown usable with an empty list
+  } catch (e) {
+    specializationOptions.value = [];
+    specializationError.value = 'Failed to load specializations';
+    console.error('[RegisterPage] Failed to load specializations:', e);
+  } finally {
+    specializationLoading.value = false;
+  }
+};
+
+// Load specializations when role switches to doctor
+watch(role, (newRole) => {
+  if (newRole === 'doctor' && specializationOptions.value.length === 0) {
+    void loadSpecializations();
+  }
 });
 
 // Password strength calculation
@@ -289,6 +328,12 @@ watch(() => formData.value.password, (val) => calculatePasswordStrength(val));
 const onRegister = async () => {
   if (!selectedHospitalId.value) {
     $q.notify({ type: 'negative', message: 'Please select your hospital.' });
+    return;
+  }
+
+  // Nurse-specific validation: ensure department is selected
+  if (role.value === 'nurse' && !String(formData.value.department || '').trim()) {
+    $q.notify({ type: 'negative', message: 'Please select your department.' });
     return;
   }
 

@@ -9,15 +9,7 @@
 
     <!-- Main Content -->
     <q-page-container class="page-container-with-fixed-header role-body-bg">
-      <!-- Account Settings Section -->
-      <div class="greeting-section">
-        <q-card class="greeting-card">
-          <q-card-section class="greeting-content">
-            <h2 class="greeting-text">Account Settings</h2>
-            <p class="greeting-subtitle">Customize your MediSync experience</p>
-          </q-card-section>
-        </q-card>
-      </div>
+      
 
       <div class="settings-page">
         <div class="settings-container">
@@ -77,6 +69,7 @@
                             :options="specializationOptions"
                             label="Specialization"
                             outlined
+                            readonly
                             emit-value
                             map-options
                             class="large-input"
@@ -426,28 +419,32 @@ const accountStatus = ref({
   memberSince: '',
 });
 
-// Options
-const specializationOptions = [
-  { label: 'General Medicine', value: 'general-medicine' },
-  { label: 'Cardiology', value: 'cardiology' },
-  { label: 'Dermatology', value: 'dermatology' },
-  { label: 'Orthopedics', value: 'orthopedics' },
-  { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Gynecology', value: 'gynecology' },
-  { label: 'Neurology', value: 'neurology' },
-  { label: 'Oncology', value: 'oncology' },
-  { label: 'Optometrist', value: 'optometrist' },
-  { label: 'Emergency Medicine', value: 'emergency-medicine' },
-  { label: 'Other', value: 'other' },
-];
+// Options: reuse patient appointment departments for specialization to keep consistency
+import { departmentOptions as sharedDepartmentOptions } from '../utils/departments'
+const specializationOptions = sharedDepartmentOptions
 
 
 // Computed properties
 const userInitials = computed(() => {
-  if (!userProfile.value.first_name || !userProfile.value.last_name) {
-    return 'DR';
+  const fn = (userProfile.value.first_name || '').trim();
+  const ln = (userProfile.value.last_name || '').trim();
+  if (fn && ln) {
+    return `${fn[0]}${ln[0]}`.toUpperCase();
   }
-  return `${userProfile.value.first_name.charAt(0)}${userProfile.value.last_name.charAt(0)}`.toUpperCase();
+
+  const full = (userProfile.value.full_name || profileForm.value.fullName || '').trim();
+  if (full) {
+    const parts = full.split(/\s+/);
+    const initials = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('');
+    return initials || (full[0]?.toUpperCase() ?? 'D');
+  }
+
+  const email = (userProfile.value.email || '').trim();
+  if (email) {
+    return (email[0]?.toUpperCase() ?? 'D');
+  }
+
+  return 'DR';
 });
 
 

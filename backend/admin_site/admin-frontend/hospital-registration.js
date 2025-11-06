@@ -1,25 +1,30 @@
 // Configuration
-const API_BASE_URL = 'http://localhost:8001/api/admin';
+// Allow overriding via window.ADMIN_API_BASE_URL or localStorage('admin_api_base_url')
+const API_BASE_URL = (function() {
+  const ls = (typeof localStorage !== 'undefined') ? localStorage.getItem('admin_api_base_url') : null;
+  const win = (typeof window !== 'undefined') ? window.ADMIN_API_BASE_URL : null;
+  return win || ls || 'http://localhost:8000/api/admin';
+})();
 
 // Simple fetch wrapper for hospital registration pages
-async function apiCall(endpoint, method = 'GET', data = null) {
-  const token = localStorage.getItem('admin_access_token');
-  const options = {
-    method,
-    headers: {
-      'Authorization': token ? `Bearer ${token}` : '',
-      'Content-Type': 'application/json'
-    }
-  };
-  if (data && method !== 'GET') {
-    options.body = JSON.stringify(data);
-  }
-  const resp = await fetch(`${API_BASE_URL}${endpoint}`, options);
-  const payload = await resp.json().catch(() => ({}));
+async function apiCall(endpoint, method = 'GET', data = null, isForm = false) {
+  const headers = { };
+  const token = getAccessToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (!isForm) headers['Content-Type'] = 'application/json';
+
+  const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method,
+      headers,
+      body: isForm ? data : (data ? JSON.stringify(data) : null)
+  });
+  const contentType = resp.headers.get('content-type') || '';
+  const json = contentType.includes('application/json') ? await resp.json() : null;
   if (!resp.ok) {
-    throw new Error(payload.error || payload.message || `Request failed: ${resp.status}`);
+      const msg = (json && (json.error || json.message || JSON.stringify(json))) || `HTTP ${resp.status}`;
+      throw new Error(msg);
   }
-  return payload;
+  return json;
 }
 
 // Simple toast utility
@@ -46,26 +51,6 @@ function showLoading(show) {
 
 function getAccessToken() {
     return localStorage.getItem('admin_access_token');
-}
-
-async function apiCall(endpoint, method = 'GET', data = null, isForm = false) {
-    const headers = { };
-    const token = getAccessToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (!isForm) headers['Content-Type'] = 'application/json';
-
-    const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method,
-        headers,
-        body: isForm ? data : (data ? JSON.stringify(data) : null)
-    });
-    const contentType = resp.headers.get('content-type') || '';
-    const json = contentType.includes('application/json') ? await resp.json() : null;
-    if (!resp.ok) {
-        const msg = (json && (json.error || JSON.stringify(json))) || `HTTP ${resp.status}`;
-        throw new Error(msg);
-    }
-    return json;
 }
 
 function goBack() {

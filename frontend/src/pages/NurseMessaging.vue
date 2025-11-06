@@ -27,9 +27,6 @@
                 <h4 class="greeting-title">Messages</h4>
                 <p class="greeting-subtitle">Secure communication with your team</p>
               </div>
-              <div class="greeting-icon">
-                <q-icon name="message" size="3rem" />
-              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -638,10 +635,26 @@ const loadAvailableUsers = async (): Promise<void> => {
         message: response.data.message || `Found ${response.data.total_count} verified users`,
         timeout: 3000
       });
+
+      // Informative notice when no users are returned
+      if (response.data.total_count === 0) {
+        $q.notify({
+          type: 'warning',
+          message: 'No verified users found in your hospital. Check your profile hospital and verification status.',
+          timeout: 4000
+        });
+      }
     } else {
       // Fallback for old API format
       availableUsers.value = response.data;
       console.log('Available users loaded (legacy format):', availableUsers.value);
+      if (Array.isArray(availableUsers.value) && availableUsers.value.length === 0) {
+        $q.notify({
+          type: 'warning',
+          message: 'No verified users found in your hospital. Check your profile hospital and verification status.',
+          timeout: 4000
+        });
+      }
     }
 
     // Log each user's verification status
@@ -1475,11 +1488,24 @@ onMounted(() => {
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #ffffff 0%, #f7fbf9 100%);
   backdrop-filter: blur(20px);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(40, 102, 96, 0.08);
+  box-shadow: 0 10px 30px rgba(40, 102, 96, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.greeting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #286660, #6ca299, #b8d2ce);
+  border-radius: 20px 20px 0 0;
 }
 
 .greeting-content {

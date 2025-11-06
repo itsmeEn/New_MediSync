@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
-from .models import AppointmentManagement, QueueManagement, PriorityQueue, Notification, Messaging, Conversation, Message, MessageReaction, MessageNotification, MedicineInventory, PatientAssignment, ConsultationNotes, QueueSchedule, QueueStatus, QueueStatusLog, PatientAssessmentArchive, ArchiveAccessLog
+from .models import AppointmentManagement, QueueManagement, PriorityQueue, Notification, Messaging, Conversation, Message, MessageReaction, MessageNotification, MedicineInventory, PatientAssignment, ConsultationNotes, QueueSchedule, QueueStatus, QueueStatusLog, PatientAssessmentArchive, ArchiveAccessLog, MedicalRecordRequest
 from backend.users.models import User
 
 class DashboardStatsSerializer(serializers.Serializer):
@@ -25,6 +25,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         model = AppointmentManagement
         fields = ['appointment_id', 'patient_name', 'doctor_name', 'doctor_id', 'department', 
                   'appointment_date', 'appointment_time', 'status', 'appointment_type', 'type', 'reason',
+                  'checked_in_at', 'consultation_started_at', 'consultation_finished_at',
                   'cancellation_reason', 'reschedule_reason']
     
     def get_reason(self, obj):
@@ -385,3 +386,32 @@ class ArchiveAccessLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = ArchiveAccessLog
         fields = ['id', 'record_id', 'user', 'action', 'accessed_at', 'ip_address', 'query_params', 'duration_ms']
+
+
+class MedicalRecordRequestSerializer(serializers.ModelSerializer):
+    patient = UserSerializer(read_only=True)
+    requested_by = UserSerializer(read_only=True)
+    attending_doctor = UserSerializer(source='attending_doctor.user', read_only=True)
+    primary_nurse = UserSerializer(source='primary_nurse.user', read_only=True)
+
+    class Meta:
+        model = MedicalRecordRequest
+        fields = [
+            'id', 'patient', 'requested_by', 'primary_nurse', 'attending_doctor',
+            'request_type', 'requested_records', 'reason', 'urgency',
+            'status', 'approved_by', 'approved_at', 'delivered_at', 'delivery_reference',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'patient', 'requested_by', 'primary_nurse', 'attending_doctor',
+            'status', 'approved_by', 'approved_at', 'delivered_at', 'delivery_reference',
+            'created_at', 'updated_at'
+        ]
+
+class CreateMedicalRecordRequestSerializer(serializers.Serializer):
+    patient_id = serializers.IntegerField()
+    request_type = serializers.CharField(required=False, allow_blank=True)
+    requested_records = serializers.JSONField(required=False)
+    reason = serializers.CharField(required=False, allow_blank=True)
+    urgency = serializers.ChoiceField(choices=['low', 'medium', 'high', 'urgent'], default='medium')
+    attending_doctor_id = serializers.IntegerField(required=False)

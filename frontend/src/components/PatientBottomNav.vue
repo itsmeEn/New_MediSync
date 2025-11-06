@@ -84,30 +84,42 @@ const setupMedicationWS = (): void => {
     const backendHost = base.hostname
     const backendPort = base.port || '8000'
     const wsUrl = `${protocol}//${backendHost}:${backendPort}/ws/medication/${patientId}/`
+    const httpProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:'
+    const httpProbeUrl = `${httpProtocol}//${backendHost}:${backendPort}/ws/medication/${patientId}/`
 
-    const ws = new WebSocket(wsUrl)
-    medicationWS = ws
-    ws.onopen = () => {
-      // Connected to medication channel
-    }
-    ws.onmessage = async (evt: MessageEvent) => {
-      try {
-        const data = JSON.parse(evt.data)
-        if (data?.type === 'medication_notification') {
-          // Increment badge and refresh from backend to keep in sync
-          unreadCount.value = (unreadCount.value || 0) + 1
-          await fetchUnreadCount()
-        }
-      } catch {
-        // Ignore parse errors
+    // [2025-10-31] Preflight HEAD probe added to avoid noisy browser
+    // WebSocket errors when Channels routes are unavailable (dev environments)
+    fetch(httpProbeUrl, { method: 'HEAD' }).then((res) => {
+      if (!res.ok) {
+        // Endpoint not available; skip WebSocket setup silently
+        return
       }
-    }
-    ws.onclose = () => {
-      // Attempt lightweight reconnect after a delay
-      setTimeout(() => {
-        try { setupMedicationWS() } catch { /* ignore */ }
-      }, 5000)
-    }
+      const ws = new WebSocket(wsUrl)
+      medicationWS = ws
+      ws.onopen = () => {
+        // Connected to medication channel
+      }
+      ws.onmessage = async (evt: MessageEvent) => {
+        try {
+          const data = JSON.parse(evt.data)
+          if (data?.type === 'medication_notification') {
+            // Increment badge and refresh from backend to keep in sync
+            unreadCount.value = (unreadCount.value || 0) + 1
+            await fetchUnreadCount()
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+      ws.onclose = () => {
+        // Attempt lightweight reconnect after a delay
+        setTimeout(() => {
+          try { setupMedicationWS() } catch { /* ignore */ }
+        }, 5000)
+      }
+    }).catch(() => {
+      // Probe failed; skip connecting
+    })
   } catch {
     // Ignore setup errors
   }
@@ -142,9 +154,8 @@ onUnmounted(() => {
   right: 0;
   width: 100%;
   z-index: 1000;
-  /* Light gray background for the bottom navigation area */
-  background: #f3f4f6;
   padding: 8px 10px 16px;
+  background-color: transparent;
 }
 
 .nav-wrapper {

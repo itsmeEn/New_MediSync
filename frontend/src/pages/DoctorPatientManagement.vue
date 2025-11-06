@@ -103,15 +103,14 @@
                           :alt="patient.full_name"
                           @error="patient.profile_picture = ''"
                         />
-                        <q-icon v-else name="person" size="25px" color="white" />
+                        <div v-else class="avatar-initials">{{ getInitials(patient.full_name || 'User') }}</div>
                       </q-avatar>
                     </div>
 
                     <div class="patient-info">
                       <h6 class="patient-name">{{ patient.full_name }}</h6>
                       <p class="patient-details">
-                        Assigned by: {{ patient.assigned_by || 'N/A' }} | 
-                        Specialization: {{ patient.specialization_required || 'General' }}
+                        Assigned by: {{ patient.assigned_by || 'N/A' }}
                       </p>
                       <p class="patient-condition">
                         {{ patient.assignment_reason || 'No reason specified' }}
@@ -162,30 +161,29 @@
                       >
                         <q-tooltip>Edit Patient</q-tooltip>
                       </q-btn>
-                      <q-btn-dropdown flat dense color="primary" label="Forms" icon="description" class="q-ml-xs">
-                        <q-list>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'hp')">
-                            <q-item-section>
-                              <q-item-label>History & Physical (H&P)</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'soap')">
-                            <q-item-section>
-                              <q-item-label>Progress Note (SOAP)</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'orders')">
-                            <q-item-section>
-                              <q-item-label>Provider Order Sheet</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                          <q-item clickable @click.stop="openFormForPatient(patient, 'procedure')">
-                            <q-item-section>
-                              <q-item-label>Operative/Procedure Report</q-item-label>
-                            </q-item-section>
-                          </q-item>
-                        </q-list>
-                      </q-btn-dropdown>
+                      <q-btn
+                        flat
+                        round
+                        icon="assignment"
+                        color="primary"
+                        size="sm"
+                        @click.stop="openNurseIntake(patient)"
+                        unelevated
+                      >
+                        <q-tooltip>Nurse Intake</q-tooltip>
+                      </q-btn>
+                      <q-btn
+                        flat
+                        round
+                        icon="archive"
+                        color="warning"
+                        size="sm"
+                        @click.stop="archivePatient(patient)"
+                        unelevated
+                      >
+                        <q-tooltip>Archive</q-tooltip>
+                      </q-btn>
+                      <!-- Forms dropdown removed per request to keep UI clean -->
                     </div>
                   </div>
                 </div>
@@ -196,49 +194,26 @@
           <!-- Right Column: Statistics + Medical Requests -->
           <div class="right-column">
             <!-- Patient Statistics Card -->
-            <q-card class="dashboard-card statistics-card">
+            <q-card class="dashboard-card statistics-card q-mb-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Patient Statistics</div>
-                  <div class="card-description">Overview of patient activity</div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="insights" size="2.2rem" />
                 </div>
               </q-card-section>
 
               <q-card-section class="card-content">
                 <div class="stats-grid">
                   <div class="stat-item">
-                    <div class="stat-number">{{ patients.length }}</div>
-                    <div class="stat-label">Total Assignments</div>
+                    <div class="stat-number">{{ stats.total_patients }}</div>
+                    <div class="stat-label">Total Patients</div>
                   </div>
                   <div class="stat-item">
-                    <div class="stat-number">{{ pendingAssignmentsCount }}</div>
-                    <div class="stat-label">Pending</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number">{{ acceptedAssignmentsCount }}</div>
-                    <div class="stat-label">Accepted</div>
-                  </div>
-                  <div class="stat-item">
-                    <div class="stat-number">{{ completedAssignmentsCount }}</div>
-                    <div class="stat-label">Completed</div>
+                    <div class="stat-number">{{ stats.active_cases }}</div>
+                    <div class="stat-label">Active Patients</div>
                   </div>
                 </div>
               </q-card-section>
-              <q-card-actions align="right" class="q-px-md q-pb-md">
-                <q-btn
-                  color="primary"
-                  icon="refresh"
-                  size="sm"
-                  label="Refresh"
-                  @click="loadDoctorStats"
-                  :loading="statsLoading"
-                  aria-label="Refresh patient statistics"
-                  unelevated
-                />
-              </q-card-actions>
+              
               <q-card-section class="card-content">
                 <div v-if="statsLoading" class="loading-section" aria-live="polite">
                   <q-spinner color="primary" size="2em" />
@@ -257,45 +232,11 @@
               </q-card-section>
             </q-card>
 
-            <!-- Medical Requests Card -->
-            <q-card class="dashboard-card medical-requests-card">
-              <q-card-section class="card-content">
-                <div class="card-text">
-                  <div class="card-title">Medical Requests</div>
-                  <div class="card-description">Pending approvals and lab requests</div>
-                  <div class="card-value">
-                    <q-spinner v-if="medicalRequestsLoading" size="md" />
-                    <span v-else>{{ medicalRequests.length }}</span>
-                  </div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="assignment" size="2.2rem" />
-                </div>
-              </q-card-section>
+            <!-- Medical Requests Card removed per refactor -->
 
-              <q-card-actions align="right" class="q-px-md q-pb-md">
-                <q-btn
-                  color="primary"
-                  icon="refresh"
-                  size="sm"
-                  @click="loadMedicalRequests"
-                  :loading="medicalRequestsLoading"
-                  label="Refresh"
-                  unelevated
-                />
-                <q-btn
-                  color="secondary"
-                  icon="visibility"
-                  size="sm"
-                  label="View"
-                  @click="showMedicalRequestsModal = true"
-                  unelevated
-                />
-              </q-card-actions>
-            </q-card>
 
             <!-- List of Available Nurses Card -->
-            <q-card class="dashboard-card nurses-card">
+            <q-card class="dashboard-card nurses-card q-mt-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Available Nurses</div>
@@ -315,7 +256,7 @@
                   <p class="empty-text">No available nurses</p>
                 </div>
                 <div v-else class="nurses-list">
-                  <div v-for="(nurse, idx) in availableNurses" :key="String(nurse.id ?? nurse.email ?? nurse.full_name ?? idx)" class="nurse-row">
+                  <div v-for="(nurse, idx) in paginatedNurses" :key="String(nurse.id ?? nurse.email ?? nurse.full_name ?? idx)" class="nurse-row">
                     <div class="nurse-avatar">
                       <q-avatar size="40px" color="teal-8" text-color="white">
                         {{ getInitials(nurse.full_name || '') }}
@@ -338,90 +279,27 @@
                       <div class="nurse-contact">Contact: {{ nurse.email || '—' }}</div>
                     </div>
                   </div>
+                  <div class="row items-center justify-between q-mt-sm" aria-label="Nurses pagination controls">
+                    <div class="text-caption text-grey-7">
+                      Showing {{ nursesStartIndex }}–{{ nursesEndIndex }} of {{ availableNurses.length }}
+                    </div>
+                    <q-pagination
+                      v-model="nursesPage"
+                      :max="nurseTotalPages"
+                      max-pages="7"
+                      boundary-numbers
+                      size="sm"
+                      color="primary"
+                      aria-label="Available nurses pagination"
+                    />
+                  </div>
                 </div>
               </q-card-section>
             </q-card>
 
-            <!-- Medical Records Card -->
-            <q-card class="dashboard-card medical-records-card">
-              <q-card-section class="card-content">
-                <div class="card-text">
-                  <div class="card-title">Medical Records</div>
-                  <div class="card-description">Organized patient medical history and archives</div>
-                </div>
-                <div class="card-icon">
-                  <q-icon name="folder" size="2.2rem" />
-                </div>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <q-tabs v-model="recordsTab" dense class="q-mb-sm" aria-label="Patient archives navigation">
-                  <q-tab name="all" label="All" />
-                  <q-tab name="hp" label="H&P" />
-                  <q-tab name="soap" label="SOAP" />
-                  <q-tab name="orders" label="Orders" />
-                  <q-tab name="procedure" label="Procedure" />
-                </q-tabs>
-                <div class="row items-center q-col-gutter-sm q-mb-sm">
-                  <div class="col-12 col-sm-8">
-                    <q-input v-model="recordsSearch" outlined dense label="Search records" debounce="300" aria-label="Search medical records" />
-                  </div>
-                  <div class="col-12 col-sm-4 flex justify-end">
-                    <q-btn color="primary" icon="refresh" size="sm" label="Refresh" @click="loadMedicalRecords" :loading="recordsLoading" aria-label="Refresh medical records" />
-                  </div>
-                </div>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <div v-if="recordsLoading" class="loading-section" aria-live="polite">
-                  <q-spinner color="primary" size="2em" />
-                  <p class="loading-text">Loading medical records...</p>
-                </div>
-                <div v-else-if="filteredRecords.length === 0" class="empty-section">
-                  <q-icon name="folder_open" size="48px" color="grey-5" />
-                  <p class="empty-text">No records found</p>
-                </div>
-                <div v-else class="records-list">
-                  <q-list bordered separator>
-                    <q-item v-for="rec in filteredRecords" :key="String(rec.id)" clickable>
-                      <q-item-section>
-                        <q-item-label>{{ rec.patient_name }} — {{ (rec.assessment_type || '').toUpperCase() }}</q-item-label>
-                        <q-item-label caption>
-                          {{ rec.medical_condition || 'N/A' }} • {{ formatDate(rec.last_assessed_at) }} • {{ rec.hospital_name || 'Unknown Hospital' }}
-                        </q-item-label>
-                      </q-item-section>
-                      <q-item-section side>
-                        <q-btn icon="visibility" color="primary" size="sm" @click.stop="previewRecord(rec)" aria-label="Preview record" />
-                        <q-btn icon="download" color="secondary" size="sm" class="q-ml-xs" @click.stop="downloadRecord(rec)" aria-label="Download record" />
-                      </q-item-section>
-                    </q-item>
-                  </q-list>
-                </div>
-              </q-card-section>
-            </q-card>
+            <!-- Medical Records Card removed per refactor -->
 
-            <!-- Record Preview Dialog -->
-            <q-dialog v-model="showRecordDialog" transition-show="scale" transition-hide="scale" :persistent="false" content-class="record-dialog-container" aria-label="Record preview dialog">
-              <q-card class="record-dialog-card" style="min-width:600px;max-width:95vw;">
-                <q-card-section class="card-header">
-                  <div class="row items-center justify-between">
-                    <div class="text-h6">Record Preview</div>
-                    <q-btn flat round dense icon="close" aria-label="Close record preview" @click="showRecordDialog = false" />
-                  </div>
-                </q-card-section>
-                <q-separator />
-                <q-card-section class="card-content">
-                  <div class="q-mb-sm"><strong>Patient:</strong> {{ selectedRecord?.patient_name }}</div>
-                  <div class="q-mb-sm"><strong>Type:</strong> {{ (selectedRecord?.assessment_type || '').toUpperCase() }}</div>
-                  <div class="q-mb-sm"><strong>Condition:</strong> {{ selectedRecord?.medical_condition || 'N/A' }}</div>
-                  <q-banner dense class="q-mt-md q-mb-md" icon="description">
-                    Decrypted Assessment Data
-                  </q-banner>
-                  <pre class="record-json" aria-label="Decrypted assessment data"><code>{{ JSON.stringify(selectedRecord?.decrypted_assessment_data || {}, null, 2) }}</code></pre>
-                </q-card-section>
-                <q-card-actions align="right" class="q-px-md q-pb-md">
-                  <q-btn color="secondary" icon="download" size="sm" label="Download" @click="selectedRecord && downloadRecord(selectedRecord)" aria-label="Download record" />
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
+            <!-- Record Preview Dialog removed per refactor -->
 
 
           </div>
@@ -475,37 +353,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Medical Requests Modal -->
-    <q-dialog v-model="showMedicalRequestsModal" persistent>
-      <q-card class="modal-card" style="width: 520px; max-width: 95vw">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">Medical Requests</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <div v-if="medicalRequests.length === 0" class="text-center text-grey-6 q-py-lg">
-            No medical requests found
-          </div>
-          <div v-else>
-            <q-list separator>
-              <q-item v-for="req in medicalRequests" :key="req.id" class="q-pa-md">
-                <q-item-section>
-                  <q-item-label>{{ req.title || 'Request' }}</q-item-label>
-                  <q-item-label caption>
-                    {{ req.status || 'pending' }} • {{ formatDateTime(req.created_at) }}
-                  </q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn color="primary" icon="refresh" size="sm" label="Refresh" @click="loadMedicalRequests" :loading="medicalRequestsLoading" />
-          <q-btn flat label="Close" color="primary" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <!-- Medical Requests Modal removed per refactor -->
 
     <!-- Doctor Form Dialog -->
     <q-dialog v-model="showDoctorFormDialog" persistent :maximized="$q.screen.lt.md" transition-show="slide-up" transition-hide="slide-down">
@@ -1000,13 +848,91 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <!-- Nurse Intake Dialog -->
+    <q-dialog v-model="showNurseIntakeDialog">
+      <q-card class="doctor-form-card" style="max-width: 860px; width: 92vw;">
+        <q-card-section class="card-header">
+          <div class="card-title">Nurse Intake Assessment</div>
+        </q-card-section>
+        <!-- Inline Patient Demographics positioned on top of intake content -->
+        <q-card-section class="card-content">
+          <div class="row items-center justify-between q-mb-xs">
+            <div class="text-subtitle2">Patient Demographics</div>
+            <q-btn flat dense size="sm" icon="refresh" label="Refresh" @click="refreshDemographics" />
+          </div>
+          <div v-if="demoLoading" class="row items-center q-gutter-sm q-mb-sm">
+            <q-spinner color="primary" size="1.5em" />
+            <span class="text-caption">Loading demographics...</span>
+          </div>
+          <div v-else-if="demographics" class="row q-col-gutter-sm q-mb-md demographics-inline">
+            <div class="col-12 text-weight-medium">{{ demographicFullName || selectedPatient?.full_name }}</div>
+            <div class="col-6"><strong>DOB:</strong> {{ formattedDOB || '—' }}</div>
+            <div class="col-6"><strong>Age:</strong> {{ demographicAge || (demographics.age ?? '') || (selectedPatient?.age ?? '') || '—' }}</div>
+            <div class="col-6"><strong>Sex:</strong> {{ demographics.sex || selectedPatient?.gender || '—' }}</div>
+            <div v-if="demographics.mrn || selectedPatient?.mrn" class="col-6"><strong>MRN:</strong> {{ demographics.mrn || selectedPatient?.mrn }}</div>
+            <div class="col-12"><strong>Email:</strong> {{ demographics.email || selectedPatient?.email || '—' }}</div>
+          </div>
+          <div v-else class="q-mb-md">
+            <q-banner dense icon="info">No demographics found</q-banner>
+          </div>
+        </q-card-section>
+        <q-card-section class="card-content">
+          <div v-if="nurseIntakeLoading" class="loading-section">
+            <q-spinner color="primary" size="2em" />
+            <p class="loading-text">Loading assessment...</p>
+          </div>
+          <div v-else>
+            <div v-if="hasNurseIntakeData" class="q-gutter-md">
+              <div v-if="nurseIntakeView.chief_complaint">
+                <strong>Chief Complaint:</strong> {{ nurseIntakeView.chief_complaint }}
+              </div>
+              <div v-if="nurseIntakeView.allergies">
+                <strong>Allergies:</strong> {{ nurseIntakeView.allergies }}
+              </div>
+              <div v-if="nurseIntakeView.current_medications">
+                <strong>Current Medications:</strong> {{ nurseIntakeView.current_medications }}
+              </div>
+              <div v-if="nurseIntakeView.medical_history">
+                <strong>Medical History:</strong> {{ nurseIntakeView.medical_history }}
+              </div>
+              <div v-if="nurseIntakeView.assessment_notes">
+                <strong>Assessment Notes:</strong> {{ nurseIntakeView.assessment_notes }}
+              </div>
+
+              <div class="vitals" v-if="nurseIntakeView.vitals && (nurseIntakeView.vitals.blood_pressure || nurseIntakeView.vitals.heart_rate || nurseIntakeView.vitals.temperature || nurseIntakeView.vitals.respiratory_rate || nurseIntakeView.vitals.oxygen_saturation)">
+                <div class="text-subtitle2 q-mb-xs">Vitals</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.blood_pressure"><strong>BP:</strong> {{ nurseIntakeView.vitals.blood_pressure }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.heart_rate"><strong>HR:</strong> {{ nurseIntakeView.vitals.heart_rate }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.temperature"><strong>Temp:</strong> {{ nurseIntakeView.vitals.temperature }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.respiratory_rate"><strong>RR:</strong> {{ nurseIntakeView.vitals.respiratory_rate }}</div>
+                  <div class="col-12 col-sm-6" v-if="nurseIntakeView.vitals.oxygen_saturation"><strong>SpO₂:</strong> {{ nurseIntakeView.vitals.oxygen_saturation }}</div>
+                </div>
+              </div>
+
+              
+            </div>
+            <div v-else class="empty-intake q-pa-md">
+              <div class="text-subtitle1 q-mb-sm">No nurse intake data available</div>
+              <div class="text-caption text-grey-7 q-mb-md">The nursing team has not recorded an intake assessment for this patient yet.</div>
+              
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Close" color="primary" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
+import { useRouter } from 'vue-router';
+import type { AxiosError } from 'axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
 // Form validation helpers
@@ -1025,6 +951,8 @@ interface Patient {
   user_id: number;
   full_name: string;
   patient_name?: string;
+  date_of_birth?: string;
+  mrn?: string;
   email?: string;
   age?: number | null;
   gender?: string;
@@ -1042,7 +970,6 @@ interface Patient {
   assigned_doctor?: string | null;
   profile_picture?: string | null;
   is_dummy?: boolean;
-  // Assignment-related fields
   assignment_id?: number;
   assignment_status?: string;
   assigned_by?: string;
@@ -1061,15 +988,9 @@ type DoctorNotification = {
   created_at: string;
 };
 
-type MedicalRequest = {
-  id: number;
-  title?: string;
-  status?: string;
-  created_at?: string | Date;
-};
-
 // Reactive data
 const $q = useQuasar();
+const router = useRouter();
 const rightDrawerOpen = ref(false);
 const loading = ref(false);
 const searchText = ref('');
@@ -1091,8 +1012,6 @@ const orderOptions = [
   { label: 'Descending', value: 'desc' },
 ];
 
-// OPD form selection watcher removed; OPD forms now live in DoctorPatientArchive.vue.
-
 // User profile data
 const userProfile = ref<{
   id: number;
@@ -1110,47 +1029,227 @@ const userProfile = ref<{
   verification_status: '',
 });
 
-// Weather data is now handled by DoctorHeader component
-
 // Notification system
 const notifications = ref<DoctorNotification[]>([]);
 
 const loadNotifications = async (): Promise<void> => {
   try {
-    console.log('📬 Loading doctor notifications...');
+    console.log('Loading doctor notifications...');
     const response = await api.get('/operations/notifications/');
     notifications.value = response.data || [];
-    console.log('✅ Doctor notifications loaded:', notifications.value.length);
+    console.log('Doctor notifications loaded:', notifications.value.length);
   } catch (error) {
-    console.error('❌ Error loading doctor notifications:', error);
+    console.error('Error loading doctor notifications:', error);
     $q.notify({ type: 'negative', message: 'Failed to load notifications' });
   }
 };
 
-// Medical Requests state
-const medicalRequests = ref<MedicalRequest[]>([]);
-const medicalRequestsLoading = ref(false);
-const showMedicalRequestsModal = ref(false);
+// Nurse Intake dialog state
+const showNurseIntakeDialog = ref(false)
+const nurseIntakeLoading = ref(false)
+const nurseIntakeData = ref<Record<string, unknown>>({})
+const hasNurseIntakeData = computed(() => {
+  const d = nurseIntakeData.value
+  return !!d && Object.keys(d).length > 0
+})
+// Derive human-readable fields from nurse intake
+const nurseIntakeView = computed(() => {
+  // Avoid unnecessary assertions; value already typed as Record<string, unknown>
+  const d: Record<string, unknown> = nurseIntakeData.value || {}
 
-const loadMedicalRequests = async () => {
-  medicalRequestsLoading.value = true;
+  const str = (v: unknown): string => {
+    if (v === null || v === undefined) return ''
+    if (Array.isArray(v)) {
+      const parts = v
+        .map((item) => {
+          if (item === null || item === undefined) return ''
+          if (typeof item === 'string') return item.trim()
+          if (typeof item === 'number' || typeof item === 'boolean') return String(item)
+          if (typeof item === 'object') {
+            try { return JSON.stringify(item) } catch { return '' }
+          }
+          return String(item)
+        })
+        .filter((s) => s.length > 0)
+      return parts.join(', ')
+    }
+    if (typeof v === 'object') {
+      try { return JSON.stringify(v) } catch { return '' }
+    }
+    if (typeof v === 'string') return v
+    if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint' || typeof v === 'symbol') return String(v)
+    // Avoid base-to-string on unknown/function types
+    return ''
+  }
+
+  // Render allergies in a human-readable form instead of JSON
+  const formatAllergies = (v: unknown): string => {
+    const toText = (x: unknown): string => {
+      if (x === null || x === undefined) return ''
+      if (typeof x === 'string') return x.trim()
+      if (typeof x === 'number' || typeof x === 'boolean') return String(x)
+      return ''
+    }
+
+    if (v === null || v === undefined) return ''
+
+    // Array of objects [{substance, reaction}] or [{name, reaction}] → "Penicillin — Rash"
+    if (Array.isArray(v)) {
+      const items = v
+        .map((it) => {
+          if (it && typeof it === 'object') {
+            const obj = it as Record<string, unknown>
+            const substance = toText(obj['substance'] ?? obj['name'])
+            const reaction = toText(obj['reaction'])
+            if (substance && reaction) return `${substance} — ${reaction}`
+            if (substance) return substance
+            if (reaction) return reaction
+            return ''
+          }
+          return toText(it)
+        })
+        .filter((s) => s.length > 0)
+      return items.join(', ')
+    }
+
+    // Single object {substance, reaction}
+    if (typeof v === 'object') {
+      const obj = v as Record<string, unknown>
+      const substance = toText(obj['substance'] ?? obj['name'])
+      const reaction = toText(obj['reaction'])
+      if (substance && reaction) return `${substance} — ${reaction}`
+      if (substance) return substance
+      if (reaction) return reaction
+      return ''
+    }
+
+    // Fallback: primitives only
+    return toText(v)
+  }
+
+  const vitalsRaw = (d['vitals'] || d['vital_signs'] || {}) as Record<string, unknown>
+  const vitals = {
+    blood_pressure: str(vitalsRaw['blood_pressure'] || vitalsRaw['bp']),
+    heart_rate: str(vitalsRaw['heart_rate'] || vitalsRaw['pulse']),
+    respiratory_rate: str(vitalsRaw['respiratory_rate'] || vitalsRaw['rr']),
+    temperature: str(vitalsRaw['temperature'] || vitalsRaw['temp']),
+    oxygen_saturation: str(vitalsRaw['oxygen_saturation'] || vitalsRaw['spo2']),
+  }
+
+  return {
+    chief_complaint: str(d['chief_complaint'] || d['complaint']),
+    allergies: formatAllergies(d['allergies'] || d['known_allergies']),
+    current_medications: str(d['current_medications'] || d['medications']),
+    medical_history: str(d['medical_history'] || d['history']),
+    assessment_notes: str(d['assessment_notes'] || d['notes'] || d['nurse_notes']),
+    vitals,
+  }
+})
+
+const openNurseIntake = async (patient: Patient): Promise<void> => {
   try {
-    const response = await api.get('/operations/medical-requests/').catch(() => ({ data: [] }));
-    medicalRequests.value = (response?.data || []) as MedicalRequest[];
+    selectedPatient.value = patient
+    showNurseIntakeDialog.value = true
+    nurseIntakeLoading.value = true
+    // Non-blocking specialization mismatch warning
+    try {
+      const normalizeSpec = (s: string): string => {
+        const v = String(s || '').trim().toLowerCase()
+        const synonyms: Record<string, string> = {
+          'pulmonary medicine': 'pulmonology',
+          'respiratory medicine': 'pulmonology',
+          'cardiovascular medicine': 'cardiology',
+          'ob-gyn': 'gynecology',
+          'obgyn': 'gynecology',
+        }
+        return synonyms[v] || v
+      }
+      const titleCase = (s: string): string => {
+        const tokens = String(s || '').trim().split(/\s+/)
+        return tokens.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      }
+
+      const requiredSpecRaw = String(patient.specialization_required || '')
+      const doctorSpecRaw = String(userProfile.value?.specialization || '')
+      const requiredSpec = normalizeSpec(requiredSpecRaw)
+      const doctorSpec = normalizeSpec(doctorSpecRaw)
+      if (requiredSpec && doctorSpec && requiredSpec !== doctorSpec) {
+        console.warn('The specialization is not aligned with the doctor\'s specialization')
+        $q.notify({ type: 'warning', message: `Specialization mismatch: patient requires ${titleCase(requiredSpec)}, you are ${titleCase(doctorSpec)}.`, position: 'top' })
+      }
+    } catch { 
+      /* ignore */ 
+    }
+    const pid = patient.user_id ?? patient.id
+    const endpoint = `/users/doctor/patient/${pid}/nurse-intake/`
+    const resp = await api.get(endpoint)
+    nurseIntakeData.value = resp.data?.data ?? {}
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'doctor_view_nurse_intake_succeeded',
+      route: 'DoctorPatientManagement',
+      context: { patient_id: String(pid), has_data: Boolean(nurseIntakeData.value && Object.keys(nurseIntakeData.value).length) }
+    }).catch(() => { /* non-blocking */ })
   } catch (error) {
-    console.error('Failed to load medical requests:', error);
-    medicalRequests.value = [];
-    $q.notify({ type: 'negative', message: 'Failed to load medical requests' });
+    console.error('Failed to load nurse intake:', error)
+    const status = (error as { response?: { status?: number } })?.response?.status
+    const msg = status === 403 ? 'Not authorized for this patient' : 'Failed to load nurse intake'
+    $q.notify({ type: status === 403 ? 'warning' : 'negative', message: msg, position: 'top' })
     void api.post('/operations/client-log/', {
       level: 'error',
-      message: 'loadMedicalRequests failed',
+      message: 'doctor_view_nurse_intake_failed',
       route: 'DoctorPatientManagement',
-      context: { error: String(error) },
-    });
+      context: { patient_id: String((patient.user_id ?? patient.id) || ''), status: String(status || ''), error: String(error) }
+    }).catch(() => { /* non-blocking */ })
+    nurseIntakeData.value = {}
   } finally {
-    medicalRequestsLoading.value = false;
+    nurseIntakeLoading.value = false
   }
-};
+}
+
+// Inline archive action from doctor patient list
+const archivePatient = async (patient: Patient): Promise<void> => {
+  try {
+    const patientUserIdNum = Number(patient.user_id ?? patient.id)
+    if (!Number.isFinite(patientUserIdNum)) {
+      throw new Error('Invalid patient ID')
+    }
+
+    // Minimal assessment payload; nurses’ intake is primary source
+    const assessmentData: Record<string, unknown> = {
+      archived_at: new Date().toISOString(),
+      doctor_name: userProfile.value.full_name,
+      note: 'Archived from doctor patient list'
+    }
+
+    // Derive hospital name safely without relying on userProfile.hospital_name
+    let hospitalName = patient.hospital || ''
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}') as Record<string, unknown>
+      const maybeHospital = typeof storedUser.hospital_name === 'string' ? storedUser.hospital_name : ''
+      hospitalName = hospitalName || maybeHospital
+    } catch { /* ignore parse errors */ }
+
+    const payload: Record<string, unknown> = {
+      patient_id: patientUserIdNum,
+      assessment_type: 'intake',
+      assessment_data: assessmentData,
+      medical_condition: patient.medical_condition || '',
+      hospital_name: hospitalName,
+      doctor_id: userProfile.value.id,
+      specialization: userProfile.value.specialization || 'General'
+    }
+
+    await api.post('/operations/archives/create/', payload)
+    $q.notify({ type: 'positive', message: 'Record archived' })
+    void router.push({ name: 'DoctorPatientArchive' })
+  } catch (err) {
+    console.error('Archive failed:', err)
+    $q.notify({ type: 'negative', message: 'Failed to archive record' })
+  }
+}
+
+// loadMedicalRequests removed per refactor
 
 // Available Nurses list
 interface NurseSummary {
@@ -1163,24 +1262,43 @@ interface NurseSummary {
   email?: string | undefined;
   profile_picture?: string | null;
 }
-
-interface AvailableUser {
-  id: number | string;
-  full_name: string;
-  role: string;
-  verification_status: string;
-  email?: string;
-  profile_picture?: string | null;
-  nurse_profile?: { department?: string } | null;
-  specialization?: string;
-}
  
- const availableNurses = ref<NurseSummary[]>([]);
+const availableNurses = ref<NurseSummary[]>([]);
 const nursesLoading = ref(false);
+const nursesError = ref<string | null>(null);
+const nursesCheckedAt = ref<string | null>(null);
+
+// Pagination for Available Nurses (10 per page)
+const nursesPage = ref(1);
+const nursesPerPage = 10;
+const nurseTotalPages = computed(() => {
+  const total = availableNurses.value.length;
+  return Math.max(1, Math.ceil(total / nursesPerPage));
+});
+const paginatedNurses = computed(() => {
+  const start = (nursesPage.value - 1) * nursesPerPage;
+  return availableNurses.value.slice(start, start + nursesPerPage);
+});
+const nursesStartIndex = computed(() => {
+  if (availableNurses.value.length === 0) return 0;
+  return (nursesPage.value - 1) * nursesPerPage + 1;
+});
+const nursesEndIndex = computed(() => {
+  const end = nursesPage.value * nursesPerPage;
+  return Math.min(availableNurses.value.length, end);
+});
+watch(availableNurses, (list) => {
+  const max = Math.max(1, Math.ceil(list.length / nursesPerPage));
+  if (nursesPage.value > max) nursesPage.value = max;
+  if (nursesPage.value < 1) nursesPage.value = 1;
+});
 
 const getInitials = (name: string): string => {
-  const parts = (name || '').trim().split(/\s+/);
-  return parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  const safe = (name || '').trim();
+  if (!safe) return 'U';
+  const parts = safe.split(/\s+/);
+  const initials = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+  return initials || safe.charAt(0).toUpperCase();
 };
 
 const getAvailabilityColor = (status: string): string => {
@@ -1191,26 +1309,222 @@ const getAvailabilityColor = (status: string): string => {
   return 'primary';
 };
 
+// Safe error message extractor to avoid 'any' casts
+const getErrorMessage = (e: unknown): string => {
+  if (e instanceof Error && typeof e.message === 'string') return e.message;
+  if (typeof e === 'object' && e !== null && 'message' in (e as Record<string, unknown>)) {
+    const m = (e as { message?: unknown }).message;
+    if (typeof m === 'string') return m;
+  }
+  try { return JSON.stringify(e); } catch { return String(e); }
+};
+
+// Demographics state and helpers
+type Demographics = {
+  mrn?: string; firstName?: string; middleName?: string; lastName?: string;
+  dob?: string; age?: number; sex?: string; maritalStatus?: string; nationality?: string;
+  homeAddress?: string; cellPhone?: string; homePhone?: string; email?: string;
+  emergencyName?: string; emergencyRelationship?: string; emergencyPhone?: string;
+}
+const demographics = ref<Demographics | null>(null)
+const demoLoadError = ref<string | null>(null)
+const demoLoading = ref(false)
+const DEMO_TTL_MS = 5 * 60 * 1000
+const demoCache = new Map<number, { data: Demographics; ts: number }>()
+
+const demographicFullName = computed(() => {
+  const d = demographics.value
+  if (!d) return ''
+  const names = [d.firstName, d.middleName, d.lastName].filter(Boolean)
+  return names.join(' ').trim()
+})
+const formattedDOB = computed(() => {
+  const dob = demographics.value?.dob
+  if (!dob) return ''
+  try { return new Date(dob).toLocaleDateString() } catch { return String(dob) }
+})
+const demographicAge = computed(() => {
+  const dob = demographics.value?.dob
+  if (!dob) return ''
+  try {
+    const d = new Date(dob)
+    const diff = Date.now() - d.getTime()
+    const ageDt = new Date(diff)
+    return Math.abs(ageDt.getUTCFullYear() - 1970)
+  } catch { return '' }
+})
+
+const mergePatientOverview = (patient: Patient, base: Demographics | null): Demographics => {
+  const merged: Demographics = { ...(base || {}) }
+  if (!merged.email && patient.email) merged.email = patient.email
+  if (!merged.sex && patient.gender) merged.sex = patient.gender
+  // No DOB or address in patient list; keep base if present
+  return merged
+}
+
+const tryLoadDemographicsLocal = (pid: number): Demographics | null => {
+  const mainKey = `patient_reg_${pid}`
+  const draftKey = `patient_reg_draft_${pid}`
+  try {
+    const raw = localStorage.getItem(mainKey)
+    if (raw) return JSON.parse(raw)
+    const draftRaw = localStorage.getItem(draftKey)
+    if (draftRaw) return JSON.parse(draftRaw)
+  } catch { /* ignore */ }
+  return null
+}
+
+const loadDemographics = async (): Promise<void> => {
+  demoLoadError.value = null
+  demographics.value = null
+  if (!selectedPatient.value) return
+
+  const pid = Number(selectedPatient.value.id || selectedPatient.value.user_id)
+  if (!Number.isFinite(pid)) {
+    demoLoadError.value = 'Invalid patient identifier'
+    return
+  }
+
+  // Use cache when fresh
+  const cached = demoCache.get(pid)
+  const now = Date.now()
+  if (cached && now - cached.ts < DEMO_TTL_MS) {
+    demographics.value = cached.data
+    return
+  }
+
+  demoLoading.value = true
+  try {
+    // 1) Try localStorage (nurse registration)
+    const localData = tryLoadDemographicsLocal(pid)
+    let merged = mergePatientOverview(selectedPatient.value, localData)
+
+    // 2) If still empty, attempt minimal overview endpoint to ensure we at least have email
+    if (!merged || Object.keys(merged).length === 0) {
+      try {
+        const resp = await api.get(`/users/doctor/patient/${pid}/forms/`)
+        const p = resp.data?.patient
+        if (p && typeof p === 'object') {
+          const overview: Demographics = {
+            email: p.email,
+            sex: p.gender,
+            dob: p.date_of_birth,
+            age: p.age,
+          }
+          merged = mergePatientOverview(selectedPatient.value, overview)
+        }
+      } catch { /* non-blocking */ }
+    }
+
+    if (!merged || Object.keys(merged).length === 0) {
+      demoLoadError.value = 'Demographics not found for selected patient.'
+      demographics.value = null
+    } else {
+      demographics.value = merged
+      demoCache.set(pid, { data: merged, ts: Date.now() })
+    }
+  } catch (e) {
+    console.warn('Failed to load demographics', e)
+    demoLoadError.value = 'Unable to load demographics; please retry.'
+    demographics.value = null
+  } finally {
+    demoLoading.value = false
+  }
+}
+
+const refreshDemographics = (): void => {
+  if (!selectedPatient.value) return
+  const pid = Number(selectedPatient.value.id || selectedPatient.value.user_id)
+  demoCache.delete(pid)
+  void loadDemographics()
+}
+
+// Limited polling with exponential backoff when demographics missing
+const loadDemographicsWithBackoff = async (): Promise<void> => {
+  await loadDemographics()
+  if (!demographics.value) {
+    const delays = [1000, 2000, 4000]
+    for (const d of delays) {
+      await new Promise(res => setTimeout(res, d))
+      await loadDemographics()
+      if (demographics.value) break
+    }
+  }
+}
+
+watch(selectedPatient, (p) => {
+  if (p) {
+    void loadDemographicsWithBackoff()
+  } else {
+    demographics.value = null
+    demoLoadError.value = null
+  }
+})
+
 const loadAvailableNurses = async (): Promise<void> => {
   nursesLoading.value = true;
+  nursesError.value = null;
   try {
-    const response = await api.get('/operations/messaging/available-users/');
-    const users: AvailableUser[] = (response.data?.users ?? response.data ?? []) as AvailableUser[];
-    const list: NurseSummary[] = users
-      .filter((u) => u.role === 'nurse' && u.verification_status === 'approved')
-      .map((u) => ({
-        id: u.id,
-        full_name: u.full_name,
-        department: u.nurse_profile?.department || u.specialization || 'General',
-        status: 'Verified',
-        availability: 'Available',
-        email: u.email ?? '',
-        profile_picture: u.profile_picture || null,
-      } as NurseSummary));
+    // New secured endpoint dedicated for nurse availability, includes timestamp and shift info
+    const url = `/operations/availability/nurses/`;
+    const response = await api.get(url);
+    type ApiNurse = {
+      id: number | string;
+      full_name: string;
+      email?: string;
+      department?: string;
+      availability?: string;
+      on_duty?: boolean;
+    };
+    const nurses: ApiNurse[] = Array.isArray(response.data?.nurses)
+      ? (response.data.nurses as ApiNurse[])
+      : [];
+    const checkedAt = String(response.data?.checked_at || '');
+
+    const list: NurseSummary[] = nurses.map((n: ApiNurse) => ({
+      id: n.id,
+      full_name: n.full_name,
+      department: n.department || 'General',
+      status: n.on_duty ? 'On Duty' : 'Off Duty',
+      availability: n.availability || (n.on_duty ? 'Available' : 'Off Duty'),
+      email: n.email || '',
+      profile_picture: null,
+    } as NurseSummary));
     availableNurses.value = list;
+
+    // Cache for fallback and auditing
+    localStorage.setItem('available_nurses', JSON.stringify(list));
+    if (checkedAt) {
+      localStorage.setItem('available_nurses_checked_at', checkedAt);
+      nursesCheckedAt.value = checkedAt;
+    }
+    // Optional: lightweight client log for success
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'loadAvailableNurses succeeded',
+      route: 'DoctorPatientManagement',
+      context: { count: list.length, checked_at: checkedAt }
+    }).catch(() => { /* non-blocking */ });
   } catch (error) {
     console.error('Failed to load available nurses:', error);
-    availableNurses.value = [];
+    const msg = getErrorMessage(error);
+    nursesError.value = msg || 'Unable to load nurses';
+    $q.notify({ type: 'negative', message: 'Failed to load available nurses', position: 'top' });
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadAvailableNurses failed',
+      route: 'DoctorPatientManagement',
+      context: { error: String(error) }
+    }).catch(() => { /* non-blocking */ });
+    // Try to use cached data as fallback
+    try {
+      const cached = localStorage.getItem('available_nurses');
+      availableNurses.value = cached ? (JSON.parse(cached) as NurseSummary[]) : [];
+      const cachedTs = localStorage.getItem('available_nurses_checked_at');
+      nursesCheckedAt.value = cachedTs || null;
+    } catch {
+      availableNurses.value = [];
+    }
   } finally {
     nursesLoading.value = false;
   }
@@ -1247,19 +1561,7 @@ const filteredPatients = computed(() => {
 });
 
 
-
-// Assignment-based statistics
-const pendingAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'pending').length,
-);
-
-const acceptedAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'accepted' || p.assignment_status === 'in_progress').length,
-);
-
-const completedAssignmentsCount = computed(
-  () => patients.value.filter((p) => p.assignment_status === 'completed').length,
-);
+// Assignment-based statistics removed; card now uses aggregated `stats` only
 
 // Patient statistics state and loader
 const stats = ref<{ total_patients: number; active_cases: number; recovery_rate: number; active_rate: number }>({ total_patients: 0, active_cases: 0, recovery_rate: 0, active_rate: 0 })
@@ -1311,113 +1613,7 @@ const loadDoctorStats = async (): Promise<void> => {
   }
 }
 
-// Medical records state and loader
-interface MedicalRecord {
-  id: number | string
-  patient_id?: number | string
-  patient_name: string
-  assessment_type: string
-  medical_condition?: string
-  decrypted_assessment_data?: Record<string, unknown> | null
-  last_assessed_at?: string
-  hospital_name?: string
-}
-
-const records = ref<MedicalRecord[]>([])
-const recordsLoading = ref(false)
-const recordsTab = ref<'all' | 'hp' | 'soap' | 'orders' | 'procedure'>('all')
-const recordsSearch = ref('')
-const showRecordDialog = ref(false)
-const selectedRecord = ref<MedicalRecord | null>(null)
-
-const loadMedicalRecords = async (): Promise<void> => {
-  recordsLoading.value = true
-  try {
-    type ArchiveItem = {
-      id?: number | string;
-      archive_id?: number | string;
-      _id?: number | string;
-      patient_id?: number | string;
-      patient_name?: string;
-      name?: string;
-      assessment_type?: string;
-      medical_condition?: string;
-      decrypted_assessment_data?: Record<string, unknown> | null;
-      last_assessed_at?: string;
-      updated_at?: string;
-      created_at?: string;
-      hospital_name?: string;
-    };
-    type ArchiveResponse = { results?: ArchiveItem[] } | ArchiveItem[];
-
-    const res = await api.get('/operations/archives/')
-    const data = (res as { data: ArchiveResponse }).data
-    const list: ArchiveItem[] = Array.isArray(data) ? (data as ArchiveItem[]) : (data.results ?? [])
-    records.value = list.map((r): MedicalRecord => {
-      const last = r.last_assessed_at ?? r.updated_at ?? r.created_at;
-      return {
-        id: r.id ?? r.archive_id ?? r._id ?? Math.random(),
-        ...(r.patient_id != null ? { patient_id: r.patient_id } : {}),
-        patient_name: r.patient_name ?? r.name ?? 'Unknown Patient',
-        assessment_type: String(r.assessment_type || 'unknown').toLowerCase(),
-        medical_condition: r.medical_condition ?? '',
-        decrypted_assessment_data: r.decrypted_assessment_data ?? null,
-        ...(last != null ? { last_assessed_at: last } : {}),
-        hospital_name: r.hospital_name ?? ''
-      };
-    })
-  } catch (error) {
-    console.error('Failed to load medical records:', error)
-    records.value = []
-    $q.notify({ type: 'negative', message: 'Failed to load medical records', position: 'top' })
-    void api.post('/operations/client-log/', {
-      level: 'error',
-      message: 'loadMedicalRecords failed',
-      route: 'DoctorPatientManagement',
-      context: { error: String(error) }
-    })
-  } finally {
-    recordsLoading.value = false
-  }
-}
-
-const filteredRecords = computed(() => {
-  const tab = recordsTab.value
-  const search = recordsSearch.value.trim().toLowerCase()
-  return records.value.filter(r => {
-    const matchTab = tab === 'all' ? true : r.assessment_type === tab
-    const matchSearch = !search
-      || (r.patient_name || '').toLowerCase().includes(search)
-      || (r.medical_condition || '').toLowerCase().includes(search)
-      || (r.assessment_type || '').toLowerCase().includes(search)
-    return matchTab && matchSearch
-  })
-})
-
-const previewRecord = (rec: MedicalRecord): void => {
-  selectedRecord.value = rec
-  showRecordDialog.value = true
-}
-
-const downloadRecord = (rec: MedicalRecord): void => {
-  try {
-    const url = `/api/operations/archives/${rec.id}/export/`
-    window.open(url, '_blank')
-  } catch (error) {
-    console.error('Download record failed:', error)
-    $q.notify({ type: 'negative', message: 'Failed to download record', position: 'top' })
-  }
-}
-
-const formatDate = (iso?: string): string => {
-  if (!iso) return '—'
-  try {
-    const d = new Date(iso)
-    return d.toLocaleString()
-  } catch {
-    return String(iso)
-  }
-}
+// Medical records UI and loader removed per refactor
 
 // Patient assignment data loading and actions
 const loadPatients = async () => {
@@ -1462,6 +1658,28 @@ const loadPatients = async () => {
         is_dummy: false
       }));
       console.log('Assigned patients loaded:', patients.value.length, 'User role:', userProfile.value.role);
+      // Try preselecting patient based on route query parameters
+      try {
+        const route = useRoute();
+        const q = route.query as Record<string, string | string[]>;
+        const pidRaw = q.patientId ?? q.patient_id;
+        const pnameRaw = q.patientName ?? q.patient_name;
+        let candidate: Patient | undefined;
+        if (pidRaw) {
+          const pid = Number(Array.isArray(pidRaw) ? pidRaw[0] : pidRaw);
+          candidate = patients.value.find(p => p.id === pid || p.user_id === pid);
+        }
+        if (!candidate && pnameRaw) {
+          const pname = String(Array.isArray(pnameRaw) ? pnameRaw[0] : pnameRaw).toLowerCase();
+          candidate = patients.value.find(p => (p.full_name || p.patient_name || '').toLowerCase() === pname);
+        }
+        if (candidate) {
+          selectPatient(candidate);
+          $q.notify({ type: 'info', message: `Preloaded patient: ${candidate.full_name}`, position: 'top' });
+        }
+      } catch (e) {
+        console.warn('Route-based preselection failed', e);
+      }
       const first = patients.value[0];
       if (first) { void loadVerificationStatus(first); }
     } else {
@@ -1555,9 +1773,10 @@ const loadVerificationStatus = async (patient: Patient) => {
 };
 
 const viewPatientDetails = (patient: Patient) => {
-  const currentId = selectedPatient.value?.id;
-  console.log('Viewing patient:', patient.full_name, 'Currently selected:', currentId);
-  $q.notify({ type: 'info', message: `Viewing details for ${patient.full_name}`, position: 'top' });
+  // Ensure the clicked patient is selected so demographics load and bind correctly
+  selectedPatient.value = patient;
+  // Open the nurse intake assessment dialog
+  void openNurseIntake(patient)
 };
 
 const editPatient = (patient: Patient) => {
@@ -1570,14 +1789,29 @@ const fetchUserProfile = async () => {
   try {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
+
+    // Prefer doctor_profile specialization; ensure strings only
+    const docSpec = typeof userData?.doctor_profile?.specialization === 'string'
+      ? userData.doctor_profile.specialization
+      : '';
+
+    // In doctor-facing components, do not let role be coerced by stale data
+    const roleFromApi = typeof userData?.role === 'string' ? userData.role : 'doctor';
+    const safeRole = roleFromApi === 'doctor' ? 'doctor' : 'doctor';
+
     userProfile.value = {
       id: userData.id,
       full_name: userData.full_name,
-      specialization: userData.doctor_profile?.specialization,
-      role: userData.role,
+      specialization: docSpec,
+      role: safeRole,
       profile_picture: userData.profile_picture || null,
       verification_status: userData.verification_status,
     };
+
+    if (roleFromApi !== 'doctor') {
+      console.warn('Profile API returned non-doctor role on doctor page; enforcing doctor context. Received:', roleFromApi);
+    }
+
     console.log('Loaded user profile role:', userProfile.value.role);
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
@@ -1646,6 +1880,8 @@ const showDoctorFormDialog = ref(false)
 const selectedFormType = ref<FormType | null>(null)
 const selectedFormPatient = ref<Patient | null>(null)
 const formSubmitting = ref(false)
+const doctorFormLoading = ref(false)
+const editingIndex = ref<number | null>(null)
 
 // Form type options for dropdown
 const formTypeOptions = [
@@ -1870,6 +2106,7 @@ const openFormForPatient = (patient: Patient, type: FormType): void => {
   selectedFormType.value = type
   resetForm(type)
   showDoctorFormDialog.value = true
+  void loadExistingDoctorForms()
 }
 
 const validateForm = (): boolean => {
@@ -1928,32 +2165,262 @@ const saveDoctorForm = async (): Promise<void> => {
   formSubmitting.value = true
   try {
     const pid = selectedFormPatient.value?.user_id ?? selectedFormPatient.value?.id
-    const payload = {
-      type: selectedFormType.value,
-      patient_id: pid,
-      patient_name: selectedFormPatient.value?.full_name ?? selectedFormPatient.value?.patient_name,
-      provider_id: userProfile.value.id,
-      provider_name: userProfile.value.full_name,
-      timestamp: new Date().toISOString(),
-      data:
-        selectedFormType.value === 'hp' ? hpForm.value :
-        selectedFormType.value === 'soap' ? soapForm.value :
-        selectedFormType.value === 'orders' ? orderForm.value :
-        selectedFormType.value === 'procedure' ? procedureForm.value : {}
+    const endpointBase = `/users/doctor/patient/${pid}`
+    let endpoint = ''
+    let data: Record<string, unknown> = {}
+
+    if (selectedFormType.value === 'hp') {
+      endpoint = `${endpointBase}/hp/`
+      const physicalExam = [
+        hpForm.value.pe_general && `General: ${hpForm.value.pe_general}`,
+        hpForm.value.pe_heent && `HEENT: ${hpForm.value.pe_heent}`,
+        hpForm.value.pe_cardiac && `Cardiac: ${hpForm.value.pe_cardiac}`,
+        hpForm.value.pe_pulmonary && `Pulmonary: ${hpForm.value.pe_pulmonary}`,
+        hpForm.value.pe_abdomen && `Abdomen: ${hpForm.value.pe_abdomen}`,
+        hpForm.value.pe_neurologic && `Neurologic: ${hpForm.value.pe_neurologic}`,
+      ].filter(Boolean).join('\n')
+      data = {
+        patient_name: selectedFormPatient.value?.full_name ?? selectedFormPatient.value?.patient_name ?? '',
+        dob: selectedFormPatient.value?.date_of_birth ?? '',
+        mrn: selectedFormPatient.value?.mrn ?? '',
+        chief_complaint: hpForm.value.chief_complaint,
+        history_present_illness: hpForm.value.hpi,
+        past_medical_history: hpForm.value.pmh,
+        social_history: hpForm.value.social_history,
+        review_of_systems: hpForm.value.ros_notes ? [hpForm.value.ros_notes] : [],
+        physical_exam: physicalExam,
+        assessment: hpForm.value.assessment,
+        diagnoses_icd_codes: hpForm.value.assessment_codes ? hpForm.value.assessment_codes.split(',').map(s => s.trim()).filter(Boolean) : [],
+        initial_plan: hpForm.value.plan,
+      }
+    } else if (selectedFormType.value === 'soap') {
+      endpoint = `${endpointBase}/progress-notes/`
+      data = {
+        date_time_note: new Date().toISOString(),
+        subjective: soapForm.value.subjective,
+        objective: soapForm.value.objective,
+        assessment: soapForm.value.assessment,
+        plan: soapForm.value.plan,
+      }
+    } else if (selectedFormType.value === 'orders') {
+      endpoint = `${endpointBase}/orders/`
+      data = {
+        order_type: orderForm.value.order_type,
+        order_status: orderForm.value.order_status,
+        medication_orders: {
+          drug_name: orderForm.value.med_drug_name,
+          dose: orderForm.value.med_dose,
+          route: orderForm.value.med_route,
+          frequency: orderForm.value.med_frequency,
+        },
+        diagnostic_orders: {
+          test_name: orderForm.value.diag_test_name,
+          priority: orderForm.value.diag_priority,
+          reason: orderForm.value.diag_reason,
+        },
+        consultation_orders: {
+          specialty: orderForm.value.consult_specialty,
+          question: orderForm.value.consult_reason,
+        },
+        general_orders: {
+          diet: orderForm.value.general_diet,
+          activity_level: orderForm.value.general_activity_level,
+          vitals_frequency: orderForm.value.general_vitals_frequency,
+          isolation_status: orderForm.value.general_isolation_status,
+        },
+      }
+    } else if (selectedFormType.value === 'procedure') {
+      endpoint = `${endpointBase}/operative-reports/`
+      data = {
+        procedure_name: procedureForm.value.procedure_name,
+        indications: procedureForm.value.indications,
+        consent_status: procedureForm.value.consent_obtained ? 'obtained' : 'unknown',
+        anesthesia_type: procedureForm.value.anesthesia,
+        anesthesia_dose: '',
+        procedure_steps: procedureForm.value.steps,
+        findings: procedureForm.value.findings,
+        complications: procedureForm.value.complications,
+        disposition_plan: procedureForm.value.disposition_plan,
+      }
     }
-    await api.post('/operations/client-log/', {
-      level: 'info',
-      message: 'doctor_form_submit',
-      route: 'DoctorPatientManagement',
-      context: payload,
-    })
-    $q.notify({ type: 'positive', message: 'Form saved (logged) successfully', position: 'top' })
+
+    if (!endpoint) throw new Error('Invalid form type')
+
+    if (editingIndex.value !== null) {
+      await api.put(`${endpoint}${editingIndex.value}/`, data)
+      $q.notify({ type: 'positive', message: 'Form updated successfully', position: 'top' })
+    } else {
+      await api.post(endpoint, data)
+      $q.notify({ type: 'positive', message: 'Form submitted successfully', position: 'top' })
+      void router.push({ name: 'DoctorPatientArchive' })
+    }
     showDoctorFormDialog.value = false
   } catch (error) {
     console.error('Failed to save form:', error)
-    $q.notify({ type: 'negative', message: 'Failed to save form', position: 'top' })
+    let message = 'Failed to save form'
+    const axiosErr = error as AxiosError<{ detail?: string }>
+    if (axiosErr && axiosErr.response) {
+      message = axiosErr.response.data?.detail ?? message
+    } else if (typeof (error as { message?: string }).message === 'string') {
+      message = (error as { message?: string }).message ?? message
+    }
+    $q.notify({ type: 'negative', message, position: 'top' })
   } finally {
     formSubmitting.value = false
+  }
+}
+
+// Backend record shapes used when prefilling forms from GET responses
+type HPRecord = {
+  chief_complaint?: string;
+  history_present_illness?: string;
+  past_medical_history?: string;
+  social_history?: string;
+  review_of_systems?: string[] | string;
+  physical_exam?: string;
+  assessment?: string;
+  diagnoses_icd_codes?: string[];
+  initial_plan?: string;
+}
+
+type SOAPRecord = {
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+}
+
+type OrdersRecord = {
+  order_type?: OrderFormModel['order_type'];
+  order_status?: OrderFormModel['order_status'];
+  medication_orders?: {
+    drug_name?: string;
+    dose?: string;
+    route?: string;
+    frequency?: string;
+  };
+  diagnostic_orders?: {
+    test_name?: string;
+    priority?: OrderFormModel['diag_priority'];
+    reason?: string;
+  };
+  consultation_orders?: {
+    specialty?: string;
+    question?: string;
+  };
+  general_orders?: {
+    diet?: string;
+    activity_level?: string;
+    vitals_frequency?: string;
+    isolation_status?: string;
+  };
+}
+
+type ProcedureRecord = {
+  procedure_name?: string;
+  indications?: string;
+  consent_status?: string;
+  anesthesia_type?: string;
+  procedure_steps?: string;
+  findings?: string;
+  complications?: string;
+  disposition_plan?: string;
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object'
+
+const loadExistingDoctorForms = async (): Promise<void> => {
+  if (!selectedFormType.value || !selectedFormPatient.value) return
+  doctorFormLoading.value = true
+  editingIndex.value = null
+  try {
+    const pid = selectedFormPatient.value.user_id ?? selectedFormPatient.value.id
+    const endpointBase = `/users/doctor/patient/${pid}`
+    let endpoint = ''
+    if (selectedFormType.value === 'hp') endpoint = `${endpointBase}/hp/`
+    else if (selectedFormType.value === 'soap') endpoint = `${endpointBase}/progress-notes/`
+    else if (selectedFormType.value === 'orders') endpoint = `${endpointBase}/orders/`
+    else if (selectedFormType.value === 'procedure') endpoint = `${endpointBase}/operative-reports/`
+    if (!endpoint) return
+    const resp = await api.get(endpoint)
+    const raw = resp.data?.data
+    const list: unknown[] = Array.isArray(raw) ? raw : []
+    if (list.length > 0) {
+      const lastIdx = list.length - 1
+      const last = list[lastIdx]
+      editingIndex.value = lastIdx
+      if (selectedFormType.value === 'hp') {
+        if (isRecord(last)) {
+          const hp = last as Partial<HPRecord>
+          hpForm.value.chief_complaint = hp.chief_complaint ?? ''
+          hpForm.value.hpi = hp.history_present_illness ?? ''
+          hpForm.value.pmh = hp.past_medical_history ?? ''
+          hpForm.value.allergies_medications = ''
+          hpForm.value.social_history = hp.social_history ?? ''
+          hpForm.value.ros_notes = Array.isArray(hp.review_of_systems) ? hp.review_of_systems.join('; ') : (typeof hp.review_of_systems === 'string' ? hp.review_of_systems : '')
+          const pe: string = hp.physical_exam ?? ''
+          hpForm.value.pe_general = pe
+          hpForm.value.pe_heent = ''
+          hpForm.value.pe_cardiac = ''
+          hpForm.value.pe_pulmonary = ''
+          hpForm.value.pe_abdomen = ''
+          hpForm.value.pe_neurologic = ''
+          hpForm.value.assessment = hp.assessment ?? ''
+          hpForm.value.assessment_codes = Array.isArray(hp.diagnoses_icd_codes) ? hp.diagnoses_icd_codes.join(', ') : ''
+          hpForm.value.plan = hp.initial_plan ?? ''
+        }
+      } else if (selectedFormType.value === 'soap') {
+        if (isRecord(last)) {
+          const soap = last as Partial<SOAPRecord>
+          soapForm.value.subjective = soap.subjective ?? ''
+          soapForm.value.objective = soap.objective ?? ''
+          soapForm.value.assessment = soap.assessment ?? ''
+          soapForm.value.plan = soap.plan ?? ''
+        }
+      } else if (selectedFormType.value === 'orders') {
+        if (isRecord(last)) {
+          const ord = last as Partial<OrdersRecord>
+          const med = ord.medication_orders ?? {}
+          orderForm.value.order_type = ord.order_type ?? ''
+          orderForm.value.order_status = ord.order_status ?? ''
+          orderForm.value.med_drug_name = med.drug_name ?? ''
+          orderForm.value.med_dose = med.dose ?? ''
+          orderForm.value.med_route = med.route ?? ''
+          orderForm.value.med_frequency = med.frequency ?? ''
+          const diag = ord.diagnostic_orders ?? {}
+          orderForm.value.diag_test_name = diag.test_name ?? ''
+          orderForm.value.diag_priority = diag.priority ?? ''
+          orderForm.value.diag_reason = diag.reason ?? ''
+          const consult = ord.consultation_orders ?? {}
+          orderForm.value.consult_specialty = consult.specialty ?? ''
+          orderForm.value.consult_reason = consult.question ?? ''
+          const gen = ord.general_orders ?? {}
+          orderForm.value.general_diet = gen.diet ?? ''
+          orderForm.value.general_activity_level = gen.activity_level ?? ''
+          orderForm.value.general_vitals_frequency = gen.vitals_frequency ?? ''
+          orderForm.value.general_isolation_status = gen.isolation_status ?? ''
+        }
+      } else if (selectedFormType.value === 'procedure') {
+        if (isRecord(last)) {
+          const proc = last as Partial<ProcedureRecord>
+          procedureForm.value.procedure_name = proc.procedure_name ?? ''
+          procedureForm.value.indications = proc.indications ?? ''
+          procedureForm.value.consent_obtained = (proc.consent_status ?? '') === 'obtained'
+          procedureForm.value.anesthesia = proc.anesthesia_type ?? ''
+          procedureForm.value.steps = proc.procedure_steps ?? ''
+          procedureForm.value.findings = proc.findings ?? ''
+          procedureForm.value.complications = proc.complications ?? ''
+          procedureForm.value.disposition_plan = proc.disposition_plan ?? ''
+        }
+      }
+      $q.notify({ type: 'info', message: 'Loaded latest record for editing', position: 'top' })
+    } else {
+      editingIndex.value = null
+    }
+  } catch (error) {
+    console.error('Failed to load doctor forms:', error)
+  } finally {
+    doctorFormLoading.value = false
   }
 }
 
@@ -1973,6 +2440,7 @@ const stopAssignmentsPolling = (): void => {
 
 // Doctor messaging WebSocket for real-time patient assignments
 let doctorMessagingWS: WebSocket | null = null;
+let wsRetries = 0;
 
 const setupDoctorMessagingWS = (): void => {
   try {
@@ -1994,6 +2462,7 @@ const setupDoctorMessagingWS = (): void => {
 
     ws.onopen = () => {
       console.log('DoctorPatientManagement messaging WebSocket connected');
+      wsRetries = 0;
     };
 
     ws.onmessage = async (event: MessageEvent) => {
@@ -2017,7 +2486,6 @@ const setupDoctorMessagingWS = (): void => {
               setTimeout(() => { void loadPatients(); }, 2000);
             }
             void loadNotifications();
-            void loadMedicalRequests();
           }
         }
       } catch (err) {
@@ -2025,10 +2493,16 @@ const setupDoctorMessagingWS = (): void => {
       }
     };
 
+    ws.onerror = (ev) => {
+      // Reduce noise: log at debug level, notify only via assignment events
+      console.debug('DoctorPatientManagement messaging WebSocket error', ev);
+    };
+
     ws.onclose = () => {
       console.log('DoctorPatientManagement messaging WebSocket disconnected');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => setupDoctorMessagingWS(), 5000);
+      // Exponential backoff with cap to reduce noise
+      const delay = Math.min(30000, 2000 * Math.pow(2, wsRetries++));
+      setTimeout(() => setupDoctorMessagingWS(), delay);
     };
   } catch (e) {
     console.warn('Failed to setup doctor messaging WebSocket', e);
@@ -2040,10 +2514,8 @@ onMounted(() => {
   void fetchUserProfile();
   void loadNotifications();
   void loadPatients();
-  void loadMedicalRequests();
   void loadAvailableNurses();
   void loadDoctorStats();
-  void loadMedicalRecords();
   startAssignmentsPolling();
   setupDoctorMessagingWS();
 });

@@ -26,8 +26,7 @@
             @click="navigateToProfile"
             v-ripple
           >
-            <img v-if="profilePictureUrl" :src="profilePictureUrl" alt="Profile Picture" />
-            <div v-else class="profile-placeholder">
+            <div class="profile-placeholder">
               {{ userInitials }}
             </div>
           </q-avatar>
@@ -173,7 +172,8 @@ interface UserProfile {
   full_name: string;
   specialization: string;
   verification_status: string;
-  profile_picture?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 // Router and Quasar
@@ -195,36 +195,25 @@ const drawerOpen = computed({
 });
 
 const userInitials = computed(() => {
-  if (!userProfile.value.full_name) return 'U';
-  return userProfile.value.full_name
+  const first = userProfile.value.first_name?.trim();
+  const last = userProfile.value.last_name?.trim();
+  if (first || last) {
+    const f = first ? first.charAt(0) : '';
+    const l = last ? last.charAt(0) : '';
+    const initials = `${f}${l}`.toUpperCase();
+    return initials || 'U';
+  }
+  const full = userProfile.value.full_name?.trim() || '';
+  const initials = full
     .split(' ')
+    .filter(Boolean)
     .map((name) => name.charAt(0))
     .join('')
     .toUpperCase();
+  return initials || (full ? full.charAt(0).toUpperCase() : 'U');
 });
 
-const profilePictureUrl = computed(() => {
-  if (!userProfile.value.profile_picture) {
-    return null;
-  }
-
-  // If it's already a full URL, return as is
-  if (userProfile.value.profile_picture.startsWith('http')) {
-    return userProfile.value.profile_picture;
-  }
-
-  // Get base URL without /api suffix for media files
-  let baseURL = api.defaults.baseURL || 'http://localhost:8000';
-  baseURL = baseURL.replace(/\/api\/?$/, '');
-
-  // Check if it's a relative path starting with /
-  if (userProfile.value.profile_picture.startsWith('/')) {
-    return `${baseURL}${userProfile.value.profile_picture}`;
-  }
-
-  // If it's a relative path without leading slash, add it
-  return `${baseURL}/${userProfile.value.profile_picture}`;
-});
+// Removed profilePictureUrl logic to consistently use initials-only display
 
 // Methods
 const toggleDrawer = () => {
@@ -303,7 +292,8 @@ const loadUserProfile = async () => {
       full_name: userData.full_name,
       specialization: userData.doctor_profile?.specialization || userData.specialization,
       verification_status: userData.verification_status,
-      profile_picture: userData.profile_picture,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
     };
 
     // Show notification if verification status changed to approved

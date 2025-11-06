@@ -260,8 +260,12 @@
                 <div class="card-title">Patient Medical Records</div>
                 <div class="card-description">Based on completed assessments</div>
                 <div class="card-value">
-                  <q-spinner v-if="statsLoading" size="md" />
-                  <span v-else>0</span>
+                  <q-spinner v-if="medicalRecordsLoading" size="md" />
+                  <transition name="fade">
+                    <span v-if="!medicalRecordsLoading" :key="dashboardStats.medicalRecords">
+                      {{ dashboardStats.medicalRecords }}
+                    </span>
+                  </transition>
                 </div>
               </div>
               <div class="card-icon">
@@ -307,8 +311,12 @@
                 <div class="card-title">Total Cancelled Appointments</div>
                 <div class="card-description">All cancelled appointments</div>
                 <div class="card-value">
-                  <q-spinner v-if="statsLoading" size="md" />
-                  <span v-else>{{ monthlyCancelled }}</span>
+                  <q-spinner v-if="monthlyCancelledLoading" size="md" />
+                  <transition name="fade">
+                    <span v-if="!monthlyCancelledLoading" :key="monthlyCancelled">
+                      {{ monthlyCancelled }}
+                    </span>
+                  </transition>
                 </div>
               </div>
               <div class="card-icon">
@@ -324,8 +332,12 @@
                 <div class="card-title">Notifications</div>
                 <div class="card-description">Currently being assessed by nurses</div>
                 <div class="card-value">
-                  <q-spinner v-if="statsLoading" size="md" />
-                  <span v-else>0</span>
+                  <q-spinner v-if="notificationsLoading" size="md" />
+                  <transition name="fade">
+                    <span v-if="!notificationsLoading" :key="unreadNotificationsCount">
+                      {{ unreadNotificationsCount }}
+                    </span>
+                  </transition>
                 </div>
               </div>
               <div class="card-icon">
@@ -402,6 +414,13 @@
                     @click="showExportMenu = true"
                     class="export-btn"
                   />
+                  <q-btn
+                    round
+                    flat
+                    icon="refresh"
+                    @click="refreshStats"
+                    class="export-btn"
+                  />
                 </div>
               </div>
             </div>
@@ -445,11 +464,12 @@
                   v-for="(appt, idx) in day.appointments.slice(0, 3)"
                   :key="`appt-${weekIndex}-${dayIndex}-${idx}`"
                   class="cell-appointment-row"
+                  :class="{ 'cell-appointment-completed': (appt?.status || '').toLowerCase() === 'completed' }"
                 >
                   <span class="cell-appt-time">
                     {{ formatTime(appt.appointment_time || appt.appointment_date) }}
                   </span>
-                  <span class="cell-appt-name">{{ appt.patient_name }}</span>
+                  <span class="cell-appt-name">{{ appt.patient_name || 'Patient' }}</span>
                 </div>
                 <div v-if="day.appointments.length > 3" class="cell-more-count">
                   +{{ day.appointments.length - 3 }} more
@@ -489,7 +509,7 @@
                     {{ formatScheduleTime(a) }}
                   </q-item-label>
                   <q-item-label caption>
-                    {{ a.patient_name }}
+                    {{ a.patient_name || 'Patient Schedule' }}
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -754,7 +774,6 @@ const text = ref('');
 const showNotifications = ref(false);
 
 // Dashboard stats
-const statsLoading = ref(false);
 const dashboardStats = ref({
   medicalRecords: 15,
   todayAppointments: 28,
@@ -763,6 +782,16 @@ const dashboardStats = ref({
 });
 // Monthly cancelled appointments count
 const monthlyCancelled = ref(0);
+// Per-card loading states
+const monthlyCancelledLoading = ref(true);
+const medicalRecordsLoading = ref(true);
+const notificationsLoading = ref(true);
+// Simple caches to avoid unnecessary state churn
+const lastCountsCache = ref({
+  monthlyCancelled: 0,
+  medicalRecords: 0,
+  notificationsUnread: 0,
+});
 
 // Medical requests functionality
 const medicalRequests = ref<MedicalRequest[]>([]);
@@ -855,6 +884,56 @@ interface Appointment {
     nurse_notes: string;
     assessment_date: string;
   };
+}
+
+// Normalize and dedupe helpers to fix missing names and duplicates
+interface RawAppointment {
+  id?: number;
+  appointment_id?: number;
+  appointmentId?: number;
+  patient_name?: string;
+  patient?: { name?: string };
+  patientName?: string;
+  appointment_date?: string;
+  date?: string;
+  appointment_time?: string;
+  time?: string;
+  appointment_type?: string;
+  type?: string;
+  status?: string;
+  notes?: string;
+}
+function normalizeAppointment(raw: RawAppointment): Appointment {
+  return {
+    id: Number(raw?.id ?? raw?.appointment_id ?? raw?.appointmentId ?? -1),
+    patient_name: String(raw?.patient_name ?? raw?.patient?.name ?? raw?.patientName ?? ''),
+    appointment_date: String(raw?.appointment_date ?? raw?.date ?? ''),
+    appointment_time: String(raw?.appointment_time ?? raw?.time ?? ''),
+    appointment_type: String(raw?.appointment_type ?? raw?.type ?? ''),
+    status: String(raw?.status ?? 'scheduled'),
+    notes: String(raw?.notes ?? ''),
+  };
+}
+
+function dedupeAppointments(list: Appointment[]): Appointment[] {
+  const byId = new Map<number, Appointment>();
+  const bySig = new Set<string>();
+  const out: Appointment[] = [];
+  for (const a of list) {
+    const sig = `${a.appointment_date}|${a.appointment_time}|${a.patient_name}|${a.appointment_type}|${a.status}`;
+    if (a.id && a.id !== -1) {
+      if (!byId.has(a.id)) {
+        byId.set(a.id, a);
+        out.push(a);
+      }
+    } else {
+      if (!bySig.has(sig)) {
+        bySig.add(sig);
+        out.push(a);
+      }
+    }
+  }
+  return out;
 }
 
 // Reactive data
@@ -1034,18 +1113,20 @@ function getScheduleTime(appt: Appointment): number {
 
 async function fetchTodaySchedule() {
   try {
-    scheduleLoading.value = true
-    const res = await api.get('/operations/appointments/')
-    const list: Appointment[] = Array.isArray(res.data) ? (res.data as Appointment[]) : []
-    const today = new Date()
-    const items = list.filter((a) => a.appointment_date && isSameDay(a.appointment_date, today))
-    items.sort((a, b) => getScheduleTime(a) - getScheduleTime(b))
-    todaySchedule.value = items
+    scheduleLoading.value = true;
+    const res = await api.get('/operations/appointments/');
+    const raw = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+    const mapped = (raw as RawAppointment[]).map(normalizeAppointment);
+    const deduped = dedupeAppointments(mapped);
+    const today = new Date();
+    const items = deduped.filter((a) => a.appointment_date && isSameDay(a.appointment_date, today));
+    items.sort((a, b) => getScheduleTime(a) - getScheduleTime(b));
+    todaySchedule.value = items;
   } catch (err) {
-    console.error('Failed to fetch today schedule', err)
-    todaySchedule.value = []
+    console.error('Failed to fetch today schedule', err);
+    todaySchedule.value = [];
   } finally {
-    scheduleLoading.value = false
+    scheduleLoading.value = false;
   }
 }
 
@@ -1253,7 +1334,9 @@ function goToToday() {
 async function fetchAppointments() {
   try {
     const response = await api.get('/operations/appointments/');
-    appointments.value = response.data;
+    const raw = Array.isArray(response.data) ? response.data : (response.data?.results ?? []);
+    const mapped = (raw as RawAppointment[]).map(normalizeAppointment);
+    appointments.value = dedupeAppointments(mapped);
   } catch (error) {
     console.error('Failed to fetch appointments:', error);
     $q.notify({
@@ -1492,12 +1575,19 @@ const unreadNotificationsCount = computed(() => {
   return notifications.value.filter((n) => !n.is_read).length;
 });
 
-const loadNotifications = async (): Promise<void> => {
+const loadNotifications = async (opts: { silent?: boolean } = {}): Promise<void> => {
   try {
+    if (!opts.silent) notificationsLoading.value = true;
     console.log('Loading doctor notifications...');
 
     const response = await api.get('/operations/notifications/');
-    notifications.value = response.data || [];
+    const list = response.data || [];
+    const unread = list.filter((n: Notification) => !n.is_read).length;
+    // Only update if count or payload changed
+    if (unread !== lastCountsCache.value.notificationsUnread || list.length !== notifications.value.length) {
+      notifications.value = list;
+      lastCountsCache.value.notificationsUnread = unread;
+    }
 
     console.log('Doctor notifications loaded:', notifications.value.length);
   } catch (error: unknown) {
@@ -1506,6 +1596,8 @@ const loadNotifications = async (): Promise<void> => {
       type: 'negative',
       message: 'Failed to load notifications',
     });
+  } finally {
+    if (!opts.silent) notificationsLoading.value = false;
   }
 };
 
@@ -1549,18 +1641,25 @@ const markAllNotificationsRead = async (): Promise<void> => {
 };
 
 // Medical requests functions
-const loadMedicalRequests = (): void => {
+const loadMedicalRequests = (opts: { silent?: boolean } = {}): void => {
   try {
+    if (!opts.silent) medicalRecordsLoading.value = true;
     const storedRequests = localStorage.getItem('medicalRequests');
     if (storedRequests) {
       const requests = JSON.parse(storedRequests);
       medicalRequests.value = requests.filter((req: MedicalRequest) => req.status === 'pending');
       
       // Update dashboard stats
-      dashboardStats.value.medicalRecords = medicalRequests.value.length;
+      const count = medicalRequests.value.length;
+      if (count !== lastCountsCache.value.medicalRecords) {
+        dashboardStats.value.medicalRecords = count;
+        lastCountsCache.value.medicalRecords = count;
+      }
     }
   } catch (error) {
     console.error('Error loading medical requests:', error);
+  } finally {
+    if (!opts.silent) medicalRecordsLoading.value = false;
   }
 };
 
@@ -1615,28 +1714,28 @@ let doctorMessagingWS: WebSocket | null = null;
 // Fetch monthly cancelled appointments from backend stats
 const fetchMonthlyCancelled = async (): Promise<void> => {
   try {
-    statsLoading.value = true;
+    monthlyCancelledLoading.value = true;
     const res = await api.get('/operations/dashboard/stats/');
-    monthlyCancelled.value = res.data?.monthly_cancelled ?? 0;
+    const next = res.data?.monthly_cancelled ?? 0;
+    if (next !== lastCountsCache.value.monthlyCancelled) {
+      monthlyCancelled.value = next;
+      lastCountsCache.value.monthlyCancelled = next;
+    }
   } catch (err) {
     console.error('Failed to fetch monthly cancelled count', err);
     monthlyCancelled.value = 0;
   } finally {
-    statsLoading.value = false;
+    monthlyCancelledLoading.value = false;
   }
 };
 
-// Set up refresh at the start of each month
-const setupMonthlyRefresh = (): void => {
-  const now = new Date();
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  nextMonthStart.setHours(0, 0, 0, 0);
-  const delay = nextMonthStart.getTime() - now.getTime();
-  setTimeout(() => {
-    void fetchMonthlyCancelled();
-    // Recurse to schedule the next month refresh
-    setupMonthlyRefresh();
-  }, delay);
+// Manual refresh aggregator
+const refreshStats = async (): Promise<void> => {
+  await Promise.all([
+    fetchMonthlyCancelled(),
+    loadNotifications({ silent: false }),
+    Promise.resolve().then(() => loadMedicalRequests({ silent: false })),
+  ]);
 };
 
 onMounted(async () => {
@@ -1661,11 +1760,7 @@ onMounted(async () => {
   // Refresh weather every 30 minutes
   setInterval(() => void fetchWeather(), 30 * 60 * 1000);
 
-  // Refresh notifications every 30 seconds
-  setInterval(() => void loadNotifications(), 30000);
-
-  // Refresh medical requests every 30 seconds
-  setInterval(() => loadMedicalRequests(), 30000);
+  // Removed unintended auto-refresh intervals for notifications and medical requests
 
   try {
     await fetchAppointments();
@@ -1675,9 +1770,8 @@ onMounted(async () => {
     console.error('Error during component initialization:', error);
   }
 
-  // Fetch monthly cancelled count and set monthly refresh
+  // Fetch monthly cancelled count (initial only)
   void fetchMonthlyCancelled();
-  setupMonthlyRefresh();
 
   // Fetch today's full schedule and set daily refresh
   void fetchTodaySchedule();
@@ -1705,9 +1799,9 @@ onMounted(async () => {
               position: 'top'
             });
           }
-          // Refresh appointments and notifications on any server notification
+          // Refresh appointments and notifications only when new data arrives
           await fetchAppointments();
-          void loadNotifications();
+          void loadNotifications({ silent: true });
         }
       } catch (err) {
         console.warn('Failed to parse WS message', err);
@@ -1759,9 +1853,19 @@ onUnmounted(() => {
 
 <style scoped>
 .page-background {
-  background: #f8f9fa;
+  background: #b5b7b9;
   background-size: cover;
   min-height: 100vh;
+}
+
+/* Smooth value transitions for dashboard counts */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Header and Navigation Styles */
@@ -2321,6 +2425,11 @@ onUnmounted(() => {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.cell-appointment-completed {
+  text-decoration: line-through;
+  opacity: 0.65;
 }
 
 .cell-appt-time {

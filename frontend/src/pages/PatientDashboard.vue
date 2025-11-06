@@ -1,7 +1,7 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <!-- Patient Portal Header -->
-    <q-header class="bg-white text-teal-9">
+    <q-header class="bg-white text-teal-9 patient-header">
       <q-toolbar>
         <q-avatar size="40px" class="q-mr-md">
           <img :src="logoUrl" alt="MediSync Logo" />
@@ -44,65 +44,20 @@
     <!-- Main Content -->
     <q-page-container>
       <q-page class="patient-bg q-pa-md">
-        <!-- Quick Actions (Grouped, single-row grid) -->
-        <div class="q-mb-lg">
-          <q-card flat bordered class="quick-actions-card uniform-card" :style="{ '--qa-label-font-size': qaLabelFontSize + 'px' }">
-            <q-card-section class="text-center q-pb-none">
-              <div class="text-h6 text-weight-bold">Quick Actions</div>
-            </q-card-section>
-            <q-card-section>
-              <div class="row no-wrap q-col-gutter-md items-center justify-evenly quick-action-row">
-                <!-- Queue Status -->
-                <div class="col-3">
-                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-queue')">
-                    <q-icon name="format_list_numbered" size="24px" color="teal-6" class="quick-action-icon" />
-                    <div class="quick-action-label">Queue Status</div>
-                  </div>
-                </div>
-
-                <!-- Appointments -->
-                <div class="col-3">
-                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-appointment-schedule')">
-                    <q-icon name="event" size="24px" color="teal-6" class="quick-action-icon" />
-                    <div class="quick-action-label">Appointments</div>
-                  </div>
-                </div>
-
-                <!-- Notifications -->
-                <div class="col-3">
-                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-notifications')">
-                    <q-icon name="notifications" size="24px" color="teal-6" class="quick-action-icon" />
-                    <div class="quick-action-label">Notifications</div>
-                  </div>
-                </div>
-
-                <!-- Medical Request -->
-                <div class="col-3">
-                  <div class="quick-action cursor-pointer text-center" @click="navigateTo('/patient-medical-request')">
-                    <q-icon name="medical_services" size="24px" color="teal-6" class="quick-action-icon" />
-                    <div class="quick-action-label">Medical Request</div>
-                  </div>
-                </div>
-              </div>
-            </q-card-section>
-          </q-card>
-        </div>
+        
       
           
         <!-- Live Queue Status -->
         <div class="q-mb-lg">
           <div class="text-h6 text-weight-bold q-mb-md">Live Queue Status</div>
           <div class="row q-col-gutter-sm card-row items-stretch no-wrap">
-            <!-- Now Serving Card -->
+            <!-- Now Serving Card (matched style with Queue Status card) -->
             <div class="col-6 col-xs-6 col-sm-6">
-              <q-card class="bg-teal-6 text-white status-card touch-card uniform-card">
+              <q-card class="bg-teal-7 text-white status-card touch-card uniform-card queue-card">
                 <q-card-section>
                   <div class="text-caption text-weight-medium opacity-90">NOW SERVING</div>
                   <div class="text-h3 text-weight-bold q-my-sm">
                     {{ dashboardSummary?.nowServing ?? '—' }}
-                  </div>
-                  <div class="text-body2 text-weight-medium">
-                    {{ dashboardSummary?.currentPatient ?? '—' }}
                   </div>
                 </q-card-section>
               </q-card>
@@ -110,14 +65,11 @@
             
             <!-- My Queue Status Card -->
             <div class="col-6 col-xs-6 col-sm-6">
-              <q-card class="bg-teal-7 text-white status-card touch-card uniform-card">
+              <q-card class="bg-teal-7 text-white status-card touch-card uniform-card queue-card">
                 <q-card-section>
                   <div class="text-caption text-weight-medium opacity-90">MY QUEUE STATUS</div>
-                  <div class="text-h3 text-weight-bold q-my-sm">
-                    {{ dashboardSummary?.myPosition ?? '—' }}
-                  </div>
-                  <div class="text-body2 text-weight-medium">
-                    {{ userName }}
+                  <div class="text-h5 text-weight-bold q-my-sm" :class="queueStatusSizeClass(dashboardSummary?.myQueueStatus)">
+                    {{ dashboardSummary?.myQueueStatus ?? '—' }}
                   </div>
                 </q-card-section>
               </q-card>
@@ -345,8 +297,7 @@ const userInitials = computed(() => {
 
 interface DashboardSummary {
   nowServing: string | number
-  currentPatient: string
-  myPosition: string | number
+  myQueueStatus: string
 }
 
 const dashboardSummary = ref<DashboardSummary | null>(null)
@@ -420,30 +371,16 @@ const capitalize = (str: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 }
 
+// Reduce text size when status is specifically "Waiting-in-line"
+const queueStatusSizeClass = (status?: string | null) => {
+  const s = (status || '').toLowerCase().trim()
+  return s === 'waiting-in-line' ? 'status-text-small' : ''
+}
+
 const openNextApptModal = () => {
   if (nextAppointment.value) {
     showNextApptModal.value = true
   }
-}
-
-// Dynamic Quick Actions label sizing based on bottom navigation height
-const qaLabelFontSize = ref<number>(16)
-const updateQaLabelFontSize = () => {
-  const selectors = [
-    '.q-bottom-navigation',
-    '#patient-bottom-nav',
-    '.patient-bottom-nav',
-    'footer .q-bottom-navigation'
-  ]
-  let navEl: HTMLElement | null = null
-  for (const sel of selectors) {
-    const el = document.querySelector(sel)
-    if (el instanceof HTMLElement) { navEl = el; break }
-  }
-  const navHeight = navEl?.offsetHeight || navEl?.clientHeight || 56
-  // Clamp font size for readability across devices
-  const size = Math.round(Math.max(14, Math.min(navHeight * 0.28, 18)))
-  qaLabelFontSize.value = size
 }
 
 // Combined onMounted hook for all initialization
@@ -456,8 +393,7 @@ onMounted(async () => {
     console.warn('Failed to fetch dashboard summary', error)
     dashboardSummary.value = {
       nowServing: '',
-      currentPatient: '',
-      myPosition: ''
+      myQueueStatus: ''
     }
   }
 
@@ -478,14 +414,9 @@ onMounted(async () => {
   } catch (error: unknown) {
     console.warn('Lucide icons initialization error:', error)
   }
-
-  // Initialize dynamic label sizing
-  updateQaLabelFontSize()
-  window.addEventListener('resize', updateQaLabelFontSize)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', updateQaLabelFontSize)
 })
 </script>
 
@@ -508,30 +439,26 @@ onUnmounted(() => {
 .card, .status-card {
   border-radius: 0.75rem;
 }
-/* Quick Actions styles */
-.quick-actions-card { border-radius: 0.75rem; }
-.quick-action-row { padding: 8px 0; }
-.quick-action-row .col-3 { display: flex; align-items: center; justify-content: center; }
-.quick-action {
-  border-radius: 0.75rem;
-  min-height: 96px;
+/* Shared queue status card styles to ensure consistency across cards */
+.queue-card {
+  /* identical dimensions across queue cards */
+  width: 100%;
+  min-height: 120px; /* desktop/tablet baseline */
+  border-radius: 16px; /* match visual spec with Now Serving */
+  /* matching shadow effect */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  transition: background-color .2s ease, transform .2s ease;
 }
-.quick-action:hover { background-color: #f5f7f9; transform: translateY(-1px); }
-.quick-action-icon { min-width: 32px; min-height: 32px; }
-.quick-action-label {
-  font-size: 12px;
-  color: #000;
-  font-weight: 600;
-  line-height: 1.25;
-  white-space: nowrap;
-  text-align: center;
+.queue-card .q-card__section {
+  /* uniform padding across cards */
+  padding: 16px;
 }
+/* Ensure cards visually align when stacked as row/column */
+.card-row .queue-card {
+  margin: 0; /* rely on row gutters for spacing */
+}
+/* Quick Actions removed */
 
 /* Center cards within their container on non-mobile viewports */
 .uniform-card {
@@ -552,11 +479,19 @@ onUnmounted(() => {
     border-radius: 16px;
     min-height: 96px;
   }
+  /* Mobile: keep queue cards consistent with Now Serving */
+  .queue-card {
+    min-height: 96px;
+    border-radius: 16px;
+  }
   .touch-card {
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   }
   .touch-card .q-card__section {
     padding: 14px 16px; /* align with Quick Actions, reduce indentation */
+  }
+  .queue-card .q-card__section {
+    padding: 14px 16px; /* match touch-card section padding on mobile */
   }
   .status-card .text-caption,
   .appt-card .text-caption {
@@ -580,6 +515,34 @@ onUnmounted(() => {
     --card-hpadding: 4px;
     width: calc(100% - var(--card-hpadding));
     margin: 0 calc(var(--card-hpadding) / 2);
+  }
+}
+
+/* Specific override: shrink text when status is Waiting-in-line */
+.text-h5.status-text-small { font-size: 1.1rem; line-height: 1.3; }
+@media (max-width: 600px) {
+  .text-h5.status-text-small { font-size: 1rem; }
+}
+</style>
+<style scoped>
+/* Ensure header content respects mobile safe areas and avoids overlap */
+.patient-header {
+  box-sizing: border-box;
+  padding-left: 12px;
+  padding-right: 12px;
+  width: 100%;
+}
+@supports (padding: env(safe-area-inset-left)) {
+  .patient-header {
+    padding-left: calc(12px + env(safe-area-inset-left));
+    padding-right: calc(12px + env(safe-area-inset-right));
+  }
+}
+@media (max-width: 600px) {
+  .patient-header {
+    /* Slightly increase side padding on small screens for extra spacing */
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
 </style>

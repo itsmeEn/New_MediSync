@@ -31,4 +31,10 @@ urlpatterns = [
     # Admin-scoped hospital endpoints
     path('my/hospitals/', views.admin_my_hospitals, name='admin_my_hospitals'),
     path('hospital/verify-selection/', views.verify_hospital_selection, name='verify_hospital_selection'),
+
+    # Admin Settings & Export
+    path('settings/profile/', views.admin_settings_profile, name='admin_settings_profile'),
+    path('settings/password/', views.admin_change_password, name='admin_change_password'),
+    path('users/export/', views.export_all_users, name='export_all_users'),
+    path('users/hospital/', views.hospital_users, name='hospital_users'),
 ]

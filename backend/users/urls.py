@@ -8,6 +8,8 @@ urlpatterns = [
     path('register/', views.register, name='register'),
     path('login/', views.login, name='login'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Public list of doctor specializations (for registration dropdown)
+    path('specializations/', views.list_specializations, name='list_specializations'),
 
     # API endpoints for user profiles
     path('profile/', views.get_user_profile, name='get_user_profile'),
@@ -31,5 +33,28 @@ urlpatterns = [
     # Patient management endpoints
     path('doctor/patients/', views.get_doctor_patients, name='get_doctor_patients'),
     path('nurse/patients/', views.get_nurse_patients, name='get_nurse_patients'),
-    
+
+    # Nurse-centric forms CRUD endpoints
+    path('nurse/patient/<int:patient_id>/forms/', views.nurse_patient_forms_overview, name='nurse_patient_forms_overview'),
+    path('nurse/patient/<int:patient_id>/intake/', views.nurse_intake, name='nurse_intake'),
+    path('nurse/patient/<int:patient_id>/flow-sheets/', views.nurse_flow_sheets, name='nurse_flow_sheets'),
+    path('nurse/patient/<int:patient_id>/flow-sheets/<int:index>/', views.nurse_flow_sheets_update, name='nurse_flow_sheets_update'),
+    path('nurse/patient/<int:patient_id>/mar/', views.nurse_mar_records, name='nurse_mar_records'),
+    path('nurse/patient/<int:patient_id>/mar/<int:index>/', views.nurse_mar_update, name='nurse_mar_update'),
+    path('nurse/patient/<int:patient_id>/education/', views.nurse_education_records, name='nurse_education_records'),
+    path('nurse/patient/<int:patient_id>/education/<int:index>/', views.nurse_education_update, name='nurse_education_update'),
+    path('nurse/patient/<int:patient_id>/discharge/', views.nurse_discharge_summary, name='nurse_discharge_summary'),
+
+    # Doctor-centric forms CRUD endpoints
+    path('doctor/patient/<int:patient_id>/forms/', views.doctor_patient_forms_overview, name='doctor_patient_forms_overview'),
+    path('doctor/patient/<int:patient_id>/nurse-intake/', views.doctor_nurse_intake, name='doctor_nurse_intake'),
+    path('doctor/patient/<int:patient_id>/hp/', views.doctor_hp_forms, name='doctor_hp_forms'),
+    path('doctor/patient/<int:patient_id>/hp/<int:index>/', views.doctor_hp_forms_update, name='doctor_hp_forms_update'),
+    path('doctor/patient/<int:patient_id>/progress-notes/', views.doctor_progress_notes, name='doctor_progress_notes'),
+    path('doctor/patient/<int:patient_id>/progress-notes/<int:index>/', views.doctor_progress_notes_update, name='doctor_progress_notes_update'),
+    path('doctor/patient/<int:patient_id>/orders/', views.doctor_provider_orders, name='doctor_provider_orders'),
+    path('doctor/patient/<int:patient_id>/orders/<int:index>/', views.doctor_provider_orders_update, name='doctor_provider_orders_update'),
+    path('doctor/patient/<int:patient_id>/operative-reports/', views.doctor_operative_reports, name='doctor_operative_reports'),
+    path('doctor/patient/<int:patient_id>/operative-reports/<int:index>/', views.doctor_operative_reports_update, name='doctor_operative_reports_update'),
+
 ]

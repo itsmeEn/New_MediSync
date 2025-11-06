@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from backend.users.models import GeneralDoctorProfile, NurseProfile, PatientProfile
+from backend.admin_site.models import Hospital
 from django.utils import timezone
 from datetime import timedelta
 from cryptography.fernet import Fernet
@@ -18,7 +19,11 @@ from django.db import transaction
 
 Users = get_user_model()
 
-#notification management to notify patients about their queue status, appointment reminders, etc.
+# [2025-10-31] Context note: today’s work added department handling to appointments
+# and restored Department/HospitalDepartmentDoctor/DoctorTimeSlot models to align
+# the ORM with existing migrations. Comments below mark areas changed today.
+#
+# notification management to notify patients about their queue status, appointment reminders, etc.
 #notify doctors about the his appointments, patient status, etc.
 #motify nurses about the medicine inventory, patient status, etc.
 # a realtime notification system that can notify the patients
@@ -300,6 +305,12 @@ class AppointmentManagement(models.Model):
     appointment_id = models.AutoField(primary_key=True, help_text="Unique identifier for the appointment.")
     patient = models.ForeignKey(PatientProfile, on_delete=models.CASCADE, related_name="appointments")
     doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name="appointments")
+    # [2025-10-31] Reintroduced structured time slot reference to match prior migrations
+    # (kept nullable to preserve backward compatibility with existing records)
+    time_slot = models.ForeignKey('DoctorTimeSlot', on_delete=models.SET_NULL, null=True, blank=True, related_name='appointments', help_text="Structured time slot for the appointment (nullable for backward compatibility)")
+    # [2025-10-31] Added flexible department association to prevent NULL errors
+    # and support hospital-specific department labels/slugs (default to OPD)
+    department = models.CharField(max_length=100, help_text="Department for the appointment.", default="OPD")
     appointment_date = models.DateTimeField(help_text="Date and time of the appointment.")
     appointment_type = models.CharField(
         max_length=50, choices=[
@@ -310,12 +321,18 @@ class AppointmentManagement(models.Model):
     )
     appointment_time = models.TimeField(help_text="Time of the appointment.")
     queue_number = models.PositiveIntegerField(unique=True, help_text="Queue number for the appointment.")
+    # Lifecycle timestamps for analytics and operational tracking
+    checked_in_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the patient checked in for the appointment.")
+    consultation_started_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the consultation started.")
+    consultation_finished_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the consultation finished.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     #status of the appointment like scheduled, completed, cancelled, no show
     status = models.CharField(max_length=50, choices=[
         ("scheduled", "Scheduled"),
         ("rescheduled", "Rescheduled"),
+        ("checked_in", "Checked In"),
+        ("in_progress", "In Progress"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
         ("no_show", "No Show"),
@@ -331,20 +348,87 @@ class AppointmentManagement(models.Model):
 
     def __str__(self):
         return f"Appointment {self.id} - Patient: {self.patient.user.full_name} with Dr. {self.doctor.user.full_name}"
+
+class Department(models.Model):
+    """Hospital departments (e.g., Cardiology, OPD)."""
+    # [2025-10-31] Restored Department model to align with migrations
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=120, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department"
+        verbose_name_plural = "Departments"
+        db_table = "department"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+class HospitalDepartmentDoctor(models.Model):
+    """Mapping between Hospital, Department, and Doctor with status and capacity."""
+    # [2025-10-31] Restored mapping model to prevent destructive migration operations
+    hospital = models.ForeignKey(Hospital, on_delete=models.CASCADE, related_name='department_doctors')
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='hospital_doctors')
+    doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.CASCADE, related_name='hospital_departments')
+    status = models.CharField(max_length=20, choices=[('active', 'Active'), ('inactive', 'Inactive')], default='active')
+    capacity_limit = models.PositiveIntegerField(null=True, blank=True, help_text="Optional max concurrent appointments for this mapping.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Hospital Department Doctor"
+        verbose_name_plural = "Hospital Department Doctors"
+        db_table = "hospital_department_doctor"
+        unique_together = ("hospital", "department", "doctor")
+
+    def __str__(self):
+        return f"{self.hospital} - {self.department} - {self.doctor}"
+
+class DoctorTimeSlot(models.Model):
+    """Doctor time slots within a hospital department mapping."""
+    # [2025-10-31] Restored time slot model for structured scheduling compatibility
+    hospital_department_doctor = models.ForeignKey(HospitalDepartmentDoctor, on_delete=models.CASCADE, related_name='time_slots')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    capacity = models.PositiveIntegerField(default=1, help_text="Max number of bookings allowed in this slot")
+    booked_count = models.PositiveIntegerField(default=0, help_text="Number of bookings confirmed in this slot")
+    is_available = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Doctor Time Slot"
+        verbose_name_plural = "Doctor Time Slots"
+        db_table = "doctor_time_slot"
+        unique_together = ("hospital_department_doctor", "date", "start_time", "end_time")
+
+    def __str__(self):
+        return f"{self.hospital_department_doctor} @ {self.date} {self.start_time}-{self.end_time}"
     
     def save(self, *args, **kwargs):
-        # Only enforce future dates when scheduling or rescheduling
-        try:
-            status_requires_future = self.status in ["scheduled", "rescheduled"]
-        except Exception:
-            status_requires_future = True
+        """Validate slot time ranges and availability constraints before saving."""
+        # Validate time range
+        if self.start_time >= self.end_time:
+            raise ValueError("Start time must be before end time.")
 
-        if status_requires_future and self.appointment_date < timezone.now():
-            raise ValueError("Appointment date cannot be in the past for scheduled/rescheduled appointments.")
+        # Disable availability if slot date is in the past
+        try:
+            if self.date < timezone.now().date():
+                self.is_available = False
+        except Exception:
+            # If timezone comparison fails, proceed safely
+            pass
+
+        # Enforce capacity constraints
+        if self.booked_count is not None and self.capacity is not None:
+            if self.booked_count >= self.capacity:
+                self.is_available = False
+
         super().save(*args, **kwargs)
-        # This ensures that the appointment date is not in the past.
-        # This can be used to check if the appointment is valid or not.
-        # This can be used to check if the appointment is scheduled, completed, cancelled, or
 
 #queue for priority patients
 # no show.
@@ -876,6 +960,76 @@ class QueueSchedule(models.Model):
         return f"{self.department} Queue Schedule by {self.nurse.user.full_name}"
 
 
+class PurgeAuditLog(models.Model):
+    """
+    Audit log for medical records purges.
+    Stores only non-PHI metadata and counts for compliance.
+    """
+    ACTION_CHOICES = [
+        ("PURGE_MEDICAL_RECORDS", "Purge Medical Records"),
+    ]
+
+    STATUS_CHOICES = [
+        ("started", "Started"),
+        ("success", "Success"),
+        ("failed", "Failed"),
+    ]
+
+    actor = models.ForeignKey(
+        Users,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="purge_actions",
+        help_text="User who initiated the purge"
+    )
+    action = models.CharField(max_length=64, choices=ACTION_CHOICES, default="PURGE_MEDICAL_RECORDS")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="started")
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Counts only; do not store PHI or raw data
+    patient_profiles_cleared = models.PositiveIntegerField(default=0)
+    analytics_records_deleted = models.PositiveIntegerField(default=0)
+    assessment_archives_deleted = models.PositiveIntegerField(default=0)
+
+    details = models.JSONField(default=dict, blank=True, help_text="Additional non-sensitive metadata, e.g., field list, durations")
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "purge_audit_logs"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["action", "status"]),
+            models.Index(fields=["started_at"]),
+        ]
+
+    def mark_success(self, counts: dict | None = None, extra: dict | None = None):
+        self.status = "success"
+        self.completed_at = timezone.now()
+        if counts:
+            self.patient_profiles_cleared = int(counts.get("patient_profiles_cleared", self.patient_profiles_cleared))
+            self.analytics_records_deleted = int(counts.get("analytics_records_deleted", self.analytics_records_deleted))
+            self.assessment_archives_deleted = int(counts.get("assessment_archives_deleted", self.assessment_archives_deleted))
+        if extra:
+            self.details = {**(self.details or {}), **extra}
+        self.save(update_fields=[
+            "status",
+            "completed_at",
+            "patient_profiles_cleared",
+            "analytics_records_deleted",
+            "assessment_archives_deleted",
+            "details",
+        ])
+
+    def mark_failed(self, message: str):
+        self.status = "failed"
+        self.completed_at = timezone.now()
+        self.error_message = message[:4000]
+        self.save(update_fields=["status", "completed_at", "error_message"])
+
+
 class QueueStatus(models.Model):
     """
     Model for tracking real-time queue status and broadcasting changes
@@ -1139,6 +1293,53 @@ class ArchiveAccessLog(models.Model):
     def __str__(self):
         rid = getattr(self.record, 'id', None)
         return f"Archive access: {self.action} by {getattr(self.user, 'email', 'system')} on {rid}"
+
+
+class MedicalRecordRequest(models.Model):
+    """
+    Represents a patient medical records request and its approval/delivery lifecycle.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('delivered', 'Delivered'),
+    ]
+
+    URGENCY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+
+    patient = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='record_requests')
+    requested_by = models.ForeignKey(Users, on_delete=models.CASCADE, related_name='initiated_record_requests')
+    primary_nurse = models.ForeignKey(NurseProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='record_requests')
+    attending_doctor = models.ForeignKey(GeneralDoctorProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='record_requests')
+
+    request_type = models.CharField(max_length=100, blank=True, help_text='Type of request e.g., full_records, lab_results, etc.')
+    requested_records = models.JSONField(default=dict, blank=True, help_text='Details about specific records requested')
+    reason = models.TextField(blank=True)
+    urgency = models.CharField(max_length=10, choices=URGENCY_CHOICES, default='medium')
+
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    approved_by = models.ForeignKey(Users, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_record_requests')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    delivery_reference = models.CharField(max_length=255, blank=True, help_text='Reference to email id, file path, or transmission id')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'medical_record_requests'
+        ordering = ['-created_at']
+        verbose_name = 'Medical Record Request'
+        verbose_name_plural = 'Medical Record Requests'
+
+    def __str__(self):
+        return f"RecordRequest(patient={getattr(self.patient,'email','')}, status={self.status}, urgency={self.urgency})"
 
 
 class SecureKey(models.Model):

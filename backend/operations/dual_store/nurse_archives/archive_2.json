@@ -1,0 +1,29 @@
+{
+  "assessment": {
+    "allergies": [],
+    "archived": true,
+    "archived_at": "2025-11-02T14:51:29.109Z",
+    "bp": "",
+    "chiefComplaint": "",
+    "fallRisk": "",
+    "height": "",
+    "hr": "",
+    "mentalStatus": "",
+    "message": "",
+    "nurse_name": "Eunice Ibardaloza",
+    "o2": "",
+    "painScore": 0,
+    "rr": "",
+    "temp": "",
+    "weight": ""
+  },
+  "assessment_type": "intake",
+  "diagnostics": {},
+  "hospital_name": "Catanduanes Medical Hospital",
+  "id": 2,
+  "last_assessed_at": "2025-11-02T14:51:29.195231+00:00",
+  "medical_condition": "Bronchial Asthma",
+  "medical_history_summary": "",
+  "patient_id": 341,
+  "patient_name": "Alfred Fernandez"
+}

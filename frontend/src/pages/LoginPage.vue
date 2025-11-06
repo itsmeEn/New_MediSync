@@ -200,7 +200,13 @@ const performLogin = async () => {
       storageOperations.push(
         new Promise((resolve) => {
           try {
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            const rawUser = response.data.user;
+            // Normalize role based on available profiles to avoid misclassification
+            const hasDoctor = !!rawUser?.doctor_profile;
+            const hasNurse = !!rawUser?.nurse_profile;
+            const normalizedRole = hasDoctor ? 'doctor' : (hasNurse ? 'nurse' : (typeof rawUser.role === 'string' ? rawUser.role : 'patient'));
+            const normalizedUser = { ...rawUser, role: normalizedRole };
+            localStorage.setItem('user', JSON.stringify(normalizedUser));
             resolve(true);
           } catch (error) {
             console.error('User data storage failed:', error);

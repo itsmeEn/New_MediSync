@@ -68,15 +68,20 @@ const fetchHospitals = async () => {
       const resp = result.data as AxiosResponse<HospitalsListResponse> | undefined;
       const items = resp?.data?.hospitals ?? [];
 
-      // Validate, deduplicate by id, and sort by official_name
-      const byId = new Map<number, HospitalItem>();
+      // Validate, deduplicate by normalized name+address, and sort by official_name
+      const byKey = new Map<string, HospitalItem>();
+      const normalize = (s: string) => s
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
       for (const h of items) {
         if (!h) continue;
         const valid = typeof h.id === 'number' && typeof h.official_name === 'string' && typeof h.address === 'string';
         if (!valid) continue;
-        if (!byId.has(h.id)) byId.set(h.id, h);
+        const key = `${normalize(h.official_name)}|${normalize(h.address)}`;
+        if (!byKey.has(key)) byKey.set(key, h);
       }
-      hospitals.value = Array.from(byId.values()).sort((a, b) => a.official_name.localeCompare(b.official_name));
+      hospitals.value = Array.from(byKey.values()).sort((a, b) => a.official_name.localeCompare(b.official_name));
 
       emit('loaded', hospitals.value);
 

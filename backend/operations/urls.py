@@ -1,8 +1,9 @@
 from django.urls import path
 from . import views
-from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs
+from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs, archive_update, archive_unarchive
 from . import secure_views
 from . import monitoring_views
+from .medical_request_views import medical_requests, approve_medical_request, deliver_medical_request
 
 urlpatterns = [
     # Dashboard statistics
@@ -21,6 +22,10 @@ urlpatterns = [
     path('appointments/schedule/', views.schedule_appointment, name='schedule_appointment'),
     path('appointments/<int:appointment_id>/reschedule/', views.reschedule_appointment, name='reschedule_appointment'),
     path('appointments/<int:appointment_id>/cancel/', views.cancel_appointment, name='cancel_appointment'),
+    path('appointments/<int:appointment_id>/check-in/', views.check_in_appointment, name='check_in_appointment'),
+    path('appointments/<int:appointment_id>/start/', views.start_consultation, name='start_consultation'),
+    path('appointments/<int:appointment_id>/finish/', views.finish_consultation, name='finish_consultation'),
+    path('appointments/<int:appointment_id>/notify-patient/', views.notify_patient_appointment, name='notify_patient_appointment'),
     path('patient/appointments/', views.patient_appointments, name='patient_appointments'),
     path('patient/dashboard/summary/', views.patient_dashboard_summary, name='patient_dashboard_summary'),
     
@@ -31,6 +36,12 @@ urlpatterns = [
     path('messaging/conversations/<int:conversation_id>/send/', views.send_message, name='send_message'),
     path('messaging/messages/<int:message_id>/react/', views.add_reaction, name='add_reaction'),
     path('messaging/available-users/', views.get_available_users, name='get_available_users'),
+
+    # Availability endpoints
+    path('availability/doctors/free/', views.available_doctors_free, name='available_doctors_free'),
+    path('availability/nurses/', views.available_nurses, name='available_nurses'),
+    path('nurses/list/', views.nurses_list, name='nurses_list'),
+    path('nurse/capacity/validate/', views.nurse_capacity_validate, name='nurse_capacity_validate'),
     
     # Message notification endpoints
     path('messaging/notifications/', views.get_message_notifications, name='get_message_notifications'),
@@ -51,6 +62,8 @@ urlpatterns = [
     
     # Doctor selection endpoints
     path('available-doctors/', views.get_available_doctors, name='get_available_doctors'),
+    # Hospital-specific departments for patient scheduling
+    path('hospital/departments/', views.hospital_departments, name='hospital_departments'),
     path('assign-patient/', views.assign_patient_to_doctor, name='assign_patient_to_doctor'),
     
     # Doctor assignment endpoints
@@ -72,6 +85,8 @@ urlpatterns = [
     path('archives/', archive_list, name='archive_list'),
     path('archives/create/', archive_create, name='archive_create'),
     path('archives/<int:archive_id>/', archive_detail, name='archive_detail'),
+    path('archives/<int:archive_id>/update/', archive_update, name='archive_update'),
+    path('archives/<int:archive_id>/unarchive/', archive_unarchive, name='archive_unarchive'),
     path('archives/<int:archive_id>/export/', archive_export, name='archive_export'),
     path('archives/logs/', archive_logs, name='archive_logs'),
 
@@ -82,8 +97,10 @@ urlpatterns = [
     path('client-log/', monitoring_views.client_log, name='client_log'),
     path('verification-status/', monitoring_views.verification_status, name='verification_status'),
 
-    # Temporary: stub medical requests endpoint used by DoctorPatientManagement.vue
-    path('medical-requests/', monitoring_views.medical_requests, name='medical_requests'),
+    # Medical record requests endpoints
+    path('medical-requests/', medical_requests, name='medical_requests'),
+    path('medical-requests/<int:request_id>/approve/', approve_medical_request, name='approve_medical_request'),
+    path('medical-requests/<int:request_id>/deliver/', deliver_medical_request, name='deliver_medical_request'),
 ]
 
 urlpatterns += [
@@ -96,4 +113,5 @@ urlpatterns += [
     path('secure/mfa/challenge/', secure_views.mfa_challenge),
     path('secure/mfa/verify/', secure_views.mfa_verify),
     path('secure/transmissions/<int:transmission_id>/breach/', secure_views.report_breach),
+    path('secure/purge/medical-records/', secure_views.purge_medical_records),
 ]

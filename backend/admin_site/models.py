@@ -167,7 +167,9 @@ class VerificationRequest(models.Model):
         try:
             from backend.users.models import User
             user = User.objects.get(email=self.user_email)
+            # Align approval with main app expectations: mark both flags
             user.verification_status = 'approved'
+            user.is_verified = True
             user.save()
         except User.DoesNotExist:
             # User might not exist in the main app, that's okay

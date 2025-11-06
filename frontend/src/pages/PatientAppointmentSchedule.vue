@@ -76,6 +76,7 @@
               <q-tab name="scheduled" label="UPCOMING" />
               <q-tab name="rescheduled" label="RESCHEDULED" />
               <q-tab name="cancelled" label="CANCELLED" />
+              <q-tab name="completed" label="COMPLETED" />
             </q-tabs>
 
             <q-separator />
@@ -130,7 +131,7 @@
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="access_time" size="16px" class="q-mr-xs" />
-                              <span>{{ appointment.appointment_time }}</span>
+                              <span>{{ formatHHMM(appointment.appointment_time) }}</span>
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="category" size="16px" class="q-mr-xs" />
@@ -183,7 +184,7 @@
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="access_time" size="16px" class="q-mr-xs" />
-                              <span>{{ appointment.appointment_time }}</span>
+                              <span>{{ formatHHMM(appointment.appointment_time) }}</span>
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="category" size="16px" class="q-mr-xs" />
@@ -236,7 +237,7 @@
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="access_time" size="16px" class="q-mr-xs" />
-                              <span>{{ appointment.appointment_time }}</span>
+                              <span>{{ formatHHMM(appointment.appointment_time) }}</span>
                             </div>
                             <div class="row q-mb-xs">
                               <q-icon name="category" size="16px" class="q-mr-xs" />
@@ -251,6 +252,55 @@
                         <q-card-actions align="right">
                           <q-btn flat color="primary" label="Reschedule" @click="rescheduleAppointment(appointment)" />
                         </q-card-actions>
+                      </q-card>
+                    </div>
+                  </div>
+                </q-tab-panel>
+
+                <!-- Completed Appointments -->
+                <q-tab-panel name="completed">
+                  <div class="text-h6 q-mb-md">Completed Appointments</div>
+                  <div v-if="filteredCompletedAppointments.length === 0" class="text-center q-pa-xl">
+                    <q-icon name="task_alt" size="64px" color="grey-5" />
+                    <div class="text-h6 q-mt-md">No completed appointments</div>
+                    <div class="text-caption">Completed consultations will appear here</div>
+                  </div>
+                  <div v-else class="row q-gutter-md">
+                    <div
+                      v-for="appointment in filteredCompletedAppointments"
+                      :key="appointment.id"
+                      class="col-12 col-md-6 col-lg-4"
+                    >
+                      <q-card class="appointment-card completed-card">
+                        <q-card-section>
+                          <div class="row items-center q-mb-sm">
+                            <q-avatar color="green" text-color="white" icon="check_circle" class="q-mr-sm" />
+                            <div class="col">
+                              <div class="text-weight-bold">{{ appointment.doctor_name || 'Assigned Doctor' }}</div>
+                              <div class="text-caption">{{ appointment.department }}</div>
+                            </div>
+                            <q-badge color="green" label="Completed" />
+                          </div>
+                          <q-separator class="q-mb-sm" />
+                          <div class="text-body2">
+                            <div class="row q-mb-xs">
+                              <q-icon name="event" size="16px" class="q-mr-xs" />
+                              <span>
+                                {{ appointment.consultation_finished_at ? formatDate(appointment.consultation_finished_at) : formatDate(appointment.appointment_date) }}
+                              </span>
+                            </div>
+                            <div class="row q-mb-xs">
+                              <q-icon name="access_time" size="16px" class="q-mr-xs" />
+                              <span>
+                                {{ appointment.consultation_finished_at ? formatTime(appointment.consultation_finished_at) : appointment.appointment_time }}
+                              </span>
+                            </div>
+                            <div class="row q-mb-xs">
+                              <q-icon name="category" size="16px" class="q-mr-xs" />
+                              <span>{{ appointment.type }}</span>
+                            </div>
+                          </div>
+                        </q-card-section>
                       </q-card>
                     </div>
                   </div>
@@ -450,7 +500,7 @@
               </div>
               <div class="row q-mb-sm">
                 <q-icon name="access_time" size="16px" class="q-mr-sm" />
-                <span>{{ selectedAppointment.appointment_time }}</span>
+                <span>{{ formatHHMM(selectedAppointment.appointment_time) }}</span>
               </div>
               <div class="row">
                 <q-icon name="category" size="16px" class="q-mr-sm" />
@@ -541,6 +591,7 @@ interface Appointment {
   reason: string
   cancellation_reason?: string | null
   reschedule_reason?: string | null
+  consultation_finished_at?: string | null
 }
 
 interface DoctorOption {
@@ -621,18 +672,9 @@ const typeOptions = [
   { label: 'Mental Health Consultation', value: 'mental-health' }
 ]
 
-const departmentOptions = [
-  { label: 'General Medicine', value: 'general-medicine' },
-  { label: 'Cardiology', value: 'cardiology' },
-  { label: 'Dermatology', value: 'dermatology' },
-  { label: 'Orthopedics', value: 'orthopedics' },
-  { label: 'Pediatrics', value: 'pediatrics' },
-  { label: 'Gynecology', value: 'gynecology' },
-  { label: 'Neurology', value: 'neurology' },
-  { label: 'Oncology', value: 'oncology' },
-  { label: 'Optometrist', value: 'optometrist' },
-  { label: 'Emergency Medicine', value: 'emergency-medicine' }
-]
+import { departmentOptions as sharedDepartmentOptions } from '../utils/departments'
+import type { DepartmentOption } from '../utils/departments'
+const departmentOptions = ref<DepartmentOption[]>(sharedDepartmentOptions)
 
 // Computed properties for filtered appointments
 const scheduledAppointments = computed(() => 
@@ -645,6 +687,10 @@ const rescheduledAppointments = computed(() =>
 
 const cancelledAppointments = computed(() => 
   appointments.value.filter(apt => apt.status === 'cancelled')
+)
+
+const completedAppointments = computed(() => 
+  appointments.value.filter(apt => apt.status === 'completed')
 )
 
 const filteredScheduledAppointments = computed(() => {
@@ -668,6 +714,15 @@ const filteredRescheduledAppointments = computed(() => {
 const filteredCancelledAppointments = computed(() => {
   if (!searchQuery.value) return cancelledAppointments.value
   return cancelledAppointments.value.filter(apt => 
+    apt.doctor_name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    apt.department?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    apt.type?.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
+})
+
+const filteredCompletedAppointments = computed(() => {
+  if (!searchQuery.value) return completedAppointments.value
+  return completedAppointments.value.filter(apt => 
     apt.doctor_name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
     apt.department?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
     apt.type?.toLowerCase().includes(searchQuery.value.toLowerCase())
@@ -706,18 +761,51 @@ const formatDate = (dateString: string) => {
   })
 }
 
+const formatTime = (isoString: string) => {
+  const date = new Date(isoString)
+  if (isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatHHMM = (timeStr: string) => {
+  const s = String(timeStr ?? '')
+  // Backend returns HH:MM:SS; UI expects HH:MM for consistency
+  return s.length >= 5 ? s.slice(0, 5) : s
+}
+
+// Convert MM/DD/YYYY from the form to a stable YYYY-MM-DD string
+// Avoid toISOString to prevent timezone shifting the calendar date
 const toISOFromMDY = (mdy: string): string => {
   const parts = mdy?.split('/') ?? []
   if (parts.length === 3) {
     const [mm, dd, yyyy] = parts
     const y = Number(yyyy), m = Number(mm), d = Number(dd)
     if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
-      const dt = new Date(y, m - 1, d)
-      return dt.toISOString()
+      const M = String(m).padStart(2, '0')
+      const D = String(d).padStart(2, '0')
+      return `${y}-${M}-${D}`
     }
   }
+  // Fallback: try parsing string and format as local YYYY-MM-DD
   const dt = new Date(mdy)
-  return isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString()
+  if (isNaN(dt.getTime())) {
+    const today = new Date()
+    const M = String(today.getMonth() + 1).padStart(2, '0')
+    const D = String(today.getDate()).padStart(2, '0')
+    return `${today.getFullYear()}-${M}-${D}`
+  }
+  const M = String(dt.getMonth() + 1).padStart(2, '0')
+  const D = String(dt.getDate()).padStart(2, '0')
+  return `${dt.getFullYear()}-${M}-${D}`
+}
+
+// Extract local YYYY-MM-DD from ISO datetime string safely
+const ymdLocalFromISO = (iso: string): string => {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const M = String(d.getMonth() + 1).padStart(2, '0')
+  const D = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${M}-${D}`
 }
 
 const loadDoctors = async () => {
@@ -792,6 +880,17 @@ const loadDoctors = async () => {
   }
 }
 
+const loadHospitalDepartments = async () => {
+  try {
+    const res = await api.get('/operations/hospital/departments/')
+    const list = Array.isArray(res.data?.departments) ? res.data.departments : []
+    departmentOptions.value = list.length ? list : sharedDepartmentOptions
+  } catch (e) {
+    console.warn('Failed to load hospital departments, using defaults:', e)
+    departmentOptions.value = sharedDepartmentOptions
+  }
+}
+
 const loadAppointments = async () => {
   try {
     const res = await api.get('/operations/patient/appointments/')
@@ -799,6 +898,12 @@ const loadAppointments = async () => {
   } catch (error) {
     console.error('Failed to load appointments:', error)
     appointments.value = []
+    const err = error as { response?: { status?: number; data?: { error?: string, message?: string } } }
+    const status = err?.response?.status
+    const msg = err?.response?.data?.error || err?.response?.data?.message
+    const fallback = 'Unable to fetch appointments. Please try again.'
+    const message = msg || (status === 404 ? 'Patient profile not found' : status === 401 ? 'Authentication required' : fallback)
+    $q.notify({ type: 'negative', message, position: 'top' })
   }
 }
 
@@ -816,14 +921,12 @@ const checkForDuplicateAppointment = async () => {
       if (rescheduleAppointmentId.value && apt.appointment_id === rescheduleAppointmentId.value) return false
       
       // Check if the date and time match
-      const aptDate = new Date(apt.appointment_date)
-      const formDate = new Date(toISOFromMDY(form.value.date))
+      const aptYMD = ymdLocalFromISO(apt.appointment_date)
+      const formYMD = toISOFromMDY(form.value.date)
+
+      const isSameDate = aptYMD && formYMD && aptYMD === formYMD
       
-      const isSameDate = aptDate.getDate() === formDate.getDate() &&
-                         aptDate.getMonth() === formDate.getMonth() &&
-                         aptDate.getFullYear() === formDate.getFullYear()
-      
-      const isSameTime = apt.appointment_time === form.value.time
+      const isSameTime = String(apt.appointment_time ?? '').slice(0, 5) === form.value.time
       
       return isSameDate && isSameTime
     })
@@ -1022,6 +1125,7 @@ watch(() => form.value.department, () => {
 onMounted(() => {
   void fetchUnreadCount()
   void loadAppointments()
+  void loadHospitalDepartments()
   
   // Load doctors if department is preset
   if (form.value.department) {
@@ -1048,6 +1152,10 @@ onMounted(() => {
 .cancelled-card {
   opacity: 0.7;
   border-left-color: #757575;
+}
+
+.completed-card {
+  border-left-color: #2e7d32;
 }
 
 .header-content .text-h6 {

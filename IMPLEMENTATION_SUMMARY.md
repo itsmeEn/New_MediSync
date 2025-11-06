@@ -332,4 +332,34 @@ The patient queue notification system has been successfully implemented with:
 - ✅ Complete documentation
 
 The system is production-ready and fully functional!
+## Unified Dummy Data Command
+
+- Added Django management command `populate_demo_data` in `backend/analytics/management/commands/`.
+- Generates realistic server-side data for:
+  - Patient records over a date range (volume controlled by `--records`).
+  - Analytics results: `patient_demographics`, `medication_analysis` (with `medication_pareto_data`), `patient_volume_prediction` (with `forecasted_data` and `evaluation_metrics`), and `patient_health_trends`.
+  - Medicine inventory for selected categories with stock/expiry scenarios.
+
+### CLI Usage
+
+- From `frontend/`, run:
+  - `npm run populate-dummy-data`
+  - Customize with arguments, e.g.: `python ../manage.py populate_demo_data --records=500 --start-date=2024-01-01 --end-date=2024-12-31 --inventory-categories=analgesics,antibiotics --inventory-count=30 --clear-analytics --clear-records --purge-inventory`
+
+### Options
+
+- `--records`: Number of patient records to generate.
+- `--start-date`, `--end-date`: Date range (YYYY-MM-DD).
+- `--inventory-categories`: Comma-separated list of categories (analgesics, antibiotics, antihypertensives, antidiabetics, respiratory, gi, cardiovascular, supplements).
+- `--inventory-count`: Approximate distinct medicines per nurse.
+- `--nurse-email`: Limit inventory seeding to a specific nurse.
+- `--clear-analytics`, `--clear-records`, `--purge-inventory`: Cleanup flags.
+
+## UI Compactness Improvements
+
+- Nurse and Doctor analytics pages:
+  - Reduced AI summary card padding and margins.
+  - Switched action buttons to small size, tightened gaps.
+  - Slightly decreased text size and line height for summary content.
+  - Reduced panel padding and grid gaps for denser layout while preserving readability and accessibility.
 

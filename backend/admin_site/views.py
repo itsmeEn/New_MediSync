@@ -11,6 +11,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 import os
+import csv
+import io
 
 from .models import AdminUser, VerificationRequest, SystemLog, Hospital
 from .serializers import (
@@ -19,6 +21,7 @@ from .serializers import (
     HospitalSerializer, HospitalRegistrationSerializer, HospitalActivationSerializer
 )
 from .authentication import AdminJWTAuthentication
+from backend.users.models import User
 
 
 def log_admin_action(admin_user, action, target, target_id, details=""):
@@ -46,6 +49,9 @@ def admin_overview(request):
             'dashboard_stats': '/api/admin/dashboard/stats/',
             'verifications': '/api/admin/verifications/',
             'system_logs': '/api/admin/logs/',
+            'settings_profile': '/api/admin/settings/profile/',
+            'settings_password': '/api/admin/settings/password/',
+            'export_users': '/api/admin/users/export/',
         },
         'description': 'Administrative interface for managing user verifications and system operations'
     }, status=status.HTTP_200_OK)
@@ -87,6 +93,209 @@ def admin_config(request):
         'allowed_domains': allowed_domains,
         'banner_text': banner_text
     }, status=status.HTTP_200_OK)
+
+
+# Admin Settings: Profile (GET/PATCH)
+@api_view(['GET', 'PATCH'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def admin_settings_profile(request):
+    """
+    Get or update admin profile settings.
+    GET: returns name, email, hospital name.
+    PATCH: allows updating full_name, email, hospital_name, and hospital_address (if hospital exists).
+    """
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    admin_user = request.user
+
+    if request.method == 'GET':
+        hospital = admin_user.hospital
+        return Response({
+            'full_name': admin_user.full_name,
+            'email': admin_user.email,
+            'hospital': {
+                'id': hospital.id if hospital else None,
+                'official_name': hospital.official_name if hospital else None,
+                'address': hospital.address if hospital else None,
+            }
+        }, status=status.HTTP_200_OK)
+
+    # PATCH
+    payload = request.data or {}
+    updated = {}
+
+    full_name = (payload.get('full_name') or '').strip()
+    email = (payload.get('email') or '').strip()
+    hospital_name = (payload.get('hospital_name') or '').strip()
+    hospital_address = (payload.get('hospital_address') or '').strip()
+
+    try:
+        if full_name:
+            admin_user.full_name = full_name
+            updated['full_name'] = full_name
+
+        if email:
+            # basic validation: ensure unique
+            if AdminUser.objects.exclude(id=admin_user.id).filter(email=email).exists():
+                return Response({'error': 'Email already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+            admin_user.email = email
+            updated['email'] = email
+
+        if admin_user.hospital:
+            if hospital_name:
+                admin_user.hospital.official_name = hospital_name
+                updated['hospital_name'] = hospital_name
+            if hospital_address:
+                admin_user.hospital.address = hospital_address
+                updated['hospital_address'] = hospital_address
+            if hospital_name or hospital_address:
+                admin_user.hospital.save()
+
+        admin_user.save()
+        return Response({'message': 'Settings updated successfully', 'updated': updated}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to update settings: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Admin Settings: Password change
+@api_view(['POST'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def admin_change_password(request):
+    """Change admin user password given current and new password."""
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    current_password = request.data.get('current_password') or ''
+    new_password = request.data.get('new_password') or ''
+
+    if not current_password or not new_password:
+        return Response({'error': 'current_password and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not request.user.check_password(current_password):
+        return Response({'error': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        request.user.set_password(new_password)
+        request.user.save()
+        return Response({'message': 'Password updated successfully.'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to update password: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Export all registered users (Super Admin only)
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def export_all_users(request):
+    """
+    Export all registered users as CSV. Super Admin only.
+    Includes key profile fields for admin reporting.
+    """
+    if not isinstance(request.user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+    if not request.user.is_super_admin:
+        return Response({'error': 'Export permitted for Super Admin only.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        users = User.objects.all().order_by('date_joined')
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            'email', 'full_name', 'role', 'date_of_birth', 'gender',
+            'hospital_name', 'hospital_address', 'is_verified', 'verification_status',
+            'date_joined', 'updated_at'
+        ])
+
+        for u in users:
+            writer.writerow([
+                u.email,
+                getattr(u, 'full_name', ''),
+                getattr(u, 'role', ''),
+                getattr(u, 'date_of_birth', ''),
+                getattr(u, 'gender', ''),
+                getattr(u, 'hospital_name', ''),
+                getattr(u, 'hospital_address', ''),
+                getattr(u, 'is_verified', False),
+                getattr(u, 'verification_status', ''),
+                getattr(u, 'date_joined', ''),
+                getattr(u, 'updated_at', ''),
+            ])
+
+        csv_bytes = output.getvalue().encode('utf-8')
+        filename = f"users_export_{timezone.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response = FileResponse(io.BytesIO(csv_bytes), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    except Exception as e:
+        return Response({'error': f'Failed to export users: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# List users registered in admin's hospital (Admin only)
+@api_view(['GET'])
+@authentication_classes([AdminJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def hospital_users(request):
+    """
+    Return users registered in the admin's active hospital.
+    Supports optional query params:
+    - search: filter by name/email/role
+    - verified_only: '1' or 'true' to include only admin-verified users
+    """
+    admin_user = request.user
+    if not isinstance(admin_user, AdminUser):
+        return Response({'error': 'Access denied. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Ensure admin has an ACTIVE hospital
+    if not admin_user.can_access_admin_functions():
+        return Response({
+            'error': 'Admin hospital missing or inactive.',
+            'resolution': 'Complete hospital registration/activation to access hospital users.'
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        search = (request.GET.get('search') or '').strip()
+        verified_only = (request.GET.get('verified_only') or '').strip().lower() in ('1', 'true', 'yes')
+
+        # Match by hospital official name AND address to align with user.hospital_* storage
+        hospital_name = (getattr(admin_user.hospital, 'official_name', '') or '').strip()
+        hospital_address = (getattr(admin_user.hospital, 'address', '') or '').strip()
+        if not hospital_name or not hospital_address:
+            return Response({'users': [], 'message': 'Hospital name/address missing on admin record.'}, status=status.HTTP_200_OK)
+
+        # Use case-insensitive exact match on both fields to avoid stale name-only mismatches
+        queryset = User.objects.filter(
+            is_active=True,
+            hospital_name__iexact=hospital_name,
+            hospital_address__iexact=hospital_address
+        )
+        if verified_only:
+            queryset = queryset.filter(is_verified=True, verification_status='approved')
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(full_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(role__icontains=search)
+            )
+
+        # Select fields to return
+        users = list(queryset.order_by('full_name').values(
+            'id', 'email', 'full_name', 'role', 'is_verified', 'verification_status', 'date_joined'
+        ))
+
+        # Log action (non-fatal on failure)
+        try:
+            log_admin_action(admin_user, 'FETCH_HOSPITAL_USERS', 'User', 0, f"count={len(users)} verified_only={verified_only}")
+        except Exception:
+            pass
+
+        return Response({'users': users, 'total_count': len(users)}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': f'Failed to fetch hospital users: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -633,21 +842,40 @@ def update_verification(request, verification_id):
 def admin_my_hospitals(request):
     admin_user = request.user
     try:
+        # Ensure the user is an AdminUser
+        if not isinstance(admin_user, AdminUser):
+            return Response({'error': 'Access denied. Admin account required.'}, status=status.HTTP_403_FORBIDDEN)
+
         status_filter = (request.GET.get('status') or '').strip().lower()
+        # Default to ACTIVE when no explicit filter is provided
         queryset = Hospital.objects.filter(admin_users__id=admin_user.id)
+        if not status_filter:
+            status_filter = 'active'
         if status_filter in ['pending', 'active', 'suspended']:
             queryset = queryset.filter(status=status_filter)
-        data = [
-            {
-                'id': h.id,
-                'official_name': h.official_name,
-                'address': h.address,
-            }
-            for h in queryset.order_by('official_name')
-        ]
-        if not data:
+        else:
+            return Response({'error': 'Invalid status filter. Use pending, active, or suspended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        hospitals = list(
+            queryset.order_by('official_name').values('id', 'official_name', 'address')
+        )
+
+        # Log the fetch operation with count
+        try:
+            log_admin_action(
+                admin_user=admin_user,
+                action='FETCH_ADMIN_HOSPITALS',
+                target='Hospital',
+                target_id=0,
+                details=f"status={status_filter}, count={len(hospitals)}"
+            )
+        except Exception:
+            # Avoid breaking the response if logging fails
+            pass
+
+        if not hospitals:
             return Response({'hospitals': [], 'message': 'No hospitals found for admin.'}, status=status.HTTP_200_OK)
-        return Response({'hospitals': data}, status=status.HTTP_200_OK)
+        return Response({'hospitals': hospitals}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({'error': f'Failed to fetch hospitals: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -704,40 +932,182 @@ def system_logs(request):
 @permission_classes([IsAuthenticated])
 def serve_verification_document(request, verification_id):
     """
-    Serve verification document with appropriate headers for iframe embedding
+    Serve verification document with appropriate headers for iframe embedding,
+    enforcing admin access privileges and hospital linkage for medical staff.
     """
     try:
+        import mimetypes
+        from django.db import DatabaseError
+
+        # Ensure caller is an AdminUser
+        if not isinstance(request.user, AdminUser):
+            return Response({
+                'error': 'Access denied. Admin privileges required.',
+                'resolution': 'Log in as an admin user to access verification documents.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # Verify admin is eligible to access admin functions
+        if not (request.user.is_super_admin or request.user.can_access_admin_functions()):
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                'Admin does not have active hospital or registration completed.'
+            )
+            return Response({
+                'error': 'Admin lacks required hospital registration or hospital is inactive.',
+                'resolution': 'Complete hospital registration and ensure hospital status is ACTIVE.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         verification = get_object_or_404(VerificationRequest, id=verification_id)
-        
-        if not verification.verification_document:
-            return Response({
-                'error': 'Document not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Get the file path
-        file_path = verification.verification_document.path
-        
-        if not os.path.exists(file_path):
-            return Response({
-                'error': 'File not found on disk'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
-        # Open and serve the file with appropriate headers
-        file_handle = open(file_path, 'rb')
-        response = FileResponse(file_handle, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_path)}"'
-        
-        # Allow iframe embedding and CORS
+
+        # For doctor/nurse, enforce that user belongs to the admin’s active hospital
+        if verification.user_role in ['doctor', 'nurse']:
+            try:
+                from backend.users.models import User
+                user = User.objects.get(email=verification.user_email)
+            except User.DoesNotExist:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"User not found for email {verification.user_email}"
+                )
+                return Response({
+                    'error': 'User not found for verification.',
+                    'resolution': 'Confirm the user exists in the main app and retry.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            except DatabaseError as db_err:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Database error retrieving user: {str(db_err)}"
+                )
+                return Response({
+                    'error': 'Database connectivity issue while retrieving user record.',
+                    'resolution': 'Check database availability and admin app DB connections.'
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+            admin_hospital = request.user.hospital
+            if not admin_hospital or admin_hospital.status != Hospital.Status.ACTIVE:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    'Admin hospital missing or inactive.'
+                )
+                return Response({
+                    'error': 'Admin hospital is missing or inactive.',
+                    'resolution': 'Assign an ACTIVE hospital to the admin and retry.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            user_hospital_name = (user.hospital_name or '').strip()
+            user_hospital_address = (user.hospital_address or '').strip()
+            if not user_hospital_name or not user_hospital_address:
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    'User registration missing hospital information.'
+                )
+                return Response({
+                    'error': 'User registration missing hospital information.',
+                    'resolution': 'Ensure user hospital name and address are provided during registration.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Require that the user’s hospital matches the admin’s active hospital
+            if not (
+                user_hospital_name == admin_hospital.official_name.strip() and
+                user_hospital_address == admin_hospital.address.strip()
+            ):
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Hospital mismatch for {verification.user_email}: user={user_hospital_name} | {user_hospital_address} vs admin={admin_hospital.official_name} | {admin_hospital.address}"
+                )
+                return Response({
+                    'error': 'Hospital mismatch: admin hospital does not match user registration hospital.',
+                    'resolution': 'Switch to the matching hospital or correct the user’s hospital details.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        # Document existence validations
+        file_field = verification.verification_document
+        if not file_field or not getattr(file_field, 'name', None):
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                'Verification document not present on request.'
+            )
+            return Response({'error': 'Document not found', 'resolution': 'Ask the user to re-upload the document.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Ensure the file exists in storage
+        storage = file_field.storage
+        file_name = file_field.name
+        if not storage.exists(file_name):
+            log_admin_action(
+                request.user,
+                'serve_document_failed',
+                'verification_request',
+                verification_id,
+                f'File missing in storage: {file_name}'
+            )
+            return Response({'error': 'File not found on storage', 'resolution': 'Verify storage configuration and file paths.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Guess content type based on file name; fallback to octet-stream
+        guessed_type, _ = mimetypes.guess_type(file_name)
+        content_type = guessed_type or 'application/octet-stream'
+
+        # Open via storage to support non-local backends
+        file_handle = storage.open(file_name, 'rb')
+        response = FileResponse(file_handle, content_type=content_type)
+        response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_name)}"'
+
+        # Allow iframe embedding explicitly (in addition to global settings)
+        response['X-Frame-Options'] = 'ALLOWALL'
+
+        # CORS headers for admin frontend previews
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET'
         response['Access-Control-Allow-Headers'] = '*'
-        
+
+        # Log success
+        log_admin_action(
+            request.user,
+            'serve_document',
+            'verification_request',
+            verification_id,
+            f"Served document {os.path.basename(file_name)} with content-type {content_type}"
+        )
+
         return response
         
     except Exception as e:
         print(f"Error serving document for verification {verification_id}: {str(e)}")
+        # Attempt to log the error if user context is available
+        try:
+            if isinstance(request.user, AdminUser):
+                log_admin_action(
+                    request.user,
+                    'serve_document_failed',
+                    'verification_request',
+                    verification_id,
+                    f"Unhandled exception: {str(e)}"
+                )
+        except Exception:
+            pass
         return Response({
-            'error': f'Failed to serve document: {str(e)}'
+            'error': 'Failed to serve document due to an unexpected error.',
+            'resolution': 'Check server logs for details and verify storage/DB configurations.'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -910,11 +1280,11 @@ def hospital_activation(request):
             hospital.status = Hospital.Status.ACTIVE
             hospital.activated_at = timezone.now()
             hospital.save()
-            
+
             # Mark registration as completed
             admin_user.hospital_registration_completed = True
             admin_user.save()
-            
+
             # Log the action
             log_admin_action(
                 admin_user=admin_user,
@@ -923,7 +1293,15 @@ def hospital_activation(request):
                 target_id=hospital.id,
                 details=f"Hospital '{hospital.official_name}' activated"
             )
-            
+
+            # Re-fetch to ensure persistence
+            persisted = Hospital.objects.get(id=hospital.id)
+            if persisted.status != Hospital.Status.ACTIVE:
+                print(f"[hospital_activation] Persistence check failed for hospital {hospital.id}")
+                return Response({
+                    'error': 'Activation did not persist. Please retry or contact support.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
             return Response({
                 'message': 'Hospital activated successfully. You now have full admin access.',
                 'hospital': HospitalSerializer(hospital).data
@@ -965,13 +1343,26 @@ def hospitals_list(request):
     List hospitals with optional status filter. Defaults to returning ACTIVE hospitals.
     Returns a distinct set of hospitals to avoid duplicates in dropdowns.
     """
-    status_filter = (request.GET.get('status') or '').strip().lower()
-    if not status_filter:
-        status_filter = 'active'
-    queryset = Hospital.objects.all()
-    if status_filter in ['pending', 'active', 'suspended']:
-        queryset = queryset.filter(status__iexact=status_filter)
-    # Use values + distinct to ensure unique rows by id/name/address
-    rows = queryset.values('id', 'official_name', 'address').order_by('official_name', 'id').distinct()
-    data = list(rows)
-    return Response({'hospitals': data}, status=status.HTTP_200_OK)
+    try:
+        status_filter = (request.GET.get('status') or '').strip().lower()
+        if not status_filter:
+            status_filter = 'active'
+
+        if status_filter not in ['pending', 'active', 'suspended']:
+            return Response({'error': 'Invalid status filter. Use pending, active, or suspended.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify database connectivity by performing a count first
+        total_count = Hospital.objects.count()
+
+        queryset = Hospital.objects.filter(status__iexact=status_filter)
+        # Use values + distinct to ensure unique rows by id/name/address
+        rows = queryset.values('id', 'official_name', 'address').order_by('official_name', 'id').distinct()
+        data = list(rows)
+
+        # Lightweight server-side log for troubleshooting
+        print(f"[hospitals_list] status={status_filter}, total={total_count}, returned={len(data)}")
+
+        return Response({'hospitals': data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(f"[hospitals_list] ERROR: {e}")
+        return Response({'error': f'Failed to fetch hospitals: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

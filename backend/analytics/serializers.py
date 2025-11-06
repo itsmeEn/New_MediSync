@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache
+from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache, UsageEvent, UptimePing
 
 class AnalyticsResultSerializer(serializers.ModelSerializer):
     analysis_type_display = serializers.CharField(source='get_analysis_type_display', read_only=True)
@@ -64,3 +64,21 @@ class AnalyticsResponseSerializer(serializers.Serializer):
     data = serializers.JSONField(required=False)
     task_id = serializers.CharField(required=False)
     cached = serializers.BooleanField(default=False)
+
+
+class UsageEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsageEvent
+        fields = [
+            'id', 'user', 'event_type', 'source', 'session_id', 'ip_address', 'context', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'ip_address', 'user']
+
+
+class UptimePingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UptimePing
+        fields = [
+            'id', 'service', 'region', 'status', 'latency_ms', 'details', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']

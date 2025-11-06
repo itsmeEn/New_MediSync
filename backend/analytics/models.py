@@ -149,3 +149,56 @@ class AnalyticsCache(models.Model):
     @property
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+
+class UsageEvent(models.Model):
+    """
+    Captures user and system usage events for analytics and telemetry.
+    """
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    event_type = models.CharField(max_length=100)
+    source = models.CharField(max_length=100, blank=True, null=True)
+    session_id = models.CharField(max_length=255, blank=True, null=True)
+    ip_address = models.CharField(max_length=64, blank=True, null=True)
+    context = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        db_table = 'usage_events'
+        indexes = [
+            models.Index(fields=['event_type']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} by {getattr(self.user, 'username', 'anonymous')} at {self.created_at}"
+
+
+class UptimePing(models.Model):
+    """
+    Stores uptime heartbeat pings for services, used to monitor availability.
+    """
+    STATUS_CHOICES = [
+        ('up', 'Up'),
+        ('down', 'Down'),
+        ('degraded', 'Degraded'),
+    ]
+
+    service = models.CharField(max_length=100, default='web')
+    region = models.CharField(max_length=50, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='up')
+    latency_ms = models.IntegerField(blank=True, null=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        db_table = 'uptime_pings'
+        indexes = [
+            models.Index(fields=['service']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.service} {self.status} ({self.latency_ms}ms)"

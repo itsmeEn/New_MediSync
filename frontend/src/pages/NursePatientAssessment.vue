@@ -17,9 +17,6 @@
                 <h4 class="greeting-title">Patient Management</h4>
                 <p class="greeting-subtitle">Manage your patients and their medical records</p>
               </div>
-              <div class="greeting-icon">
-                <q-icon name="people" size="3rem" />
-              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -257,14 +254,6 @@
                   @click="loadPatients"
                   :loading="loading"
                 />
-                <q-btn
-                  class="q-ml-sm"
-                  color="secondary"
-                  icon="bug_report"
-                  size="sm"
-                  label="Test: Dummy Assign"
-                  @click="createDummyAssignment"
-                />
               </q-card-section>
 
               <q-card-section class="card-content">
@@ -369,9 +358,9 @@
                         flat
                         round
                         icon="archive"
-                        color="negative"
+                        color="warning"
                         size="sm"
-                        @click.stop="archivePatient(patient)"
+                        @click.stop="archivePatientInline(patient)"
                       >
                         <q-tooltip>Archive</q-tooltip>
                       </q-btn>
@@ -408,6 +397,10 @@
                 <h5 class="card-title">List of Available Doctors</h5>
               </q-card-section>
               <q-card-section class="card-content">
+                <q-banner v-if="doctorsLoadError" dense class="q-mb-sm" icon="warning" inline-actions>
+                  <span class="text-negative">{{ doctorsLoadError }}</span>
+                  <q-btn flat color="primary" icon="refresh" label="Retry" @click="() => { void loadAvailableDoctors() }"/>
+                </q-banner>
                 <div v-if="doctorsLoading" class="loading-section">
                   <q-spinner color="primary" size="2em" />
                   <p class="loading-text">Loading doctors...</p>
@@ -429,83 +422,6 @@
                     </div>
                   </div>
                 </div>
-              </q-card-section>
-            </q-card>
-
-            <!-- Patient Archive Card -->
-            <q-card class="glassmorphism-card archive-card section-spacing">
-              <q-card-section class="card-header">
-                <h5 class="card-title">Patient Archive</h5>
-              </q-card-section>
-              <q-card-section class="card-content">
-                <div class="row q-col-gutter-md q-mb-sm">
-                  <div class="col-12 col-md-6"><q-input v-model="archiveFilters.query" label="Patient Name or ID" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.assessment_type" label="Assessment Type" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.medical_condition" label="Medical Condition" outlined dense/></div>
-                </div>
-                <div class="row q-col-gutter-md q-mb-sm">
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.start_date" label="Start Date" type="date" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.end_date" label="End Date" type="date" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-btn color="primary" icon="search" label="Search" class="full-width" :loading="archivesLoading" @click="searchArchives"/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-btn flat color="secondary" icon="clear" label="Reset" class="full-width" @click="resetArchiveFilters"/></div>
-                </div>
-
-                <q-inner-loading :showing="archivesLoading"><q-spinner color="primary"/></q-inner-loading>
-
-                <div v-if="!archivesLoading && archivedRecords.length === 0" class="empty-section">
-                  <q-icon name="inventory_2" size="48px" color="grey-5" />
-                  <p class="empty-text">No archived records</p>
-                </div>
-
-                <q-list v-else bordered separator>
-                  <q-item v-for="rec in archivedRecords" :key="rec.id">
-                    <q-item-section>
-                      <q-item-label>{{ rec.patient_name }} — {{ rec.assessment_type }} · {{ formatDateDisplay(rec.last_assessed_at) }}</q-item-label>
-                      <q-item-label caption>
-                        Condition: {{ rec.medical_condition || '—' }} • Hospital: {{ rec.hospital_name || '—' }}
-                      </q-item-label>
-                    </q-item-section>
-                    <q-item-section side top>
-                      <q-chip color="grey-8" text-color="white" size="sm">Archived</q-chip>
-                    </q-item-section>
-                    <q-item-section side>
-                      <div class="row q-gutter-xs">
-                        <q-btn dense flat icon="visibility" color="primary" @click="viewArchive(rec)" />
-                        <q-btn dense flat icon="download" color="secondary" @click="exportArchive(rec)" />
-                      </div>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-
-                <div class="row q-gutter-sm q-mt-sm" v-if="archivedRecords.length">
-                  <q-btn outline color="primary" icon="file_download" label="Export Results" @click="exportFilteredArchives"/>
-                </div>
-
-                <q-dialog v-model="showArchiveDetail">
-                  <q-card style="max-width: 800px; width: 90vw">
-                    <q-card-section>
-                      <div class="text-h6">Archived Assessment</div>
-                    </q-card-section>
-                    <q-separator/>
-                    <q-card-section>
-                      <div class="q-mb-sm"><b>Patient:</b> {{ selectedArchive?.patient_name }}</div>
-                      <div class="q-mb-sm"><b>Assessment:</b> {{ selectedArchive?.assessment_type }}</div>
-                      <div class="q-mb-sm"><b>Last Assessed:</b> {{ formatDateDisplay(selectedArchive?.last_assessed_at || '') }}</div>
-                      <div class="q-mb-sm"><b>Condition:</b> {{ selectedArchive?.medical_condition || '—' }}</div>
-                      <div class="q-mb-sm"><b>Hospital:</b> {{ selectedArchive?.hospital_name || '—' }}</div>
-                      <div class="q-mb-sm"><b>Medical History:</b> {{ selectedArchive?.medical_history_summary || '—' }}</div>
-                      <div class="q-mt-md">
-                        <div class="text-subtitle2 q-mb-xs">Assessment Data</div>
-                        <pre class="q-pa-sm bg-grey-2" style="white-space: pre-wrap;">{{ formatJson(selectedArchive?.decrypted_assessment_data) }}</pre>
-                      </div>
-                    </q-card-section>
-                    <q-separator/>
-                    <q-card-actions align="right">
-                      <q-btn flat label="Close" color="primary" v-close-popup/>
-                      <q-btn flat label="Export" color="secondary" @click="selectedArchive && exportArchive(selectedArchive)"/>
-                    </q-card-actions>
-                  </q-card>
-                </q-dialog>
               </q-card-section>
             </q-card>
 
@@ -542,7 +458,7 @@
                       <q-input v-model="registrationForm.dateOfRegistration" label="Date of Registration" hint="Auto-set at opening" outlined dense readonly :input-attrs="{ 'aria-label':'Date of Registration' }"/>
                     </div>
                     <div class="col-12 col-md-6">
-                      <q-input v-model="registrationForm.registeredBy" label="Registered By" hint="Your email/username" outlined dense readonly :input-attrs="{ 'aria-label':'Registered By' }"/>
+                      <q-input v-model="registrationForm.registeredBy" label="Registered By" outlined dense readonly :input-attrs="{ 'aria-label':'Registered By' }"/>
                     </div>
                   </div>
                 </q-slide-transition>
@@ -650,6 +566,7 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancel" v-close-popup aria-label="Cancel" />
+          <q-btn color="secondary" label="Archive" :loading="sendLoading" @click="archiveCurrentRecord" aria-label="Archive record" />
           <q-btn color="primary" label="Send" :loading="sendLoading" @click="confirmSend" aria-label="Confirm send" />
         </q-card-actions>
       </q-card>
@@ -890,22 +807,6 @@ const loadPatients = async () => {
 
 const selectPatient = (patient: Patient) => {
   selectedPatient.value = patient;
-  // Auto-filter archives by selected patient (User ID) and fetch
-  try {
-    const pid = String(patient.user_id ?? patient.id ?? '');
-    // Reset non-patient archive filters to avoid form coupling
-    archiveFilters.value = {
-      query: '',
-      patient_id: pid,
-      assessment_type: '',
-      medical_condition: '',
-      start_date: '',
-      end_date: ''
-    };
-    void searchArchives();
-  } catch (error) {
-    console.error('Error setting archive filters for patient:', error);
-  }
   console.log('Selected patient:', patient);
 };
 
@@ -1108,8 +1009,7 @@ const prefillRegistrationFromProfile = () => {
       hospital_name?: string;
       hospital_address?: string;
       nurse_profile?: { department?: string };
-      email?: string;
-      username?: string;
+      full_name?: string;
     }
     const upHolder = userProfile as unknown as { value?: MaybeUserProfile | null }
     const up: MaybeUserProfile | null = upHolder?.value ?? null
@@ -1117,7 +1017,7 @@ const prefillRegistrationFromProfile = () => {
       registrationForm.value.hospitalName = up.hospital_name ?? ''
       registrationForm.value.hospitalAddress = up.hospital_address ?? ''
       registrationForm.value.departmentName = up.nurse_profile?.department ?? 'OPD'
-      registrationForm.value.registeredBy = up.email ?? up.username ?? ''
+      registrationForm.value.registeredBy = up.full_name ?? ''
     }
   } catch {
     // ignore
@@ -1166,100 +1066,165 @@ const saveRegistration = () => {
   $q.notify({ type: 'positive', message: 'Patient registration saved' })
 }
 
-const loadIntake = () => {
+const loadIntake = async () => {
   if (!selectedPatient.value) return
   try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_intake`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const {
-        bp = '', hr = '', rr = '', temp = '', o2 = '', weight = '', height = '',
-        chiefComplaint = '', painScore = 0, allergies = [], mentalStatus = '', fallRisk = ''
-      } = p || {}
-      intakeForm.value = {
-        bp, hr, rr, temp, o2, weight, height,
-        chiefComplaint, painScore,
-        allergies: Array.isArray(allergies) ? allergies : [],
-        mentalStatus, fallRisk
-      }
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/intake/`)
+    type ApiAllergy = { name?: string; substance?: string; reaction?: string }
+    type ApiIntake = {
+      vitals?: { bp?: string; hr?: number | string; rr?: number | string; temp_c?: number | string; temp?: number | string; o2_sat?: number | string }
+      weight_kg?: number | string
+      height_cm?: number | string
+      chief_complaint?: string
+      pain_score?: number | string
+      allergies?: ApiAllergy[]
+      mental_status?: string
+      fall_risk_score?: number | string
     }
-  } catch (e) { console.warn('Failed to load intake', e) }
-}
-
-const loadFlowSheet = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_flow`)
-    flowSheetEntries.value = raw ? (JSON.parse(raw).entries || []) : []
-  } catch { flowSheetEntries.value = [] }
-}
-
-const loadMar = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_mar`)
-    marEntries.value = raw ? (JSON.parse(raw).entries || []) : []
-  } catch { marEntries.value = [] }
-}
-
-const loadEducation = () => {
-  if (!selectedPatient.value) return
-  try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_education`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const { topics = [], warningSigns = '', comprehension = '', returnDemoSuccess = false, barriers = '' } = p || {}
-      educationForm.value = {
-        topics: Array.isArray(topics) ? topics : [],
-        warningSigns, comprehension, returnDemoSuccess, barriers
-      }
-      // Ensure saved topics are offered as options
-      const savedTopics = Array.from(new Set([...(educationForm.value.topics || [])])).map(String)
-      educationTopicOptions.length = 0
-      educationTopicOptions.push(...savedTopics)
+    const d = (res.data?.data as ApiIntake) || {}
+    const vit = d.vitals || {}
+    intakeForm.value = {
+      bp: String(vit.bp || ''),
+      hr: String(vit.hr ?? ''),
+      rr: String(vit.rr ?? ''),
+      temp: String(vit.temp_c ?? vit.temp ?? ''),
+      o2: String(vit.o2_sat ?? ''),
+      weight: String(d.weight_kg ?? ''),
+      height: String(d.height_cm ?? ''),
+      chiefComplaint: String(d.chief_complaint || ''),
+      painScore: Number(d.pain_score ?? 0),
+      allergies: Array.isArray(d.allergies) ? d.allergies.map((a: ApiAllergy) => ({ name: a.name ?? a.substance ?? '', reaction: a.reaction ?? '' })) : [],
+      mentalStatus: String(d.mental_status || ''),
+      fallRisk: String(d.fall_risk_score ?? '')
     }
-  } catch (e) { console.warn('Failed to load education', e) }
+  } catch (e) {
+    console.warn('Failed to fetch intake', e)
+    $q.notify({ type: 'warning', message: 'Unable to load intake from server' })
+  }
 }
 
-const loadDischarge = () => {
+const loadFlowSheet = async () => {
   if (!selectedPatient.value) return
   try {
-    const raw = localStorage.getItem(`opd_forms_${selectedPatient.value.id}_discharge`)
-    if (raw) {
-      const p = JSON.parse(raw)
-      const {
-        verbalUnderstands = false,
-        writtenProvided = false,
-        followUpDate = '',
-        followUpTime = '',
-        equipmentNeeds = '',
-        finalBP = '',
-        finalHR = '',
-        transportationStatus = '',
-        nurseId = '',
-        patientAcknowledged = false
-      } = p || {}
-      dischargeForm.value = {
-        verbalUnderstands,
-        writtenProvided,
-        followUpDate,
-        followUpTime,
-        equipmentNeeds,
-        finalBP,
-        finalHR,
-        transportationStatus,
-        nurseId,
-        patientAcknowledged
-      }
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/flow-sheets/`)
+    type FlowSheetApiEntry = {
+      time_of_reading?: string
+      repeated_vitals?: { bp?: string; hr?: number | string; pain?: number | string }
+      intake_ml?: number | string
+      output_ml?: number | string
+      site_checks?: string
+      nursing_interventions?: string[] | string
     }
-  } catch (e) { console.warn('Failed to load discharge', e) }
+    const list: FlowSheetApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as FlowSheetApiEntry[]) : []
+    flowSheetEntries.value = list.map((e: FlowSheetApiEntry) => ({
+      timestamp: String(e.time_of_reading || ''),
+      bp: String((e.repeated_vitals || {}).bp || ''),
+      hr: String((e.repeated_vitals || {}).hr ?? ''),
+      pain: Number((e.repeated_vitals || {}).pain ?? 0),
+      intake: Number(e.intake_ml ?? 0),
+      output: Number(e.output_ml ?? 0),
+      siteCheck: String(e.site_checks || ''),
+      interventions: Array.isArray(e.nursing_interventions) ? (e.nursing_interventions.join(', ')) : String(e.nursing_interventions || '')
+    }))
+  } catch (e) {
+    console.warn('Failed to fetch flow sheets', e)
+    $q.notify({ type: 'warning', message: 'Unable to load flow sheets from server' })
+    flowSheetEntries.value = []
+  }
+}
+
+const loadMar = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/mar/`)
+    type MarApiEntry = {
+      datetime_administered?: string
+      name?: string
+      dose?: string
+      route?: string
+      nurse_initials?: string
+      prn_reason?: string | null
+      prn_response?: string | null
+      withheld_reason?: string | null
+    }
+    const list: MarApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as MarApiEntry[]) : []
+    marEntries.value = list.map((e: MarApiEntry) => ({
+      datetime: String(e.datetime_administered || ''),
+      medName: String(e.name || ''),
+      dose: String(e.dose || ''),
+      route: String(e.route || ''),
+      nurseId: String(e.nurse_initials || ''),
+      isPRN: Boolean(e.prn_reason || e.prn_response),
+      prnReason: String(e.prn_reason || ''),
+      prnResponse: String(e.prn_response || ''),
+      notGiven: Boolean(e.withheld_reason),
+      withheldReason: String(e.withheld_reason || '')
+    }))
+  } catch (e) {
+    console.warn('Failed to fetch MAR', e)
+    $q.notify({ type: 'warning', message: 'Unable to load MAR from server' })
+    marEntries.value = []
+  }
+}
+
+const loadEducation = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/education/`)
+    type EducationApiEntry = {
+      topics?: string[]
+      comprehension_level?: string
+      return_demonstration?: boolean
+      barriers_to_learning?: string[] | string
+    }
+    const list: EducationApiEntry[] = Array.isArray(res.data?.data) ? (res.data.data as EducationApiEntry[]) : []
+    // Use the most recent education entry to populate form
+    const latest: EducationApiEntry = list[list.length - 1] ?? {}
+    educationForm.value = {
+      topics: Array.isArray(latest.topics) ? latest.topics : [],
+      warningSigns: '',
+      comprehension: String(latest.comprehension_level || ''),
+      returnDemoSuccess: Boolean(latest.return_demonstration || false),
+      barriers: Array.isArray(latest.barriers_to_learning) ? latest.barriers_to_learning.join(', ') : String(latest.barriers_to_learning || '')
+    }
+    const savedTopics = Array.from(new Set([...(educationForm.value.topics || [])])).map(String)
+    educationTopicOptions.length = 0
+    educationTopicOptions.push(...savedTopics)
+  } catch (e) {
+    console.warn('Failed to fetch education', e)
+    $q.notify({ type: 'warning', message: 'Unable to load education from server' })
+  }
+}
+
+const loadDischarge = async () => {
+  if (!selectedPatient.value) return
+  try {
+    const res = await api.get(`/users/nurse/patient/${selectedPatient.value.id}/discharge/`)
+    const d = res.data?.data || {}
+    const vit = d.discharge_vitals || {}
+    dischargeForm.value = {
+      verbalUnderstands: Boolean(d.understanding_confirmed || false),
+      writtenProvided: Boolean(d.written_instructions_provided || false),
+      followUpDate: '',
+      followUpTime: '',
+      equipmentNeeds: Array.isArray(d.equipment_needs) ? d.equipment_needs.join(', ') : String(d.equipment_needs || ''),
+      finalBP: String(vit.bp || ''),
+      finalHR: String(vit.hr ?? ''),
+      transportationStatus: String(d.transportation_status || ''),
+      nurseId: String(d.nurse_signature || ''),
+      patientAcknowledged: Boolean(d.patient_acknowledgment || false)
+    }
+  } catch (e) {
+    console.warn('Failed to fetch discharge', e)
+    $q.notify({ type: 'warning', message: 'Unable to load discharge from server' })
+  }
 }
 
 watch(selectedPatient, (p) => {
   registrationCompleted.value = !!(p && localStorage.getItem(`patient_reg_${p.id}`))
   if (p) {
     loadDemographics();
-    loadIntake(); loadFlowSheet(); loadMar(); loadEducation(); loadDischarge();
+    void loadIntake(); void loadFlowSheet(); void loadMar(); void loadEducation(); void loadDischarge();
   } else {
     demographics.value = null
   }
@@ -1397,15 +1362,111 @@ const ensureDemographicsBeforeSubmit = (): boolean => {
   if (!demographics.value) { $q.notify({ type: 'warning', message: 'Load demographics before submitting the form.' }); return false }
   return true
 }
-const saveIntake = () => {
+const saveIntake = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
   const required = [intakeForm.value.bp, intakeForm.value.hr, intakeForm.value.rr, intakeForm.value.temp, intakeForm.value.o2, intakeForm.value.weight, intakeForm.value.height, intakeForm.value.chiefComplaint, intakeForm.value.mentalStatus, intakeForm.value.fallRisk]
   if (required.some(v => !v)) { $q.notify({ type: 'warning', message: 'Please fill all required fields' }); return }
-  const key = `opd_forms_${selectedPatient.value.id}_intake`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, ...intakeForm.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Intake saved locally' })
+  try {
+    const payload = {
+      vitals: {
+        bp: intakeForm.value.bp,
+        hr: Number(intakeForm.value.hr),
+        rr: Number(intakeForm.value.rr),
+        temp_c: Number(intakeForm.value.temp),
+        o2_sat: Number(intakeForm.value.o2),
+      },
+      weight_kg: Number(intakeForm.value.weight),
+      height_cm: Number(intakeForm.value.height),
+      chief_complaint: intakeForm.value.chiefComplaint,
+      pain_score: Number(intakeForm.value.painScore),
+      allergies: (intakeForm.value.allergies || []).map((a) => ({ substance: a.name, reaction: a.reaction })),
+      current_medications: [],
+      mental_status: intakeForm.value.mentalStatus,
+      fall_risk_score: Number(intakeForm.value.fallRisk),
+      assessed_at: new Date().toISOString(),
+    }
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/intake/`, payload)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Intake saved to server' })
+
+      // Immediately archive the saved intake so it appears in Medical Records
+      try {
+        // Derive patient account id without using any-casts
+        let patientUserIdNum = NaN
+        if (selectedPatient.value) {
+          const sp = selectedPatient.value as unknown as { user_id?: number | string; id: number | string }
+          patientUserIdNum = Number(sp.user_id ?? sp.id)
+        }
+        if (Number.isFinite(patientUserIdNum)) {
+          const assessmentData = {
+            ...payload,
+            archived_at: new Date().toISOString(),
+            nurse_name: userProfile.value.full_name,
+            // Persist MRN captured during registration so it appears in Archive
+            mrn: registrationForm.value.mrn || ''
+          }
+          const archivePayload: Record<string, unknown> = {
+            patient_id: patientUserIdNum,
+            assessment_type: 'intake',
+            assessment_data: assessmentData,
+            medical_condition: selectedPatient.value?.medical_condition || '',
+            hospital_name: userProfile.value.hospital_name || ''
+          }
+          await api.post('/operations/archives/create/', archivePayload)
+          $q.notify({ type: 'info', message: 'Intake archived to Medical Records' })
+        }
+      } catch (archiveErr) {
+        console.warn('Intake archive failed:', archiveErr)
+        // Non-blocking: saving intake succeeded; archiving can be retried via Send/Archive
+      }
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save intake'))
+    }
+  } catch (err: unknown) {
+    console.error('Save intake failed', err)
+    let msg = 'Failed to save intake';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
+}
+
+function buildIntakePayload(): Record<string, unknown> {
+  return {
+    vitals: {
+      bp: intakeForm.value.bp,
+      hr: Number(intakeForm.value.hr),
+      rr: Number(intakeForm.value.rr),
+      temp_c: Number(intakeForm.value.temp),
+      o2_sat: Number(intakeForm.value.o2),
+    },
+    weight_kg: Number(intakeForm.value.weight),
+    height_cm: Number(intakeForm.value.height),
+    chief_complaint: intakeForm.value.chiefComplaint,
+    pain_score: Number(intakeForm.value.painScore),
+    allergies: (intakeForm.value.allergies || []).map((a) => ({ substance: a.name, reaction: a.reaction })),
+    current_medications: [],
+    mental_status: intakeForm.value.mentalStatus,
+    fall_risk_score: Number(intakeForm.value.fallRisk),
+    assessed_at: new Date().toISOString(),
+  }
+}
+
+// Helper: persist current intake snapshot to DB, idempotent
+async function persistIntakeSnapshot(patientProfileIdNum: number): Promise<void> {
+  try {
+    const payload = buildIntakePayload()
+    const res = await api.put(`/users/nurse/patient/${patientProfileIdNum}/intake/`, payload)
+    if (!(res.data?.success)) {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save intake'))
+    }
+  } catch (e) {
+    console.warn('Non-blocking: persistIntakeSnapshot failed', e)
+  }
 }
 
 // Flow Sheets
@@ -1414,13 +1475,34 @@ const flowSheetEntries = ref<FlowEntry[]>([])
 const newFlowEntry = ref<FlowEntry>({ timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' })
 const addFlowEntry = () => { flowSheetEntries.value.push({ ...newFlowEntry.value }); newFlowEntry.value = { timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' } }
 const removeFlowEntry = (idx: number) => { flowSheetEntries.value.splice(idx, 1) }
-const saveFlowSheet = () => {
+const saveFlowSheet = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
-  const key = `opd_forms_${selectedPatient.value.id}_flow`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, entries: flowSheetEntries.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Flow sheet saved locally' })
+  try {
+    const entries = (flowSheetEntries.value || []).map((e: FlowEntry) => ({
+      time_of_reading: e.timestamp,
+      repeated_vitals: { bp: e.bp, hr: Number(e.hr), pain: Number(e.pain) },
+      intake_ml: Number(e.intake),
+      output_ml: Number(e.output),
+      site_checks: e.siteCheck,
+      nursing_interventions: String(e.interventions || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+    }))
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/flow-sheets/`, entries)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Flow sheets saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save flow sheets'))
+    }
+  } catch (err: unknown) {
+    console.error('Save flow sheets failed', err)
+    let msg = 'Failed to save flow sheets';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // MAR
@@ -1435,13 +1517,36 @@ const addMarEntry = () => {
   newMarEntry.value = { datetime: '', medName: '', dose: '', route: '', nurseId: '', isPRN: false, prnReason: '', prnResponse: '', notGiven: false, withheldReason: '' }
 }
 const removeMarEntry = (idx: number) => { marEntries.value.splice(idx, 1) }
-const saveMar = () => {
+const saveMar = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
-  const key = `opd_forms_${selectedPatient.value.id}_mar`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, entries: marEntries.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'MAR saved locally' })
+  try {
+    const entries = (marEntries.value || []).map((e: MarEntry) => ({
+      datetime_administered: e.datetime,
+      name: e.medName,
+      dose: e.dose,
+      route: e.route,
+      nurse_initials: e.nurseId,
+      prn_reason: e.isPRN ? e.prnReason : null,
+      prn_response: e.isPRN ? e.prnResponse : null,
+      withheld_reason: e.notGiven ? e.withheldReason : null,
+    }))
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/mar/`, entries)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'MAR saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save MAR'))
+    }
+  } catch (err: unknown) {
+    console.error('Save MAR failed', err)
+    let msg = 'Failed to save MAR';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // Patient Education
@@ -1465,18 +1570,56 @@ const dischargeForm = ref({
 const resetDischarge = () => {
   dischargeForm.value = { verbalUnderstands: false, writtenProvided: false, followUpDate: '', followUpTime: '', equipmentNeeds: '', finalBP: '', finalHR: '', transportationStatus: '', nurseId: '', patientAcknowledged: false }
 }
-const saveDischarge = () => {
+const saveDischarge = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   const required = [dischargeForm.value.finalBP, dischargeForm.value.finalHR, dischargeForm.value.nurseId]
   if (required.some(v => !v)) { $q.notify({ type: 'warning', message: 'Fill discharge vitals and nurse ID' }); return }
-  const key = `opd_forms_${selectedPatient.value.id}_discharge`
-  const payload = { patientId: selectedPatient.value.id, timestamp: new Date().toISOString(), demographicsSnapshot: demographics.value, ...dischargeForm.value }
-  localStorage.setItem(key, JSON.stringify(payload))
-  $q.notify({ type: 'positive', message: 'Discharge summary saved locally' })
+  try {
+    type DischargePayload = {
+      discharge_vitals: { bp: string; hr: number }
+      understanding_confirmed: boolean
+      written_instructions_provided: boolean
+      follow_up_appointments_made: boolean
+      equipment_needs: string[]
+      transportation_status: string
+      nurse_signature: string
+      patient_acknowledgment: boolean
+      discharged_at?: string
+    }
+    const payload: DischargePayload = {
+      discharge_vitals: { bp: dischargeForm.value.finalBP, hr: Number(dischargeForm.value.finalHR) },
+      understanding_confirmed: Boolean(dischargeForm.value.verbalUnderstands),
+      written_instructions_provided: Boolean(dischargeForm.value.writtenProvided),
+      follow_up_appointments_made: Boolean(dischargeForm.value.followUpDate || dischargeForm.value.followUpTime),
+      equipment_needs: String(dischargeForm.value.equipmentNeeds || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+      transportation_status: dischargeForm.value.transportationStatus,
+      nurse_signature: dischargeForm.value.nurseId,
+      patient_acknowledgment: Boolean(dischargeForm.value.patientAcknowledged),
+    }
+    if (payload.understanding_confirmed) {
+      payload.discharged_at = new Date().toISOString()
+    }
+    const res = await api.put(`/users/nurse/patient/${selectedPatient.value.id}/discharge/`, payload)
+    if (res.data?.success) {
+      $q.notify({ type: 'positive', message: 'Discharge summary saved to server' })
+    } else {
+      throw new Error(String(res.data?.errors || res.data?.error || 'Failed to save discharge summary'))
+    }
+  } catch (err: unknown) {
+    console.error('Save discharge failed', err)
+    let msg = 'Failed to save discharge summary';
+    if (typeof err === 'object' && err) {
+      type ApiError = { response?: { data?: { errors?: unknown; error?: string } }; message?: string }
+      const e = err as ApiError
+      msg = e.response?.data?.errors ? JSON.stringify(e.response.data.errors) : (e.response?.data?.error || e.message || msg)
+    }
+    $q.notify({ type: 'negative', message: msg })
+  }
 }
 
 // Doctors state and helpers
 const doctorsLoading = ref(false)
+const doctorsLoadError = ref<string | null>(null)
 interface DoctorSummary {
   id?: string | number
   email?: string
@@ -1487,6 +1630,7 @@ interface DoctorSummary {
   hospital_name?: string
 }
 const availableDoctors = ref<DoctorSummary[]>([])
+const doctorsCheckedAt = ref<string | null>(null)
 
 // Derive a best-guess specialization from patient's condition for outpatient matching
 function deriveSpecializationFromCondition(condition: string | null | undefined): string | null {
@@ -1507,13 +1651,22 @@ function deriveSpecializationFromCondition(condition: string | null | undefined)
 const nurseHospital = computed(() => (userProfile.value?.hospital_name || '') || (JSON.parse(localStorage.getItem('user') || '{}').hospital_name || ''))
 
 const filteredAvailableDoctors = computed(() => {
-  const spec = deriveSpecializationFromCondition(selectedPatient.value?.medical_condition)
-  return (availableDoctors.value || []).filter((d) => {
-    const hospitalOk = nurseHospital.value ? (d.hospital_name || '') === nurseHospital.value : true
-    const specOk = spec ? (String(d.specialization || '').toLowerCase().includes(String(spec).toLowerCase())) : true
-    const availOk = (String(d.availability || d.status || '').toLowerCase() === 'available')
-    return hospitalOk && specOk && availOk
+  const currentHospital = nurseHospital.value
+
+  // Safe normalizer: only accepts strings, otherwise returns empty
+  const norm = (s: unknown) => (typeof s === 'string' ? s.toLowerCase().trim() : '')
+
+  // Filter strictly by hospital and availability; do not tie to selected patient
+  const baseList = (availableDoctors.value || []).filter((d) => {
+    const docHosp = norm(d.hospital_name)
+    const nurseHosp = norm(currentHospital)
+    const hospitalOk = nurseHosp ? (docHosp ? docHosp === nurseHosp : true) : true
+    const statusNorm = norm(d.availability || d.status)
+    const availOk = statusNorm === 'available' || !d.availability
+    return hospitalOk && availOk
   })
+
+  return baseList
 })
 
 function getInitials(name: string): string {
@@ -1522,45 +1675,100 @@ function getInitials(name: string): string {
   return initials || 'U'
 }
 
-async function loadAvailableDoctors() {
-  doctorsLoading.value = true
+// Safe error message extractor to avoid 'any' casts
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error && typeof e.message === 'string') return e.message
+  if (typeof e === 'object' && e !== null && 'message' in (e as Record<string, unknown>)) {
+    const m = (e as { message?: unknown }).message
+    if (typeof m === 'string') return m
+  }
+  try { return JSON.stringify(e) } catch { return String(e) }
+}
+
+async function loadAvailableDoctors(silent?: boolean) {
+  if (!silent) doctorsLoading.value = true
+  doctorsLoadError.value = null
+  
+  // Validate that nurse has hospital information
+  const currentHospital = nurseHospital.value
+  if (!currentHospital || currentHospital.trim() === '') {
+    doctorsLoadError.value = 'Hospital information missing. Please update your profile with hospital details.'
+    doctorsLoading.value = false
+    availableDoctors.value = []
+    $q.notify({ type: 'warning', message: 'Hospital information missing. Update your profile.', position: 'top' })
+    void api.post('/operations/client-log/', {
+      level: 'warning',
+      message: 'loadAvailableDoctors aborted: missing hospital',
+      route: 'NursePatientAssessment',
+      context: {}
+    }).catch(() => { /* non-blocking */ })
+    return
+  }
+  
   try {
-    // Try live fetch from backend
-    const res = await api.get('/operations/available-doctors/')
-    type ApiDoctor = {
-      id?: number | string
-      full_name?: string
-      specialization?: string
-      is_available?: boolean
-      status?: string
-      hospital_name?: string
-    }
-    const list: ApiDoctor[] = Array.isArray(res.data?.doctors) ? res.data.doctors : []
+    // New secured endpoint returns only free doctors with timestamp and count
+    // NOTE: Axios baseURL already includes '/api', so do not prefix with '/api' here
+    const res = await api.get('/operations/availability/doctors/free/', {
+      params: {
+        include_email: true
+        // Backend scopes to nurse's hospital; hospital_id not required here
+      }
+    })
 
-    // Determine nurse hospital and filter doctors by same hospital if available
-    const nurseHospital = (userProfile.value?.hospital_name || '') || (JSON.parse(localStorage.getItem('user') || '{}').hospital_name || '')
-    const filtered = nurseHospital ? list.filter((d: ApiDoctor) => (d.hospital_name || '') === nurseHospital) : list
-    const finalList = filtered.length ? filtered : list
+    type ApiDoctor = { id?: number|string; full_name?: string; specialization?: string; email?: string; availability?: string; hospital_name?: string }
+    const doctors: ApiDoctor[] = Array.isArray(res.data?.doctors) ? res.data.doctors : []
+    const checkedAt = String(res.data?.checked_at || '')
 
-    availableDoctors.value = finalList.map((d: ApiDoctor) => ({
-      id: String(d.id ?? ''),
-      full_name: d.full_name ?? 'Unknown Doctor',
-      specialization: d.specialization ?? 'General',
-      availability: d.status ?? (d.is_available ? 'available' : 'busy'),
-      hospital_name: d.hospital_name ?? ''
+    availableDoctors.value = doctors.map((d) => ({
+      id: d.id ?? '',
+      full_name: d.full_name || 'Unknown Doctor',
+      specialization: d.specialization || 'General',
+      availability: d.availability || 'available',
+      hospital_name: d.hospital_name || nurseHospital.value || ''
     })) as DoctorSummary[]
-    // Cache for fallback use
+
+    // Cache for fallback use with timestamp
     localStorage.setItem('available_doctors', JSON.stringify(availableDoctors.value))
+    if (checkedAt) {
+      localStorage.setItem('available_doctors_checked_at', checkedAt)
+      doctorsCheckedAt.value = checkedAt
+    }
+    void api.post('/operations/client-log/', {
+      level: 'info',
+      message: 'loadAvailableDoctors succeeded',
+      route: 'NursePatientAssessment',
+      context: { count: availableDoctors.value.length, checked_at: checkedAt }
+    }).catch(() => { /* non-blocking */ })
   } catch (err) {
-    console.warn('Failed to fetch doctors; using cache.', err)
+    console.error('Failed to fetch doctors:', err)
+    const msg = getErrorMessage(err)
+    doctorsLoadError.value = msg || 'Unable to load doctors from your hospital'
+    $q.notify({ type: 'negative', message: 'Failed to load available doctors', position: 'top' })
+    void api.post('/operations/client-log/', {
+      level: 'error',
+      message: 'loadAvailableDoctors failed',
+      route: 'NursePatientAssessment',
+      context: { error: String(err) }
+    }).catch(() => { /* non-blocking */ })
+    
+    // Try to use cached data as fallback
     try {
       const cached = localStorage.getItem('available_doctors')
-      availableDoctors.value = cached ? (JSON.parse(cached) as DoctorSummary[]) : []
+      if (cached) {
+        availableDoctors.value = JSON.parse(cached) as DoctorSummary[]
+        console.log(`Using cached doctors: ${availableDoctors.value.length} available`)
+      } else {
+        availableDoctors.value = []
+      }
+      const cachedTs = localStorage.getItem('available_doctors_checked_at')
+      doctorsCheckedAt.value = cachedTs || null
     } catch {
       availableDoctors.value = []
     }
   } finally {
-    doctorsLoading.value = false
+    if (!silent) {
+      doctorsLoading.value = false
+    }
   }
 }
 
@@ -1595,7 +1803,7 @@ interface PatientSummary {
 
 function sendPatientRecords(patient: PatientSummary) {
   selectedPatientForSend.value = patient
-  if (!availableDoctors.value.length) { void loadAvailableDoctors() }
+  if (!availableDoctors.value.length) { void loadAvailableDoctors(true) }
   // If filtered list has a single match, preselect it
   const docs = filteredAvailableDoctors.value
   if (docs.length === 1) {
@@ -1603,6 +1811,19 @@ function sendPatientRecords(patient: PatientSummary) {
     sendForm.value.doctorId = first && first.id != null ? String(first.id) : null
   }
   showSendDialog.value = true
+}
+
+// Inline archive action in patient list: reuse archive flow without opening dialog
+function archivePatientInline(patient: PatientSummary) {
+  try {
+    selectedPatientForSend.value = patient
+    // Default to no doctor context and empty message for quick archive
+    sendForm.value = { doctorId: null, message: '' }
+    void archiveCurrentRecord()
+  } catch (err) {
+    console.error('Inline archive init failed', err)
+    $q.notify({ type: 'negative', message: 'Failed to start archive' })
+  }
 }
 
 async function confirmSend() {
@@ -1639,6 +1860,9 @@ async function confirmSend() {
     } catch {
       intakePayload = { ...intakeForm.value };
     }
+    // Ensure latest intake is persisted before transmission
+    await persistIntakeSnapshot(patientProfileIdNum)
+
     const recordBundle = {
       kind: 'intake',
       at: new Date().toISOString(),
@@ -1700,206 +1924,83 @@ async function confirmSend() {
   } finally { sendLoading.value = false }
 }
 
-// Developer test utility: create one dummy assignment that the doctor can fetch
-async function createDummyAssignment() {
+async function archiveCurrentRecord() {
+  if (!selectedPatientForSend.value) { $q.notify({ type: 'warning', message: 'No patient selected' }); return }
+  sendLoading.value = true
   try {
-    // Ensure we have patients loaded
-    if (!patients.value.length) {
-      await loadPatients();
+    const rawPatient = selectedPatientForSend.value as unknown as { user_id?: number | string; id: number | string; medical_condition?: string | null };
+    const patientUserIdNum = Number(rawPatient.user_id ?? rawPatient.id);
+    if (!Number.isFinite(patientUserIdNum)) {
+      throw new Error('Invalid patient user ID');
     }
-    const patient = patients.value.find((p) => !p.is_dummy) || patients.value[0];
-    if (!patient) {
-      $q.notify({ type: 'warning', message: 'No patients available to assign' });
-      return;
-    }
-
-    // Ensure we have available doctors
-    if (!availableDoctors.value.length) {
-      await loadAvailableDoctors();
-    }
-    const doc = (filteredAvailableDoctors.value && filteredAvailableDoctors.value[0]) || availableDoctors.value[0];
-    if (!doc) {
-      $q.notify({ type: 'warning', message: 'No available doctors found' });
-      return;
+    const patientProfileIdNum = Number(rawPatient.id ?? rawPatient.user_id);
+    if (!Number.isFinite(patientProfileIdNum)) {
+      throw new Error('Invalid patient profile ID');
     }
 
-    // Prepare and send using existing confirmSend flow
-    selectedPatientForSend.value = {
-      id: patient.id,
-      user_id: (patient as unknown as { user_id?: number | string }).user_id ?? patient.id,
-      full_name: patient.full_name,
-      medical_condition: (patient as unknown as { medical_condition?: string | null }).medical_condition || null,
+    // Optional doctor context
+    const hasDoctor = !!sendForm.value.doctorId;
+    const doctorIdNum = hasDoctor ? Number(sendForm.value.doctorId) : NaN;
+    const specialization = hasDoctor ? (deriveSpecializationFromCondition(rawPatient.medical_condition) || 'General') : null;
+
+    // Build assessment data (prefer saved intake snapshot)
+    let intakePayload: Record<string, unknown> | null = null;
+    try {
+      const raw = localStorage.getItem(`opd_forms_${patientProfileIdNum}_intake`);
+      intakePayload = raw ? JSON.parse(raw) : { ...intakeForm.value } as unknown as Record<string, unknown>;
+    } catch {
+      intakePayload = { ...intakeForm.value } as unknown as Record<string, unknown>;
+    }
+
+    // Ensure latest intake is persisted before archiving
+    await persistIntakeSnapshot(patientProfileIdNum)
+
+    const assessmentData: Record<string, unknown> = {
+      ...(intakePayload || {}),
+      archived_at: new Date().toISOString(),
+      nurse_name: userProfile.value.full_name,
+      message: sendForm.value.message || ''
     };
-    sendForm.value.doctorId = String(doc.id);
-    await confirmSend();
-    $q.notify({ type: 'positive', message: 'Dummy assignment created for testing' });
-  } catch (error) {
-    console.error('Dummy assignment failed:', error);
-    $q.notify({ type: 'negative', message: 'Failed to create dummy assignment' });
-  }
-}
 
-// Archive action
-function archivePatient(patient: PatientSummary) {
-  // Prevent archiving while patient is in active forms
-  if (selectedPatient.value?.id === patient.id && formDialogOpen.value) {
-    $q.notify({ type: 'warning', message: 'Close active forms before archiving this patient.' });
-    return;
-  }
-  $q.dialog({ title: 'Archive Patient Records', message: `Archive records for ${patient.full_name}?`, cancel: true, ok: 'Archive' })
-    .onOk(() => {
-      void (async () => {
-        try {
-          // Backend expects patient_id to be the User ID; fallback to profile id if needed
-          await api.post('/operations/archives/create/', { patient_id: patient.user_id ?? patient.id })
-          // Remove from active patients list immediately
-          patients.value = patients.value.filter(p => p.id !== patient.id)
-          // Clear selection if this patient was selected
-          if (selectedPatient.value?.id === patient.id) { selectedPatient.value = null }
-          $q.notify({ type: 'positive', message: 'Patient archived' })
-          void searchArchives()
-        } catch (err) {
-          console.error('Archive failed', err)
-          $q.notify({ type: 'negative', message: 'Failed to archive patient' })
-        }
-      })()
-    })
-}
+    const payload: Record<string, unknown> = {
+      patient_id: patientUserIdNum,
+      assessment_type: 'intake',
+      assessment_data: assessmentData,
+      medical_condition: rawPatient.medical_condition || '',
+      hospital_name: userProfile.value.hospital_name || ''
+    };
+    if (hasDoctor && Number.isFinite(doctorIdNum)) {
+      payload.doctor_id = doctorIdNum;
+      payload.specialization = specialization || 'General';
+    }
 
-// Patient Archive state and methods
-interface ArchiveRecord {
-  id: number;
-  patient_id: number;
-  patient_name: string;
-  assessment_type: string;
-  medical_condition: string;
-  medical_history_summary?: string;
-  diagnostics?: Record<string, unknown>;
-  last_assessed_at: string;
-  hospital_name?: string;
-  decrypted_assessment_data?: Record<string, unknown>;
-}
+    await api.post('/operations/archives/create/', payload);
+    $q.notify({ type: 'positive', message: 'Record archived successfully' });
 
-const archivesLoading = ref(false)
-const archivedRecords = ref<ArchiveRecord[]>([])
-const showArchiveDetail = ref(false)
-const selectedArchive = ref<ArchiveRecord | null>(null)
-
-const archiveFilters = ref({
-  query: '',
-  patient_id: '',
-  assessment_type: '',
-  medical_condition: '',
-  start_date: '',
-  end_date: ''
-})
-
-const formatDateDisplay = (dateStr: string): string => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return d.toLocaleString()
-}
-
-const formatJson = (obj: unknown): string => {
-  try { 
-    return JSON.stringify(obj ?? {}, null, 2) 
-  } catch { 
-    return obj ? '[Unable to format object]' : ''
-  }
-}
-
-const buildArchiveParams = (): Record<string, string> => {
-  const params: Record<string, string> = {}
-  const f = archiveFilters.value
-  // Map to backend expected parameter names
-  if (f.query) params.patient_name = f.query
-  if (f.patient_id) params.patient_id = f.patient_id
-  if (f.assessment_type) params.assessment_type = f.assessment_type
-  if (f.medical_condition) params.condition = f.medical_condition
-  if (f.start_date) params.start = f.start_date
-  if (f.end_date) params.end = f.end_date
-  return params
-}
-
-const searchArchives = async () => {
-  archivesLoading.value = true
-  try {
-    const res = await api.get('/operations/archives/', { params: buildArchiveParams() })
-    const list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.results)
-        ? res.data.results
-        : (res.data?.records || [])
-    archivedRecords.value = list as ArchiveRecord[]
+    // Optional: keep dialog open to allow sending right after archiving
   } catch (err: unknown) {
-    console.error('Archive search failed:', err)
-    let msg = 'Archive search failed'
+    console.error('Archive create failed', err);
+    let msg = 'Failed to archive record';
     if (typeof err === 'object' && err !== null) {
-      const e = err as { response?: { data?: { error?: unknown } }, message?: unknown }
-      const apiMsg = e.response?.data?.error
+      const e = err as { response?: { data?: { error?: unknown } }, message?: unknown };
+      const apiMsg = e.response?.data?.error;
       if (typeof apiMsg === 'string' && apiMsg.trim()) {
-        msg = apiMsg
+        msg = apiMsg;
       } else if (typeof e.message === 'string' && e.message.trim()) {
-        msg = e.message
+        msg = e.message;
       }
     } else if (typeof err === 'string' && err.trim()) {
-      msg = err
+      msg = err;
     }
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
+    $q.notify({ type: 'negative', message: msg });
   } finally {
-    archivesLoading.value = false
+    sendLoading.value = false;
   }
 }
 
-const resetArchiveFilters = () => {
-  archiveFilters.value = { query: '', patient_id: '', assessment_type: '', medical_condition: '', start_date: '', end_date: '' }
-  archivedRecords.value = []
-}
+// Removed developer-only dummy assignment helper; switching to real API-driven data
 
-const viewArchive = async (rec: ArchiveRecord) => {
-  try {
-    const res = await api.get(`/operations/archives/${rec.id}/`)
-    selectedArchive.value = (res.data?.record || res.data) as ArchiveRecord
-    showArchiveDetail.value = true
-  } catch (err) {
-    console.error('Failed to load archive detail:', err)
-    $q.notify({ type: 'negative', message: 'Failed to load archive detail', position: 'top' })
-  }
-}
 
-const exportArchive = async (rec: ArchiveRecord) => {
-  try {
-    const res = await api.get(`/operations/archives/${rec.id}/export/`, { responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `archive_${rec.id}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archive exported', position: 'top' })
-  } catch (err) {
-    console.error('Export failed:', err)
-    $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
-  }
-}
-
-const exportFilteredArchives = async () => {
-  try {
-    const res = await api.get('/operations/archives/export/', { params: buildArchiveParams(), responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'patient_archives.json'
-    a.click()
-    URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archives exported', position: 'top' })
-  } catch (err) {
-    console.error('Export failed:', err)
-    $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
-  }
-}
 
 onMounted(() => {
   console.log('🚀 NursePatientAssessment component mounted');
@@ -1911,7 +2012,7 @@ onMounted(() => {
   // Refresh notifications every 30 seconds
   setInterval(() => void loadNotifications(), 30000);
   // Poll doctor availability every 10 seconds to keep list fresh
-  doctorPoller = window.setInterval(() => { void loadAvailableDoctors() }, 10000)
+  doctorPoller = window.setInterval(() => { void loadAvailableDoctors(true) }, 10000)
 });
 onUnmounted(() => {
   if (doctorPoller !== null) {
@@ -2335,11 +2436,40 @@ const sendSecureToDoctor = async (args: { patientId: number; doctorId: number; r
 }
 
 .greeting-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(248, 250, 252, 0.9) 50%,
+    rgba(241, 245, 249, 0.85) 100%
+  );
   backdrop-filter: blur(10px);
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(40, 102, 96, 0.1);
+  box-shadow:
+    0 10px 25px rgba(40, 102, 96, 0.08),
+    0 4px 10px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  min-height: 160px;
+}
+
+.greeting-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #286660 0%,
+    #6ca299 50%,
+    #b8d2ce 100%
+  );
+  border-radius: 20px 20px 0 0;
 }
 
 .greeting-content {
@@ -2371,10 +2501,7 @@ const sendSecureToDoctor = async (args: { patientId: number; doctorId: number; r
   font-weight: 500;
 }
 
-.greeting-icon {
-  color: #286660;
-  opacity: 0.8;
-}
+/* removed greeting icon for cleaner header */
 
 /* Management Cards */
 .management-cards-grid {

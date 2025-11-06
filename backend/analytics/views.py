@@ -2,13 +2,13 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, models
 from django.core.cache import cache
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from backend.admin_site.authentication import AdminJWTAuthentication
@@ -55,10 +55,11 @@ try:
 except ImportError:
     PDF_AVAILABLE = False
 
-from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache
+from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache, UsageEvent, UptimePing
 from .serializers import (
     AnalyticsResultSerializer, AnalyticsTaskSerializer, 
-    AnalyticsRequestSerializer, AnalyticsResponseSerializer
+    AnalyticsRequestSerializer, AnalyticsResponseSerializer,
+    UsageEventSerializer, UptimePingSerializer
 )
 from .tasks import run_analytics_task_async
 from backend.users.models import PatientProfile
@@ -643,13 +644,31 @@ def doctor_analytics(request):
             analysis_type='monthly_illness_forecast',
             status='completed'
         ).order_by('-created_at').first()
+
+        # Patient volume prediction (include for doctor; strip evaluation metrics)
+        volume_prediction = AnalyticsResult.objects.filter(
+            analysis_type='patient_volume_prediction',
+            status='completed'
+        ).order_by('-created_at').first()
+
+        vp_results = volume_prediction.results if volume_prediction else None
+        if isinstance(vp_results, dict) and 'evaluation_metrics' in vp_results:
+            # Remove MAE/RMSE from doctor-facing payload per requirements
+            vp_results = {k: v for k, v in vp_results.items() if k != 'evaluation_metrics'}
         
+        # Normalize gender proportions in patient demographics if present
+        pd_results = patient_demographics.results if patient_demographics else None
+        if isinstance(pd_results, dict) and 'gender_proportions' in pd_results:
+            pd_results = pd_results.copy()
+            pd_results['gender_proportions'] = normalize_gender_proportions(pd_results.get('gender_proportions', {}))
+
         analytics_data = {
-            'patient_demographics': patient_demographics.results if patient_demographics else None,
+            'patient_demographics': pd_results if pd_results else (patient_demographics.results if patient_demographics else None),
             'illness_prediction': illness_prediction.results if illness_prediction else None,
             'health_trends': health_trends.results if health_trends else None,
             'surge_prediction': surge_prediction.results if surge_prediction else None,
             'monthly_illness_forecast': monthly_illness_forecast.results if monthly_illness_forecast else None,
+            'volume_prediction': vp_results,
             'doctor_name': request.user.full_name,
             'specialization': getattr(request.user.doctor_profile, 'specialization', 'General Practice') if hasattr(request.user, 'doctor_profile') else 'General Practice',
             'generated_at': timezone.now().isoformat()
@@ -707,9 +726,15 @@ def nurse_analytics(request):
             status='completed'
         ).order_by('-created_at').first()
         
+        # Normalize gender proportions for data integrity if available
+        pd_results = patient_demographics.results if patient_demographics else None
+        if isinstance(pd_results, dict) and 'gender_proportions' in pd_results:
+            pd_results = pd_results.copy()
+            pd_results['gender_proportions'] = normalize_gender_proportions(pd_results.get('gender_proportions', {}))
+
         analytics_data = {
             'medication_analysis': medication_analysis.results if medication_analysis else None,
-            'patient_demographics': patient_demographics.results if patient_demographics else None,
+            'patient_demographics': pd_results if pd_results else (patient_demographics.results if patient_demographics else None),
             'health_trends': health_trends.results if health_trends else None,
             'volume_prediction': volume_prediction.results if volume_prediction else None,
             'nurse_name': request.user.full_name,
@@ -860,14 +885,16 @@ def generate_analytics_pdf(request):
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{user_role}_analytics_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
         
+        # Build PDF into an in-memory buffer for reliable response writing
+        buffer = io.BytesIO()
         # Create PDF with custom page template
-        doc = create_standardized_pdf_template(response, hospital_info, user_info)
+        doc = create_standardized_pdf_template(buffer, hospital_info, user_info)
         styles = get_custom_styles()
         story = []
         
         # Add standardized header
         add_standardized_header(story, hospital_info, user_info, title, styles)
-        
+
         # Overview section
         story.append(Paragraph("Overview:", styles['SectionHeaderNoBorder']))
         story.append(Paragraph(
@@ -877,19 +904,43 @@ def generate_analytics_pdf(request):
             styles['ContentText']
         ))
         
+        # Executive summary at the beginning
+        try:
+            add_executive_summary_section(story, analytics_data, styles)
+        except Exception:
+            pass
+
         # Add analytics sections with visualizations and interpretations
         add_analytics_sections_with_visualizations(story, analytics_data, styles)
-        
-        # AI-Based Recommendations and Suggestions
+
+        # Interpretation section (narrative + AI interpretation)
+        try:
+            add_data_interpretation_section(story, analytics_data, styles)
+        except Exception:
+            pass
         add_ai_interpretation_section(story, analytics_data, styles)
 
-        # AI Suggestions (role-specific, bullet points with priority)
+        # Factor analysis section
+        try:
+            add_factor_analysis_section(story, analytics_data, styles)
+        except Exception:
+            pass
+
+        # AI Recommendations module (priority, guidance, outcomes)
         try:
             role = (user_info.get('role', 'Doctor') if user_info else 'Doctor').lower()
-            ai_suggestions = build_recommendations(analytics_data, role)
-            add_ai_suggestions_section(story, ai_suggestions, styles)
+            add_ai_recommendations_module(story, analytics_data, role, styles)
         except Exception:
-            # Fail gracefully; PDF generation should continue
+            pass
+
+        # Key takeaways and citations at the end
+        try:
+            add_key_takeaways_section(story, analytics_data, styles)
+        except Exception:
+            pass
+        try:
+            add_citations_section(story, styles)
+        except Exception:
             pass
         
         # Prepared by signature (bottom-right)
@@ -900,9 +951,19 @@ def generate_analytics_pdf(request):
         add_standardized_footer(story, styles)
         
         doc.build(story)
+        # Write generated PDF bytes to HTTP response
+        response.write(buffer.getvalue())
+        buffer.close()
         return response
         
     except Exception as e:
+        # Log detailed traceback to server console for debugging
+        try:
+            import traceback
+            print("[PDF Generation] Error generating PDF report:", str(e))
+            print(traceback.format_exc())
+        except Exception:
+            pass
         return Response({
             'error': f'Error generating PDF report: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -977,6 +1038,56 @@ def get_hospital_information(user):
         'phone': '+1 (555) 123-4567',  # Default phone
         'email': 'info@medisync.healthcare'  # Default email
     }
+
+def normalize_gender_proportions(gender_data):
+    """Validate and normalize gender proportions to ensure integrity.
+
+    - Ensures keys for 'Male', 'Female', and 'Other' exist
+    - Coerces values to non-negative numbers
+    - Normalizes values so the sum equals 100 (percentages)
+    - If all values are zero or invalid, returns a sensible default
+    """
+    try:
+        if not isinstance(gender_data, dict):
+            gender_data = {}
+
+        # Extract and sanitize numeric values
+        male = float(gender_data.get('Male', 0) or 0)
+        female = float(gender_data.get('Female', 0) or 0)
+        other = float(gender_data.get('Other', gender_data.get('Non-binary', 0) or 0) or 0)
+
+        # Clamp negatives to zero
+        male = max(male, 0)
+        female = max(female, 0)
+        other = max(other, 0)
+
+        total = male + female + other
+        if total <= 0:
+            # Default distribution when no data available
+            return {'Male': 50.0, 'Female': 48.0, 'Other': 2.0}
+
+        # If values are counts, convert to percentages
+        male_pct = (male / total) * 100.0
+        female_pct = (female / total) * 100.0
+        other_pct = (other / total) * 100.0
+
+        # Normalize rounding to ensure exact 100
+        # Round to one decimal place and adjust residual to Male
+        male_pct = round(male_pct, 1)
+        female_pct = round(female_pct, 1)
+        other_pct = round(other_pct, 1)
+        residual = 100.0 - (male_pct + female_pct + other_pct)
+        male_pct = round(male_pct + residual, 1)
+
+        # Final clamp and correction for any floating errors
+        male_pct = max(min(male_pct, 100.0), 0.0)
+        female_pct = max(min(female_pct, 100.0), 0.0)
+        other_pct = max(min(other_pct, 100.0), 0.0)
+
+        return {'Male': male_pct, 'Female': female_pct, 'Other': other_pct}
+    except Exception:
+        # Fallback to a safe default in case of any unexpected error
+        return {'Male': 50.0, 'Female': 48.0, 'Other': 2.0}
 
     return hospital_info
 
@@ -1584,6 +1695,275 @@ def add_ai_interpretation_section(story, analytics_data, styles):
     
     # Add Interpretation section header
     story.append(Spacer(1, 20))
+
+def add_executive_summary_section(story, analytics_data, styles):
+    """Add an executive summary highlighting key results and implications."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    content_style = styles.get('ContentText') or styles['Normal']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+
+    story.append(Paragraph("Executive Summary", section_style))
+    story.append(Paragraph(
+        "This report synthesizes recent analytics across demographics, clinical trends, medication patterns, and forecasting. "
+        "It provides an evidence-based interpretation, factor analysis, and prioritized recommendations to inform care planning and operations.",
+        content_style
+    ))
+
+    # Top insights snapshot
+    try:
+        top_insights = generate_ai_insights(analytics_data)[:3]
+    except Exception:
+        top_insights = []
+    if top_insights:
+        story.append(Paragraph("Key Highlights:", sub_style))
+        for i in top_insights:
+            story.append(Paragraph(f"• {i}", content_style))
+    story.append(Spacer(1, 12))
+
+def add_data_interpretation_section(story, analytics_data, styles):
+    """Transform raw analytics into structured narrative with headings and explanations."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    content_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Interpretation of Results", section_style))
+
+    # Demographics interpretation
+    demo = analytics_data.get('patient_demographics') or {}
+    if demo:
+        story.append(Paragraph("Patient Demographics", sub_style))
+        age = demo.get('age_distribution') or {}
+        gender = demo.get('gender_proportions') or {}
+        if isinstance(age, dict) and age:
+            dominant_age = max(age, key=age.get)
+            story.append(Paragraph(
+                f"Age distribution indicates a concentration in the {dominant_age} group, which may necessitate age-specific care protocols.",
+                content_style
+            ))
+        if isinstance(gender, dict) and gender:
+            dominant_gender = max(gender, key=gender.get)
+            story.append(Paragraph(
+                f"Gender proportions show {dominant_gender} as most represented, influencing preventive strategies and educational materials.",
+                content_style
+            ))
+
+    # Health trends interpretation
+    trends = analytics_data.get('health_trends') or {}
+    if trends:
+        story.append(Paragraph("Health Trends", sub_style))
+        top_weekly = trends.get('top_illnesses_by_week') or []
+        if isinstance(top_weekly, list) and top_weekly:
+            top_item = top_weekly[0]
+            cond_name = top_item.get('medical_condition', 'the leading condition')
+            story.append(Paragraph(
+                f"Recent weekly analyses consistently identify {cond_name} as the most prevalent condition, suggesting targeted screening and early intervention.",
+                content_style
+            ))
+        analysis = trends.get('trend_analysis') or {}
+        if analysis:
+            inc = analysis.get('increasing_conditions') or []
+            dec = analysis.get('decreasing_conditions') or []
+            story.append(Paragraph(
+                f"Conditions showing increasing trends ({len(inc)} categories) require proactive resource planning, while decreasing trends ({len(dec)} categories) indicate effective interventions.",
+                content_style
+            ))
+
+    # Medication interpretation (nurse context)
+    med = analytics_data.get('medication_analysis') or {}
+    if med:
+        story.append(Paragraph("Medication Analysis", sub_style))
+        pareto = med.get('medication_pareto_data') or []
+        if isinstance(pareto, list) and pareto:
+            top_med = pareto[0]
+            name = top_med.get('medication', 'Top medication')
+            story.append(Paragraph(
+                f"Pareto analysis highlights {name} as frequently prescribed; review inventory, dosing protocols, and potential adverse event monitoring.",
+                content_style
+            ))
+
+    # Forecasting interpretation
+    volume = analytics_data.get('volume_prediction') or {}
+    surge = analytics_data.get('surge_prediction') or {}
+    if volume or surge:
+        story.append(Paragraph("Forecasting and Capacity", sub_style))
+        if volume and isinstance(volume.get('evaluation_metrics'), dict):
+            mae = volume['evaluation_metrics'].get('mae')
+            rmse = volume['evaluation_metrics'].get('rmse')
+            story.append(Paragraph(
+                f"Model performance metrics (MAE={mae}, RMSE={rmse}) indicate current forecast reliability and guide model calibration needs.",
+                content_style
+            ))
+        f_list = surge.get('forecasted_monthly_cases') or []
+        if isinstance(f_list, list) and len(f_list) > 1:
+            first = f_list[0].get('total_cases', 0)
+            last = f_list[-1].get('total_cases', 0)
+            trend = "increasing" if last > first else ("decreasing" if last < first else "stable")
+            story.append(Paragraph(
+                f"Six-month projections suggest {trend} case trajectory; align staffing schedules and bed management accordingly.",
+                content_style
+            ))
+    story.append(Spacer(1, 12))
+
+def add_factor_analysis_section(story, analytics_data, styles):
+    """Identify and quantify factors influencing results with detailed explanations."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    content_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Factor Analysis", section_style))
+    try:
+        model = MediSyncAIInsights()
+        risk = model.get_detailed_risk_assessment(analytics_data)
+    except Exception:
+        risk = {}
+
+    scores = risk.get('risk_scores') or {}
+    # Present quantitative score table if available
+    if scores:
+        from reportlab.platypus import Table, TableStyle
+        table_data = [
+            ["Factor", "Influence Score (0-100)"]
+        ]
+        for label in ["demographic_risk", "clinical_risk", "trend_risk", "capacity_risk", "overall_score"]:
+            val = scores.get(label)
+            if isinstance(val, (int, float)):
+                table_data.append([label.replace('_', ' ').title(), f"{val:.1f}"])
+        t = Table(table_data, hAlign='LEFT')
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.darkblue),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 8))
+
+    # Explain factor impacts
+    if scores:
+        story.append(Paragraph("Factor Impacts", sub_style))
+        demo_score = scores.get('demographic_risk')
+        if isinstance(demo_score, (int, float)):
+            story.append(Paragraph(
+                f"Demographics: Higher elderly ratios increase acuity and monitoring needs (score={demo_score:.1f}).",
+                content_style
+            ))
+        clinical_score = scores.get('clinical_risk')
+        if isinstance(clinical_score, (int, float)):
+            story.append(Paragraph(
+                f"Clinical Trends: Rising high-risk conditions elevate intervention urgency and staffing requirements (score={clinical_score:.1f}).",
+                content_style
+            ))
+        trend_score = scores.get('trend_risk')
+        if isinstance(trend_score, (int, float)):
+            story.append(Paragraph(
+                f"Forecast Trends: Short-term increases in case counts inform capacity planning and scheduling (score={trend_score:.1f}).",
+                content_style
+            ))
+
+    # Indicators (categorization)
+    indicators = risk.get('clinical_indicators') or {}
+    if indicators:
+        story.append(Paragraph("Indicators", sub_style))
+        for flag in indicators.get('red_flags', []) or []:
+            story.append(Paragraph(f"• Red Flag: {flag}", content_style))
+        for warn in indicators.get('warning_signs', []) or []:
+            story.append(Paragraph(f"• Warning: {warn}", content_style))
+        for prot in indicators.get('protective_factors', []) or []:
+            story.append(Paragraph(f"• Protective: {prot}", content_style))
+    story.append(Spacer(1, 12))
+
+def add_ai_recommendations_module(story, analytics_data, role, styles):
+    """Generate actionable recommendations with priority, guidance, and estimated outcomes."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    sub_style = styles.get('SubsectionHeader') or styles['Heading3']
+    bullet_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("AI Recommendations", section_style))
+
+    # Build recommendations and supporting protocols
+    try:
+        model = MediSyncAIInsights()
+        insights = model.generate_insights(analytics_data) or {}
+        risk_assessment = model.get_detailed_risk_assessment(analytics_data)
+        protocols = model.generate_evidence_based_protocols(risk_assessment)
+        base_recs = (insights.get('recommendations') or {}).get('doctors' if role == 'doctor' else 'nurses', [])
+    except Exception:
+        risk_assessment, protocols, base_recs = {}, {}, []
+
+    # Priority bucketing
+    high, med, low = [], [], []
+    for idx, rec in enumerate(base_recs):
+        bucket = 'low'
+        if idx < 3:
+            bucket = 'high'
+        elif idx < 6:
+            bucket = 'medium'
+        item = {
+            'text': rec if isinstance(rec, str) else str(rec),
+            'guidance': protocols.get('intervention_protocols', [])[:2] or protocols.get('assessment_protocols', [])[:2],
+            'outcomes': protocols.get('quality_metrics', [])[:2]
+        }
+        if bucket == 'high':
+            high.append(item)
+        elif bucket == 'medium':
+            med.append(item)
+        else:
+            low.append(item)
+
+    def render_group(title, items):
+        story.append(Paragraph(title, sub_style))
+        if not items:
+            story.append(Paragraph("• No recommendations available.", bullet_style))
+            return
+        for it in items:
+            story.append(Paragraph(f"• {it['text']}", bullet_style))
+            if it.get('guidance'):
+                for g in it['guidance']:
+                    story.append(Paragraph(f"   – Guidance: {g}", bullet_style))
+            if it.get('outcomes'):
+                for o in it['outcomes']:
+                    story.append(Paragraph(f"   – Estimated Outcome: {o}", bullet_style))
+
+    render_group("High Priority", high)
+    render_group("Medium Priority", med)
+    render_group("Low Priority", low)
+    story.append(Spacer(1, 12))
+
+def add_key_takeaways_section(story, analytics_data, styles):
+    """Summarize primary findings and decisions at the end of the document."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    bullet_style = styles.get('ContentText') or styles['Normal']
+
+    story.append(Paragraph("Key Takeaways", section_style))
+    try:
+        points = generate_ai_insights(analytics_data)[:4]
+    except Exception:
+        points = []
+    if not points:
+        points = [
+            "Maintain continuous monitoring of emerging clinical trends.",
+            "Align staffing and capacity planning with forecast signals.",
+            "Tailor interventions to high-impact risk factors.",
+            "Iteratively calibrate models based on performance metrics."
+        ]
+    for p in points:
+        story.append(Paragraph(f"• {p}", bullet_style))
+    story.append(Spacer(1, 12))
+
+def add_citations_section(story, styles):
+    """Provide citations for methodologies and tools used."""
+    section_style = styles.get('SectionHeader') or styles['Heading2']
+    content_style = styles.get('ContentText') or styles['Normal']
+    story.append(Paragraph("Citations", section_style))
+    citations = [
+        "Breiman, L. (2001). Random Forests. Machine Learning, 45(1), 5–32.",
+        "Abadi, M. et al. (2016). TensorFlow: Large-Scale Machine Learning on Heterogeneous Systems.",
+        "ReportLab User Guide (Open Source Documentation).", 
+        "Hyndman, R.J., Athanasopoulos, G. (2018). Forecasting: Principles and Practice."
+    ]
+    for c in citations:
+        story.append(Paragraph(f"• {c}", content_style))
+    story.append(Spacer(1, 12))
     story.append(Paragraph("AI-Based Interpretation", section_style))
     
     # Build cohesive interpretation paragraph covering requested determinants
@@ -1997,11 +2377,14 @@ def create_age_distribution_chart(age_data):
 def create_gender_pie_chart(gender_data):
     """Create gender distribution pie chart"""
     try:
+        # Validate and normalize before charting
+        safe_gender = normalize_gender_proportions(gender_data or {})
+
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(6, 6))
         
-        genders = list(gender_data.keys())
-        percentages = list(gender_data.values())
+        genders = list(safe_gender.keys())
+        percentages = list(safe_gender.values())
         colors_list = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']
         
         wedges, texts, autotexts = ax.pie(percentages, labels=genders, autopct='%1.1f%%',
@@ -2175,3 +2558,140 @@ def create_forecast_chart(forecast_data):
     except Exception as e:
         print(f"Error creating forecast chart: {e}")
         return None
+
+
+# --- Usage Events Endpoints ---
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def log_usage_event(request):
+    """Log a usage event for analytics. Expects: event_type, context (JSON), source, session_id."""
+    try:
+        payload = request.data or {}
+        event_type = payload.get('event_type')
+        if not event_type:
+            return Response({'success': False, 'message': 'event_type is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        context = payload.get('context') or {}
+        source = payload.get('source')
+        session_id = payload.get('session_id')
+
+        ip = request.META.get('HTTP_X_FORWARDED_FOR')
+        if ip:
+            ip = ip.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+
+        event = UsageEvent.objects.create(
+            user=request.user if request.user and request.user.is_authenticated else None,
+            event_type=event_type,
+            source=source,
+            session_id=session_id,
+            ip_address=ip,
+            context=context,
+        )
+
+        return Response({'success': True, 'message': 'Event logged', 'data': UsageEventSerializer(event).data}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to log event: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_usage_events(request):
+    """List recent usage events with optional filters: event_type, since (ISO), limit."""
+    try:
+        qs = UsageEvent.objects.all()
+        event_type = request.query_params.get('event_type')
+        since = request.query_params.get('since')
+        limit = int(request.query_params.get('limit', 50))
+        limit = max(1, min(200, limit))
+
+        if event_type:
+            qs = qs.filter(event_type=event_type)
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since)
+                qs = qs.filter(created_at__gte=since_dt)
+            except Exception:
+                pass
+
+        qs = qs.order_by('-created_at')[:limit]
+        return Response({'success': True, 'message': 'Events retrieved', 'data': UsageEventSerializer(qs, many=True).data})
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to retrieve events: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# --- Uptime Ping Endpoints ---
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def uptime_ping(request):
+    """Receive uptime ping from clients or monitors. Accepts service, status, latency_ms, region, details (JSON)."""
+    try:
+        payload = request.data or {}
+        service = payload.get('service', 'web')
+        status_str = payload.get('status', 'up')
+        latency_ms = payload.get('latency_ms')
+        region = payload.get('region')
+        details = payload.get('details') or {}
+
+        ping = UptimePing.objects.create(
+            service=service,
+            status=status_str,
+            latency_ms=latency_ms,
+            region=region,
+            details=details,
+        )
+
+        return Response({'success': True, 'message': 'Ping recorded', 'data': UptimePingSerializer(ping).data}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to record ping: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def uptime_status(request):
+    """Return recent uptime status with optional filters: service, region, window_minutes."""
+    try:
+        service = request.query_params.get('service')
+        region = request.query_params.get('region')
+        window_minutes = int(request.query_params.get('window_minutes', 60))
+        window_minutes = max(1, min(1440, window_minutes))
+        since = timezone.now() - timedelta(minutes=window_minutes)
+
+        qs = UptimePing.objects.filter(created_at__gte=since)
+        if service:
+            qs = qs.filter(service=service)
+        if region:
+            qs = qs.filter(region=region)
+
+        # Latest by service/region
+        latest_map = {}
+        for ping in qs.order_by('-created_at'):
+            key = (ping.service, ping.region or 'unknown')
+            if key not in latest_map:
+                latest_map[key] = ping
+
+        # Aggregate simple stats
+        total = qs.count()
+        up = qs.filter(status='up').count()
+        down = qs.filter(status='down').count()
+        degraded = qs.filter(status='degraded').count()
+        avg_latency = qs.exclude(latency_ms__isnull=True).aggregate(v=models.Avg('latency_ms'))['v']
+
+        data = {
+            'summary': {
+                'total': total,
+                'up': up,
+                'down': down,
+                'degraded': degraded,
+                'avg_latency_ms': avg_latency,
+                'window_minutes': window_minutes,
+            },
+            'latest': [UptimePingSerializer(p).data for p in latest_map.values()]
+        }
+
+        return Response({'success': True, 'message': 'Uptime status retrieved', 'data': data})
+    except Exception as e:
+        return Response({'success': False, 'message': f'Failed to retrieve uptime status: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

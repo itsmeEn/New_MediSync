@@ -90,6 +90,19 @@
           <q-item-section>Patient Management</q-item-section>
         </q-item>
 
+        <!-- Patient Archive (Sub-section of Patient Management) -->
+        <q-item
+          clickable
+          v-ripple
+          @click="navigateTo('nurse-patient-archive')"
+          :class="['nav-sub-item', { active: activeRoute === 'patient-archive' }]"
+        >
+          <q-item-section avatar>
+            <q-icon name="archive" />
+          </q-item-section>
+          <q-item-section>Patient Archive</q-item-section>
+        </q-item>
+
         <q-item
           clickable
           v-ripple
@@ -163,6 +176,8 @@ interface UserProfile {
   department?: string;
   verification_status: string;
   profile_picture?: string;
+  first_name?: string;
+  last_name?: string;
 }
 
 // Router and Quasar
@@ -184,6 +199,14 @@ const drawerOpen = computed({
 });
 
 const userInitials = computed(() => {
+  const first = userProfile.value.first_name?.trim();
+  const last = userProfile.value.last_name?.trim();
+  if (first || last) {
+    const f = first ? first.charAt(0) : '';
+    const l = last ? last.charAt(0) : '';
+    const initials = `${f}${l}`.toUpperCase();
+    return initials || 'U';
+  }
   const name = userProfile.value.full_name || '';
   const safe = name.trim();
   const initials = safe
@@ -212,6 +235,10 @@ const navigateTo = (route: string) => {
     case 'nurse-patient-assessment':
     case 'patient-assessment':
       void router.push('/nurse-patient-assessment');
+      break;
+    case 'nurse-patient-archive':
+      // Navigate to the dedicated Nurse Patient Archive page
+      void router.push('/nurse-patient-archive');
       break;
     case 'nurse-medicine-inventory':
       void router.push('/nurse-medicine-inventory');
@@ -259,6 +286,8 @@ const loadUserProfile = async () => {
       department: userData.nurse_profile?.department || userData.department || 'Nurse',
       verification_status: userData.verification_status,
       profile_picture: userData.profile_picture,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
     };
 
     // Notify when verification becomes approved
@@ -427,6 +456,22 @@ onMounted(() => {
 
 .nav-item:hover:not(.active) {
   background: #f5f5f5;
+}
+
+/* Sub-navigation item styling */
+.nav-sub-item {
+  margin: 4px 16px 4px 32px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.nav-sub-item.active {
+  background: #e8f3f1;
+  color: #286660;
+}
+
+.nav-sub-item.active .q-icon {
+  color: #286660;
 }
 
 /* Logout Section */

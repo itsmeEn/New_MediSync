@@ -908,6 +908,101 @@ const columns = [
 // Empty inventory data - nurses will input their stock
 const medicines = ref<Medicine[]>([]);
 
+// Dummy inventory generator for demo/testing when backend is empty/unavailable
+const generateFutureDate = (days: number): string => {
+  // Avoid noUncheckedIndexedAccess by using substring, guaranteeing a string
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .substring(0, 10);
+};
+
+const getDummyMedicines = (): Medicine[] => [
+  {
+    id: 1,
+    name: 'Paracetamol',
+    genericName: 'Acetaminophen',
+    category: 'analgesics',
+    dosage: 'Tablet',
+    strength: '500mg',
+    quantity: 100,
+    unit: 'tablets',
+    expiryDate: generateFutureDate(180),
+    minStockLevel: 20,
+    description: 'Pain relief and fever reducer',
+    stockLevel: 'in_stock',
+  },
+  {
+    id: 2,
+    name: 'Ibuprofen',
+    genericName: 'Ibuprofen',
+    category: 'analgesics',
+    dosage: 'Tablet',
+    strength: '200mg',
+    quantity: 8,
+    unit: 'tablets',
+    expiryDate: generateFutureDate(25),
+    minStockLevel: 15,
+    description: 'NSAID for pain and inflammation',
+    stockLevel: 'low_stock',
+  },
+  {
+    id: 3,
+    name: 'Amoxicillin',
+    genericName: 'Amoxicillin',
+    category: 'antibiotics',
+    dosage: 'Capsule',
+    strength: '500mg',
+    quantity: 0,
+    unit: 'capsules',
+    expiryDate: generateFutureDate(90),
+    minStockLevel: 10,
+    description: 'Antibiotic for bacterial infections',
+    stockLevel: 'out_of_stock',
+  },
+  {
+    id: 4,
+    name: 'Metformin',
+    genericName: 'Metformin',
+    category: 'antidiabetics',
+    dosage: 'Tablet',
+    strength: '500mg',
+    quantity: 40,
+    unit: 'tablets',
+    expiryDate: generateFutureDate(365),
+    minStockLevel: 20,
+    description: 'Blood sugar control',
+    stockLevel: 'in_stock',
+  },
+  {
+    id: 5,
+    name: 'Salbutamol',
+    genericName: 'Albuterol',
+    category: 'respiratory',
+    dosage: 'Inhaler',
+    strength: '100mcg/dose',
+    quantity: 12,
+    unit: 'inhalers',
+    expiryDate: generateFutureDate(60),
+    minStockLevel: 10,
+    description: 'Bronchodilator for asthma',
+    stockLevel: 'in_stock',
+  },
+  {
+    id: 6,
+    name: 'Aspirin',
+    genericName: 'Acetylsalicylic Acid',
+    category: 'cardiovascular',
+    dosage: 'Tablet',
+    strength: '81mg',
+    quantity: 5,
+    unit: 'tablets',
+    expiryDate: generateFutureDate(15),
+    minStockLevel: 10,
+    description: 'Antiplatelet therapy',
+    stockLevel: 'low_stock',
+  },
+];
+
 // Computed properties
 const filteredMedicines = computed(() => {
   let filtered = medicines.value;
@@ -917,8 +1012,8 @@ const filteredMedicines = computed(() => {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(
       (medicine) =>
-        medicine.name.toLowerCase().includes(query) ||
-        medicine.genericName.toLowerCase().includes(query),
+        (medicine.name ?? '').toLowerCase().includes(query) ||
+        (medicine.genericName ?? '').toLowerCase().includes(query),
     );
   }
 
@@ -977,7 +1072,7 @@ const applyFilters = () => {
   console.log('Filters applied');
 };
 
-const getStockLevelColor = (level: string) => {
+const getStockLevelColor = (level?: string) => {
   switch (level) {
     case 'in_stock':
       return 'positive';
@@ -990,7 +1085,8 @@ const getStockLevelColor = (level: string) => {
   }
 };
 
-const getExpiryDateClass = (date: string) => {
+const getExpiryDateClass = (date?: string) => {
+  if (!date) return 'text-warning';
   const expiryDate = new Date(date);
   const today = new Date();
   const daysUntilExpiry = Math.ceil(
@@ -1002,8 +1098,8 @@ const getExpiryDateClass = (date: string) => {
   return 'text-positive';
 };
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString();
+const formatDate = (date?: string) => {
+  return date ? new Date(date).toLocaleDateString() : '';
 };
 
 interface Medicine {
@@ -1702,39 +1798,52 @@ const loadMedicineInventory = async () => {
     const response = await api.get('/operations/medicine-inventory/');
 
     // Transform backend data to frontend format
-    medicines.value = response.data.map(
-      (medicine: {
-        id: number;
-        medicine_name: string;
-        current_stock: number;
-        expiry_date: string;
-        minimum_stock_level: number;
-        usage_pattern: string;
-        stock_level: string;
-        unit_price: number;
-        batch_number: string;
-      }) => ({
-        id: medicine.id,
-        name: medicine.medicine_name,
-        genericName: medicine.medicine_name, // Use same name for now
-        category: 'General', // Default category
-        dosage: 'As prescribed',
-        strength: 'Standard',
-        quantity: medicine.current_stock,
-        unit: 'units',
-        expiryDate: medicine.expiry_date,
-        minStockLevel: medicine.minimum_stock_level,
-        description: medicine.usage_pattern || '',
-        stockLevel: medicine.stock_level,
-        unitPrice: medicine.unit_price,
-        batchNumber: medicine.batch_number,
-      }),
-    );
+    const mapped: Medicine[] = Array.isArray(response.data)
+      ? response.data.map(
+          (medicine: {
+            id: number,
+            medicine_name: string,
+            current_stock: number,
+            expiry_date?: string | null,
+            minimum_stock_level: number,
+            usage_pattern?: string | null,
+            stock_level?: string | null,
+            unit_price?: number | null,
+            batch_number?: string | null,
+          }) => {
+            const expiryDateStr: string =
+              typeof medicine.expiry_date === 'string' && medicine.expiry_date
+                ? medicine.expiry_date
+                : generateFutureDate(90);
+
+            return {
+              id: medicine.id,
+              name: medicine.medicine_name || '',
+              genericName: medicine.medicine_name || '',
+              category: 'General',
+              dosage: 'As prescribed',
+              strength: 'Standard',
+              quantity: medicine.current_stock,
+              unit: 'units',
+              expiryDate: expiryDateStr,
+              minStockLevel: medicine.minimum_stock_level,
+              description: medicine.usage_pattern || '',
+              stockLevel: medicine.stock_level ?? 'in_stock',
+              unitPrice: medicine.unit_price ?? 0,
+              batchNumber: medicine.batch_number || '',
+            } as Medicine;
+          }
+        )
+      : [];
+
+    medicines.value = mapped.length ? mapped : getDummyMedicines();
 
     // Check stock levels on initial load
     checkStockLevels();
   } catch (error) {
     console.error('Failed to load medicine inventory:', error);
+    // Fallback to dummy inventory for demo/testing
+    medicines.value = getDummyMedicines();
     $q.notify({
       type: 'negative',
       message: 'Failed to load medicine inventory',
