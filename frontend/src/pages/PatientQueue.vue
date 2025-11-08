@@ -803,7 +803,6 @@ const notifyQueueUpdate = (source: string, position?: number | string, waitMins?
   }
 }
 
-// (duplicate removed) original joinQueue above now triggers notification
 </script>
 
 <style scoped>

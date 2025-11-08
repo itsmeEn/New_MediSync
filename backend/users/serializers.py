@@ -236,16 +236,17 @@ class TwoFactorLoginSerializer(serializers.Serializer):
     """
     email = serializers.EmailField(required=True)
     otp_code = serializers.CharField(
-        max_length=6,
-        min_length=6,
+        max_length=16,
+        min_length=4,
         required=True,
-        help_text="6-digit OTP code from authenticator app"
+        help_text="Alphanumeric OTP code sent to your email"
     )
 
     def validate_otp_code(self, value):
-        """Validate that OTP code is 6 digits"""
-        if not value.isdigit():
-            raise serializers.ValidationError("OTP code must contain only digits.")
+        """Validate that OTP code is alphanumeric (letters and numbers)."""
+        import re
+        if not re.match(r'^[A-Za-z0-9]+$', value):
+            raise serializers.ValidationError("OTP code must contain only letters and numbers.")
         return value
 
 

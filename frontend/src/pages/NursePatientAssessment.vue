@@ -71,36 +71,36 @@
                   <div class="col-12">
                     <div class="text-subtitle1 text-bold">Vitals</div>
                   </div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.bp" label="Blood Pressure" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.hr" label="Heart Rate" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.rr" label="Respiratory Rate" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.temp" label="Temperature" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.o2" label="Oxygen Saturation" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.weight" label="Weight" outlined dense :rules="[val => !!val || 'Required']"/></div>
-                  <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.height" label="Height" outlined dense :rules="[val => !!val || 'Required']"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.bp" label="Blood Pressure" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.hr" label="Heart Rate" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.rr" label="Respiratory Rate" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.temp" label="Temperature" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.o2" label="Oxygen Saturation" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.weight" label="Weight" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-4"><q-input v-model="intakeForm.height" label="Height" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[val => !!val || 'Required', lenRule(limits.vitalsMax)]"/></div>
                 </div>
 
                 <div class="row q-col-gutter-md q-mt-sm">
-                  <div class="col-12 col-md-6"><q-input v-model="intakeForm.chiefComplaint" label="Chief Complaint" type="textarea" outlined dense :rules="[val => !!val || 'Required']"/></div>
+      <div class="col-12 col-md-6"><q-input v-model="intakeForm.chiefComplaint" label="Chief Complaint" type="textarea" rows="3" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[val => !!val || 'Required', lenRule(limits.narrativeMax)]"/></div>
                   <div class="col-12 col-md-6">
                     <div class="q-mb-xs">Pain Score (0-10)</div>
-                    <q-slider v-model="intakeForm.painScore" :min="0" :max="10" color="primary"/>
+      <q-input v-model="intakeForm.painScore" label="Pain (0–10 narrative)" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/>
                   </div>
                 </div>
 
                 <div class="q-mt-md">
                   <div class="text-subtitle1 text-bold">Allergies</div>
                   <div v-for="(a, idx) in intakeForm.allergies" :key="idx" class="row q-col-gutter-sm q-mt-xs">
-                    <div class="col-12 col-sm-5"><q-input v-model="a.name" label="Allergen" outlined dense :rules="[v=>!!v||'Required']"/></div>
-                    <div class="col-12 col-sm-5"><q-input v-model="a.reaction" label="Reaction" outlined dense :rules="[v=>!!v||'Required']"/></div>
+      <div class="col-12 col-sm-5"><q-input v-model="a.name" label="Allergen" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[v=>!!v||'Required', lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-5"><q-input v-model="a.reaction" label="Reaction" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[v=>!!v||'Required', lenRule(limits.narrativeMax)]"/></div>
                     <div class="col-12 col-sm-2"><q-btn flat icon="delete" color="negative" @click="removeAllergy(idx)"/></div>
                   </div>
                   <q-btn flat icon="add" label="Add Allergy" color="primary" class="q-mt-sm" @click="addAllergy"/>
                 </div>
 
                 <div class="row q-col-gutter-md q-mt-md">
-                  <div class="col-12 col-md-6"><q-select v-model="intakeForm.mentalStatus" :options="mentalStatusOptions" label="Mental Status" emit-value map-options outlined dense :rules="[v=>!!v||'Required']"/></div>
-                  <div class="col-12 col-md-6"><q-input v-model="intakeForm.fallRisk" label="Fall Risk Score" outlined dense :rules="[v=>!!v||'Required']"/></div>
+      <div class="col-12 col-md-6"><q-input v-model="intakeForm.mentalStatus" label="Mental Status (narrative)" type="textarea" rows="3" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[v=>!!v||'Required', lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-md-6"><q-input v-model="intakeForm.fallRisk" label="Fall Risk Score (narrative)" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[v=>!!v||'Required', lenRule(limits.vitalsMax)]"/></div>
                 </div>
 
                 <div class="row q-gutter-sm q-mt-md">
@@ -112,14 +112,14 @@
               <!-- Graphic Records / Flow Sheets (Modal) -->
               <div v-if="selectedPatient && selectedForm === 'flow'" class="q-gutter-md">
                 <div class="row q-col-gutter-md">
-                  <div class="col-12 col-md-4"><q-input v-model="newFlowEntry.timestamp" label="Time" type="datetime-local" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newFlowEntry.bp" label="BP" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newFlowEntry.hr" label="HR" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-2"><q-input v-model.number="newFlowEntry.pain" label="Pain" type="number" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model.number="newFlowEntry.intake" label="Intake (mL)" type="number" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model.number="newFlowEntry.output" label="Output (mL)" type="number" outlined dense/></div>
-                  <div class="col-12"><q-input v-model="newFlowEntry.siteCheck" label="Site Check Notes" outlined dense/></div>
-                  <div class="col-12"><q-input v-model="newFlowEntry.interventions" label="Interventions" outlined dense/></div>
+      <div class="col-12 col-md-4"><q-input v-model="newFlowEntry.timestamp" label="Time" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newFlowEntry.bp" label="BP" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newFlowEntry.hr" label="HR" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newFlowEntry.pain" label="Pain" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newFlowEntry.intake" label="Intake (mL)" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newFlowEntry.output" label="Output (mL)" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12"><q-input v-model="newFlowEntry.siteCheck" label="Site Check Notes" type="textarea" rows="3" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12"><q-input v-model="newFlowEntry.interventions" label="Interventions" type="textarea" rows="3" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
                 </div>
                 <div class="row q-gutter-sm q-mt-sm">
                   <q-btn color="primary" label="Add Entry" @click="addFlowEntry"/>
@@ -149,11 +149,11 @@
               <!-- Medication Administration Record (MAR) (Modal) -->
               <div v-if="selectedPatient && selectedForm === 'mar'" class="q-gutter-md">
                 <div class="row q-col-gutter-md">
-                  <div class="col-12 col-md-4"><q-input v-model="newMarEntry.datetime" label="Date/Time Administered" type="datetime-local" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newMarEntry.medName" label="Medication Name" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newMarEntry.dose" label="Dose" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newMarEntry.route" label="Route" outlined dense/></div>
-                  <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newMarEntry.nurseId" label="Nurse Initials/ID" outlined dense/></div>
+      <div class="col-12 col-md-4"><q-input v-model="newMarEntry.datetime" label="Date/Time Administered" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newMarEntry.medName" label="Medication Name" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newMarEntry.dose" label="Dose" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-2"><q-input v-model="newMarEntry.route" label="Route" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6 col-md-3"><q-input v-model="newMarEntry.nurseId" label="Nurse Initials/ID" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
                 </div>
                 <div class="row q-gutter-sm q-mt-sm">
                   <q-btn color="primary" label="Add Record" @click="addMarEntry"/>
@@ -187,16 +187,16 @@
               <!-- Discharge Checklist (Modal) -->
               <div v-if="selectedPatient && selectedForm === 'discharge'" class="q-gutter-md">
                 <div class="row q-col-gutter-md">
-                  <div class="col-12 col-sm-6"><q-toggle v-model="dischargeForm.verbalUnderstands" label="Patient verbalizes understanding"/></div>
-                  <div class="col-12 col-sm-6"><q-toggle v-model="dischargeForm.writtenProvided" label="Written instructions provided"/></div>
-                  <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.followUpDate" label="Follow-up Date" type="date" outlined dense/></div>
-                  <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.followUpTime" label="Follow-up Time" type="time" outlined dense/></div>
-                  <div class="col-12"><q-input v-model="dischargeForm.equipmentNeeds" label="Equipment Needs" type="textarea" outlined dense/></div>
-                  <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.finalBP" label="Final BP" outlined dense/></div>
-                  <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.finalHR" label="Final HR" outlined dense/></div>
-                  <div class="col-12"><q-input v-model="dischargeForm.transportationStatus" label="Transportation Status" outlined dense/></div>
-                  <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.nurseId" label="Nurse Signature/ID" outlined dense/></div>
-                  <div class="col-12 col-sm-6"><q-toggle v-model="dischargeForm.patientAcknowledged" label="Patient Signature/Acknowledgment"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.verbalUnderstands" label="Patient verbalizes understanding" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.writtenProvided" label="Written instructions provided" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.followUpDate" label="Follow-up Date" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.followUpTime" label="Follow-up Time" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12"><q-input v-model="dischargeForm.equipmentNeeds" label="Equipment Needs" type="textarea" rows="3" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.finalBP" label="Final BP" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.finalHR" label="Final HR" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12"><q-input v-model="dischargeForm.transportationStatus" label="Transportation Status" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.nurseId" label="Nurse Signature/ID" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.vitalsMax }" :rules="[lenRule(limits.vitalsMax)]"/></div>
+      <div class="col-12 col-sm-6"><q-input v-model="dischargeForm.patientAcknowledged" label="Patient Signature/Acknowledgment" type="textarea" rows="2" outlined dense :input-attrs="{ maxlength: limits.narrativeMax }" :rules="[lenRule(limits.narrativeMax)]"/></div>
                 </div>
                 <div class="row q-gutter-sm q-mt-sm">
                   <q-btn color="primary" label="Save" @click="saveDischarge"/>
@@ -1092,7 +1092,7 @@ const loadIntake = async () => {
       weight: String(d.weight_kg ?? ''),
       height: String(d.height_cm ?? ''),
       chiefComplaint: String(d.chief_complaint || ''),
-      painScore: Number(d.pain_score ?? 0),
+      painScore: String(d.pain_score ?? ''),
       allergies: Array.isArray(d.allergies) ? d.allergies.map((a: ApiAllergy) => ({ name: a.name ?? a.substance ?? '', reaction: a.reaction ?? '' })) : [],
       mentalStatus: String(d.mental_status || ''),
       fallRisk: String(d.fall_risk_score ?? '')
@@ -1120,9 +1120,9 @@ const loadFlowSheet = async () => {
       timestamp: String(e.time_of_reading || ''),
       bp: String((e.repeated_vitals || {}).bp || ''),
       hr: String((e.repeated_vitals || {}).hr ?? ''),
-      pain: Number((e.repeated_vitals || {}).pain ?? 0),
-      intake: Number(e.intake_ml ?? 0),
-      output: Number(e.output_ml ?? 0),
+      pain: String((e.repeated_vitals || {}).pain ?? ''),
+      intake: String(e.intake_ml ?? ''),
+      output: String(e.output_ml ?? ''),
       siteCheck: String(e.site_checks || ''),
       interventions: Array.isArray(e.nursing_interventions) ? (e.nursing_interventions.join(', ')) : String(e.nursing_interventions || '')
     }))
@@ -1203,8 +1203,8 @@ const loadDischarge = async () => {
     const d = res.data?.data || {}
     const vit = d.discharge_vitals || {}
     dischargeForm.value = {
-      verbalUnderstands: Boolean(d.understanding_confirmed || false),
-      writtenProvided: Boolean(d.written_instructions_provided || false),
+      verbalUnderstands: d.understanding_confirmed ? 'Yes' : 'No',
+      writtenProvided: d.written_instructions_provided ? 'Yes' : 'No',
       followUpDate: '',
       followUpTime: '',
       equipmentNeeds: Array.isArray(d.equipment_needs) ? d.equipment_needs.join(', ') : String(d.equipment_needs || ''),
@@ -1212,7 +1212,7 @@ const loadDischarge = async () => {
       finalHR: String(vit.hr ?? ''),
       transportationStatus: String(d.transportation_status || ''),
       nurseId: String(d.nurse_signature || ''),
-      patientAcknowledged: Boolean(d.patient_acknowledgment || false)
+      patientAcknowledged: d.patient_acknowledgment ? 'Yes' : 'No'
     }
   } catch (e) {
     console.warn('Failed to fetch discharge', e)
@@ -1339,16 +1339,10 @@ watch(registrationCompleted, (val) => { if (val && selectedPatient.value) loadDe
 // Intake & Assessment
 const intakeForm = ref({
   bp: '', hr: '', rr: '', temp: '', o2: '', weight: '', height: '',
-  chiefComplaint: '', painScore: 0,
+  chiefComplaint: '', painScore: '',
   allergies: [] as Array<{ name: string; reaction: string }>,
   mentalStatus: '', fallRisk: ''
 })
-const mentalStatusOptions = [
-  { label: 'Alert and Oriented', value: 'AAOx3' },
-  { label: 'Disoriented', value: 'disoriented' },
-  { label: 'Lethargic', value: 'lethargic' },
-  { label: 'Unresponsive', value: 'unresponsive' }
-]
 const addAllergy = () => {
   intakeForm.value.allergies.push({ name: '', reaction: '' })
 }
@@ -1356,12 +1350,35 @@ const removeAllergy = (idx: number) => {
   intakeForm.value.allergies.splice(idx, 1)
 }
 const resetIntake = () => {
-  intakeForm.value = { bp: '', hr: '', rr: '', temp: '', o2: '', weight: '', height: '', chiefComplaint: '', painScore: 0, allergies: [], mentalStatus: '', fallRisk: '' }
+  intakeForm.value = { bp: '', hr: '', rr: '', temp: '', o2: '', weight: '', height: '', chiefComplaint: '', painScore: '', allergies: [], mentalStatus: '', fallRisk: '' }
 }
 const ensureDemographicsBeforeSubmit = (): boolean => {
   if (!demographics.value) { $q.notify({ type: 'warning', message: 'Load demographics before submitting the form.' }); return false }
   return true
 }
+// Shared helpers for narrative parsing and validation
+function extractFirstNumber(text: string | number | null | undefined): number |
+  null {
+  const s = String(text ?? '').trim()
+  if (!s) return null
+  const m = s.match(/-?\d+(?:\.\d+)?/)
+  return m ? Number(m[0]) : null
+}
+function parseBooleanFromText(text: string | boolean | null | undefined): boolean {
+  if (typeof text === 'boolean') return text
+  const s = String(text ?? '').toLowerCase()
+  if (!s.trim()) return false
+  if (/(yes|true|confirmed|acknowledged|understands|provided)/.test(s)) return true
+  if (/(no|false|denied|not provided|does not|did not)/.test(s)) return false
+  return Boolean(s.trim())
+}
+const limits = {
+  vitalsMax: 120,
+  narrativeMax: 500,
+  longMax: 1000
+}
+const lenRule = (max: number) => (v: string) => (String(v || '').length <= max) || `Max ${max} characters`
+
 const saveIntake = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
   if (!ensureDemographicsBeforeSubmit()) return
@@ -1439,19 +1456,19 @@ function buildIntakePayload(): Record<string, unknown> {
   return {
     vitals: {
       bp: intakeForm.value.bp,
-      hr: Number(intakeForm.value.hr),
-      rr: Number(intakeForm.value.rr),
-      temp_c: Number(intakeForm.value.temp),
-      o2_sat: Number(intakeForm.value.o2),
+      hr: extractFirstNumber(intakeForm.value.hr) ?? 0,
+      rr: extractFirstNumber(intakeForm.value.rr) ?? 0,
+      temp_c: extractFirstNumber(intakeForm.value.temp) ?? 0,
+      o2_sat: extractFirstNumber(intakeForm.value.o2) ?? 0,
     },
-    weight_kg: Number(intakeForm.value.weight),
-    height_cm: Number(intakeForm.value.height),
+    weight_kg: extractFirstNumber(intakeForm.value.weight) ?? 0,
+    height_cm: extractFirstNumber(intakeForm.value.height) ?? 0,
     chief_complaint: intakeForm.value.chiefComplaint,
-    pain_score: Number(intakeForm.value.painScore),
+    pain_score: extractFirstNumber(intakeForm.value.painScore) ?? 0,
     allergies: (intakeForm.value.allergies || []).map((a) => ({ substance: a.name, reaction: a.reaction })),
     current_medications: [],
     mental_status: intakeForm.value.mentalStatus,
-    fall_risk_score: Number(intakeForm.value.fallRisk),
+    fall_risk_score: extractFirstNumber(intakeForm.value.fallRisk) ?? 0,
     assessed_at: new Date().toISOString(),
   }
 }
@@ -1470,10 +1487,10 @@ async function persistIntakeSnapshot(patientProfileIdNum: number): Promise<void>
 }
 
 // Flow Sheets
-type FlowEntry = { timestamp: string; bp: string; hr: string; pain: number; intake: number; output: number; siteCheck: string; interventions: string }
+type FlowEntry = { timestamp: string; bp: string; hr: string; pain: string; intake: string; output: string; siteCheck: string; interventions: string }
 const flowSheetEntries = ref<FlowEntry[]>([])
-const newFlowEntry = ref<FlowEntry>({ timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' })
-const addFlowEntry = () => { flowSheetEntries.value.push({ ...newFlowEntry.value }); newFlowEntry.value = { timestamp: '', bp: '', hr: '', pain: 0, intake: 0, output: 0, siteCheck: '', interventions: '' } }
+const newFlowEntry = ref<FlowEntry>({ timestamp: '', bp: '', hr: '', pain: '', intake: '', output: '', siteCheck: '', interventions: '' })
+const addFlowEntry = () => { flowSheetEntries.value.push({ ...newFlowEntry.value }); newFlowEntry.value = { timestamp: '', bp: '', hr: '', pain: '', intake: '', output: '', siteCheck: '', interventions: '' } }
 const removeFlowEntry = (idx: number) => { flowSheetEntries.value.splice(idx, 1) }
 const saveFlowSheet = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
@@ -1481,9 +1498,9 @@ const saveFlowSheet = async () => {
   try {
     const entries = (flowSheetEntries.value || []).map((e: FlowEntry) => ({
       time_of_reading: e.timestamp,
-      repeated_vitals: { bp: e.bp, hr: Number(e.hr), pain: Number(e.pain) },
-      intake_ml: Number(e.intake),
-      output_ml: Number(e.output),
+      repeated_vitals: { bp: e.bp, hr: extractFirstNumber(e.hr) ?? 0, pain: extractFirstNumber(e.pain) ?? 0 },
+      intake_ml: extractFirstNumber(e.intake) ?? 0,
+      output_ml: extractFirstNumber(e.output) ?? 0,
       site_checks: e.siteCheck,
       nursing_interventions: String(e.interventions || '').split(',').map((s: string) => s.trim()).filter(Boolean),
     }))
@@ -1556,8 +1573,8 @@ const educationTopicOptions: string[] = []
 
 // Discharge
 const dischargeForm = ref({
-  verbalUnderstands: false,
-  writtenProvided: false,
+  verbalUnderstands: '',
+  writtenProvided: '',
   followUpDate: '',
   followUpTime: '',
   equipmentNeeds: '',
@@ -1565,10 +1582,10 @@ const dischargeForm = ref({
   finalHR: '',
   transportationStatus: '',
   nurseId: '',
-  patientAcknowledged: false
+  patientAcknowledged: ''
 })
 const resetDischarge = () => {
-  dischargeForm.value = { verbalUnderstands: false, writtenProvided: false, followUpDate: '', followUpTime: '', equipmentNeeds: '', finalBP: '', finalHR: '', transportationStatus: '', nurseId: '', patientAcknowledged: false }
+  dischargeForm.value = { verbalUnderstands: '', writtenProvided: '', followUpDate: '', followUpTime: '', equipmentNeeds: '', finalBP: '', finalHR: '', transportationStatus: '', nurseId: '', patientAcknowledged: '' }
 }
 const saveDischarge = async () => {
   if (!selectedPatient.value) { $q.notify({ type: 'negative', message: 'Select a patient first' }); return }
@@ -1587,14 +1604,14 @@ const saveDischarge = async () => {
       discharged_at?: string
     }
     const payload: DischargePayload = {
-      discharge_vitals: { bp: dischargeForm.value.finalBP, hr: Number(dischargeForm.value.finalHR) },
-      understanding_confirmed: Boolean(dischargeForm.value.verbalUnderstands),
-      written_instructions_provided: Boolean(dischargeForm.value.writtenProvided),
+      discharge_vitals: { bp: dischargeForm.value.finalBP, hr: extractFirstNumber(dischargeForm.value.finalHR) ?? 0 },
+      understanding_confirmed: parseBooleanFromText(dischargeForm.value.verbalUnderstands),
+      written_instructions_provided: parseBooleanFromText(dischargeForm.value.writtenProvided),
       follow_up_appointments_made: Boolean(dischargeForm.value.followUpDate || dischargeForm.value.followUpTime),
       equipment_needs: String(dischargeForm.value.equipmentNeeds || '').split(',').map((s: string) => s.trim()).filter(Boolean),
       transportation_status: dischargeForm.value.transportationStatus,
       nurse_signature: dischargeForm.value.nurseId,
-      patient_acknowledgment: Boolean(dischargeForm.value.patientAcknowledged),
+      patient_acknowledgment: parseBooleanFromText(dischargeForm.value.patientAcknowledged),
     }
     if (payload.understanding_confirmed) {
       payload.discharged_at = new Date().toISOString()

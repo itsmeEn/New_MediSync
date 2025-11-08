@@ -29,6 +29,10 @@ const routes: RouteRecordRaw[] = [
     path: '/verification',
     component: () => import('pages/VerificationPage.vue'),
   },
+  {
+    path: '/otp-verify',
+    component: () => import('pages/OtpVerifyPage.vue'),
+  },
   // Add landing route
   {
     path: '/landing',
@@ -124,6 +128,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/patient-settings',
     component: () => import('pages/PatientSettings.vue')
+  },
+  {
+    path: '/terms',
+    name: 'TermsAndConditions',
+    component: () => import('pages/TermsAndConditions.vue')
   },
   {
     path: '/home',
