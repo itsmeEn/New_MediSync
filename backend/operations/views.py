@@ -1042,7 +1042,7 @@ def patient_appointments(request):
 def patient_dashboard_summary(request):
     """
     Unified patient dashboard summary for a department.
-    Returns string fields: nowServing, currentPatient, myPosition.
+    Returns string fields: nowServing, currentPatient, myPosition, myQueueStatus.
     - nowServing: unified index of the first patient (1 if any)
     - currentPatient: name of the patient currently at the top of the unified queue
     - myPosition: the authenticated patient's unified position in the queue
@@ -1106,7 +1106,8 @@ def patient_dashboard_summary(request):
         summary = {
             'nowServing': '',
             'currentPatient': '',
-            'myPosition': ''
+            'myPosition': '',
+            'myQueueStatus': ''
         }
 
         if items_sorted:
@@ -1148,6 +1149,37 @@ def patient_dashboard_summary(request):
         except Exception:
             pass
 
+        # Derive patient-visible queue status string
+        my_status_str = ''
+        try:
+            my_queue_entry = PriorityQueue.objects.filter(
+                patient__user=request.user,
+                department=department,
+                status__in=['waiting', 'in_progress']
+            ).first()
+            if not my_queue_entry:
+                my_queue_entry = QueueManagement.objects.filter(
+                    patient__user=request.user,
+                    department=department,
+                    status__in=['waiting', 'in_progress']
+                ).first()
+
+            if my_queue_entry:
+                if my_queue_entry.status == 'in_progress':
+                    my_status_str = 'Currently being served'
+                else:
+                    # Next-in-line if unified position is 1
+                    if summary.get('myPosition') == '1':
+                        my_status_str = 'Next-in-line'
+                    else:
+                        my_status_str = 'Waiting-in-line'
+            else:
+                # Fallback when not in queue
+                my_status_str = 'Waiting-in-line'
+        except Exception:
+            my_status_str = 'Waiting-in-line'
+
+        summary['myQueueStatus'] = my_status_str
         summary['estimatedWaitMins'] = estimated_wait_minutes
         summary['progressValue'] = 0
 

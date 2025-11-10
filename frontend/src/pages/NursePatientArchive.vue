@@ -18,10 +18,7 @@
         <!-- Main archive card (search, results) -->
         <q-card class="white-card archive-card section-spacing">
           <q-card-section class="card-header">
-            <div class="row items-center justify-between">
-              <h5 class="card-title q-mb-none">Patient Archive</h5>
-              <q-btn color="primary" icon="add" label="New Archive" @click="openCreateDialog" />
-            </div>
+            <h5 class="card-title">Patient Archive</h5>
           </q-card-section>
 
           <q-card-section class="card-content">
@@ -89,48 +86,7 @@
                 <q-separator/>
                 <q-card-actions align="right">
                   <q-btn flat label="Close" color="primary" v-close-popup/>
-                  <q-btn flat label="Edit" color="primary" :disable="!selectedArchive" @click="openEditDialog"/>
-                  <q-btn flat label="Unarchive" color="warning" :disable="!selectedArchive" @click="unarchiveSelected"/>
                   <q-btn flat label="Export" color="secondary" @click="selectedArchive && exportArchive(selectedArchive)"/>
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
-            <q-dialog v-model="showCreateDialog">
-              <q-card style="max-width: 700px; width: 90vw">
-                <q-card-section>
-                  <div class="text-h6">Create Archive</div>
-                </q-card-section>
-                <q-separator/>
-                <q-card-section class="q-gutter-md">
-                  <q-input v-model="createForm.patient_id" label="Patient ID" outlined dense/>
-                  <q-input v-model="createForm.assessment_type" label="Assessment Type" outlined dense/>
-                  <q-input v-model="createForm.medical_condition" label="Medical Condition" outlined dense/>
-                  <q-input v-model="createForm.hospital_name" label="Hospital Name" outlined dense/>
-                  <q-input v-model="createForm.assessment_data" type="textarea" label="Assessment Data (JSON)" outlined dense autogrow/>
-                </q-card-section>
-                <q-separator/>
-                <q-card-actions align="right">
-                  <q-btn flat label="Cancel" color="primary" v-close-popup/>
-                  <q-btn flat label="Save" color="primary" :loading="createLoading" @click="createArchive"/>
-                </q-card-actions>
-              </q-card>
-            </q-dialog>
-            <q-dialog v-model="showEditDialog">
-              <q-card style="max-width: 700px; width: 90vw">
-                <q-card-section>
-                  <div class="text-h6">Edit Archive</div>
-                </q-card-section>
-                <q-separator/>
-                <q-card-section class="q-gutter-md">
-                  <q-input v-model="editForm.assessment_type" label="Assessment Type" outlined dense/>
-                  <q-input v-model="editForm.medical_condition" label="Medical Condition" outlined dense/>
-                  <q-input v-model="editForm.hospital_name" label="Hospital Name" outlined dense/>
-                  <q-input v-model="editForm.assessment_data" type="textarea" label="Assessment Data (JSON)" outlined dense autogrow/>
-                </q-card-section>
-                <q-separator/>
-                <q-card-actions align="right">
-                  <q-btn flat label="Cancel" color="primary" v-close-popup/>
-                  <q-btn flat label="Update" color="primary" :loading="editLoading" @click="updateArchive"/>
                 </q-card-actions>
               </q-card>
             </q-dialog>
@@ -142,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useQuasar } from 'quasar'
 import NurseHeader from 'components/NurseHeader.vue'
 import NurseSidebar from 'components/NurseSidebar.vue'
@@ -255,14 +211,14 @@ const viewArchive = async (rec: ArchiveRecord) => {
 const exportArchive = async (rec: ArchiveRecord) => {
   try {
     const res = await api.get(`/operations/archives/${rec.id}/export/`, { responseType: 'blob' })
-    const blob = new Blob([res.data], { type: 'application/pdf' })
+    const blob = new Blob([res.data], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `archive_${rec.id}.pdf`
+    a.download = `archive_${rec.id}.json`
     a.click()
     URL.revokeObjectURL(url)
-    $q.notify({ type: 'positive', message: 'Archive exported (PDF)', position: 'top' })
+    $q.notify({ type: 'positive', message: 'Archive exported', position: 'top' })
   } catch (err) {
     console.error('Export failed:', err)
     $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
@@ -285,151 +241,6 @@ const exportFilteredArchives = async () => {
     $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
   }
 }
-
-// Create/Edit/Unarchive logic
-const showCreateDialog = ref(false)
-const createLoading = ref(false)
-const createForm = ref<{ patient_id: string; assessment_type: string; medical_condition: string; hospital_name: string; assessment_data: string }>({
-  patient_id: '',
-  assessment_type: '',
-  medical_condition: '',
-  hospital_name: '',
-  assessment_data: ''
-})
-
-const openCreateDialog = () => { showCreateDialog.value = true }
-
-const createArchive = async () => {
-  try {
-    createLoading.value = true
-    const pid = Number(createForm.value.patient_id)
-    if (!pid || Number.isNaN(pid)) {
-      $q.notify({ type: 'negative', message: 'Invalid patient ID', position: 'top' })
-      return
-    }
-    let parsed: unknown = {}
-    if (createForm.value.assessment_data && createForm.value.assessment_data.trim()) {
-      try { parsed = JSON.parse(createForm.value.assessment_data) } catch {
-        $q.notify({ type: 'negative', message: 'Assessment Data must be valid JSON', position: 'top' })
-        return
-      }
-    }
-    const payload = {
-      patient_id: pid,
-      assessment_type: createForm.value.assessment_type || 'General',
-      medical_condition: createForm.value.medical_condition || '',
-      hospital_name: createForm.value.hospital_name || '',
-      assessment_data: parsed
-    }
-    await api.post('/operations/archives/create/', payload);
-    $q.notify({ type: 'positive', message: 'Archive created', position: 'top' })
-    showCreateDialog.value = false
-    await searchArchives()
-    createForm.value = { patient_id: '', assessment_type: '', medical_condition: '', hospital_name: '', assessment_data: '' }
-  } catch (err) {
-    console.error('Create archive failed:', err)
-    let msg = 'Create archive failed'
-    const e = err as { response?: { data?: { error?: unknown } }, message?: unknown }
-    const apiErr = e?.response?.data?.error
-    if (typeof apiErr === 'string' && apiErr.trim()) {
-      msg = apiErr
-    } else if (apiErr) {
-      try { msg = JSON.stringify(apiErr) } catch { msg = 'Create archive failed' }
-    } else if (typeof e?.message === 'string' && e.message.trim()) {
-      msg = e.message
-    }
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    createLoading.value = false
-  }
-}
-
-const showEditDialog = ref(false)
-const editLoading = ref(false)
-const editForm = ref<{ assessment_type: string; medical_condition: string; hospital_name: string; assessment_data: string }>({
-  assessment_type: '',
-  medical_condition: '',
-  hospital_name: '',
-  assessment_data: ''
-})
-
-const openEditDialog = () => {
-  if (!selectedArchive.value) return
-  editForm.value.assessment_type = selectedArchive.value.assessment_type || ''
-  editForm.value.medical_condition = selectedArchive.value.medical_condition || ''
-  editForm.value.hospital_name = selectedArchive.value.hospital_name || ''
-  editForm.value.assessment_data = JSON.stringify(selectedArchive.value.decrypted_assessment_data || {}, null, 2)
-  showEditDialog.value = true
-}
-
-const updateArchive = async () => {
-  if (!selectedArchive.value) return
-  try {
-    editLoading.value = true
-    let parsed: unknown = {}
-    if (editForm.value.assessment_data && editForm.value.assessment_data.trim()) {
-      try { parsed = JSON.parse(editForm.value.assessment_data) } catch {
-        $q.notify({ type: 'negative', message: 'Assessment Data must be valid JSON', position: 'top' })
-        return
-      }
-    }
-    const payload = {
-      assessment_type: editForm.value.assessment_type,
-      medical_condition: editForm.value.medical_condition,
-      hospital_name: editForm.value.hospital_name,
-      assessment_data: parsed
-    }
-    await api.put(`/operations/archives/${selectedArchive.value.id}/update/`, payload)
-    $q.notify({ type: 'positive', message: 'Archive updated', position: 'top' })
-    showEditDialog.value = false
-    await searchArchives()
-    await viewArchive(selectedArchive.value)
-  } catch (err) {
-    console.error('Update archive failed:', err)
-    let msg = 'Update archive failed'
-    const e = err as { response?: { data?: { error?: unknown } }, message?: unknown }
-    const apiErr = e?.response?.data?.error
-    if (typeof apiErr === 'string' && apiErr.trim()) {
-      msg = apiErr
-    } else if (apiErr) {
-      try { msg = JSON.stringify(apiErr) } catch { msg = 'Update archive failed' }
-    } else if (typeof e?.message === 'string' && e.message.trim()) {
-      msg = e.message
-    }
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  } finally {
-    editLoading.value = false
-  }
-}
-
-const unarchiveSelected = async () => {
-  if (!selectedArchive.value) return
-  try {
-    await api.post(`/operations/archives/${selectedArchive.value.id}/unarchive/`)
-    $q.notify({ type: 'positive', message: 'Record unarchived', position: 'top' })
-    showArchiveDetail.value = false
-    await searchArchives()
-  } catch (err) {
-    console.error('Unarchive failed:', err)
-    let msg = 'Unarchive failed'
-    const e = err as { response?: { data?: { error?: unknown } }, message?: unknown }
-    const apiErr = e?.response?.data?.error
-    if (typeof apiErr === 'string' && apiErr.trim()) {
-      msg = apiErr
-    } else if (apiErr) {
-      try { msg = JSON.stringify(apiErr) } catch { msg = 'Unarchive failed' }
-    } else if (typeof e?.message === 'string' && e.message.trim()) {
-      msg = e.message
-    }
-    $q.notify({ type: 'negative', message: msg, position: 'top' })
-  }
-}
-
-// Auto-load archives on page mount
-onMounted(() => {
-  // Load with current (empty) filters so users immediately see data
-  void searchArchives()
-})
 </script>
 
 <style scoped>

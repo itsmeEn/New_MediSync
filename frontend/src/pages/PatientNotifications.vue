@@ -425,6 +425,19 @@ onMounted(async () => {
     unreadCount.value = 0
   }
   setupMedicationWS()
+  // Refresh and focus queue when preferences update
+  const onPrefUpdated = (ev: Event) => {
+    try {
+      const detail = (ev as CustomEvent).detail
+      if (detail?.pref?.enabled) {
+        activeTab.value = 'queue'
+        void fetchNotifications()
+      }
+    } catch { /* ignore */ }
+  }
+  window.addEventListener('queue-preferences-updated', onPrefUpdated)
+  // Clean up listener on unmount
+  onUnmounted(() => window.removeEventListener('queue-preferences-updated', onPrefUpdated))
 })
 
 onUnmounted(() => {

@@ -1218,6 +1218,27 @@ const loadCompletedAssessments = () => {
   }
 };
 
+// Emit queue notification to patients (best-effort; server may ignore client-sent messages)
+const emitQueueNotification = (dept: string, payload?: Record<string, unknown>) => {
+  try {
+    const ws = queueWebSocket.value
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'queue_notification',
+        notification: {
+          event: 'next_called',
+          department: dept,
+          timestamp: new Date().toISOString(),
+          message: 'Next patient called',
+          ...payload
+        }
+      }))
+    }
+  } catch (e) {
+    console.debug('Non-fatal: failed to emit queue notification', e)
+  }
+}
+
 // Queue management methods
 const callNextPatient = async () => {
   try {
@@ -1230,6 +1251,8 @@ const callNextPatient = async () => {
       position: 'top'
     })
     await loadQueueData()
+    // Emit a queue notification event via WebSocket (best-effort)
+    emitQueueNotification(dept, { current_serving: data?.current_serving })
   } catch (error) {
     console.error('Failed to start queue processing:', error)
     $q.notify({ type: 'negative', message: 'Failed to start next patient', position: 'top' })
@@ -2099,7 +2122,7 @@ onUnmounted(() => {
   .location-text {
     font-size: 11px;
   }
-}
+} 
 
 .page-background {
   background: #f5f5f5;

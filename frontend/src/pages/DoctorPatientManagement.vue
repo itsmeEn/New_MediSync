@@ -924,22 +924,6 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
-    <!-- Archive Reason Dialog -->
-    <q-dialog v-model="showArchiveDialog">
-      <q-card style="min-width: 420px">
-        <q-card-section>
-          <div class="text-h6">Archive Patient Record</div>
-          <div class="text-subtitle2 text-grey-7">Optional: provide an archival reason</div>
-        </q-card-section>
-        <q-card-section>
-          <q-input v-model="archiveReason" type="textarea" label="Archival reason (optional)" autogrow />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="primary" v-close-popup />
-          <q-btn unelevated label="Archive" color="warning" @click="confirmArchive" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-layout>
 </template>
 
@@ -1004,10 +988,6 @@ type DoctorNotification = {
   created_at: string;
 };
 
-// Typed helpers for safer error handling and localStorage parsing
-type ApiError = { response?: { data?: { error?: unknown } }; message?: unknown };
-type StoredUser = { hospital_name?: string };
-
 // Reactive data
 const $q = useQuasar();
 const router = useRouter();
@@ -1063,11 +1043,6 @@ const loadNotifications = async (): Promise<void> => {
     $q.notify({ type: 'negative', message: 'Failed to load notifications' });
   }
 };
-
-// Archival dialog state
-const showArchiveDialog = ref(false);
-const archiveReason = ref('');
-const selectedPatientForArchive = ref<Patient | null>(null);
 
 // Nurse Intake dialog state
 const showNurseIntakeDialog = ref(false)
@@ -1232,68 +1207,45 @@ const openNurseIntake = async (patient: Patient): Promise<void> => {
   }
 }
 
-// Archive action from doctor patient list: prompt for optional reason
-const archivePatient = (patient: Patient): void => {
-  selectedPatientForArchive.value = patient
-  archiveReason.value = ''
-  showArchiveDialog.value = true
-}
-
-const confirmArchive = async (): Promise<void> => {
-  if (!selectedPatientForArchive.value) { $q.notify({ type: 'warning', message: 'No patient selected' }); return }
+// Inline archive action from doctor patient list
+const archivePatient = async (patient: Patient): Promise<void> => {
   try {
-    const patient = selectedPatientForArchive.value
     const patientUserIdNum = Number(patient.user_id ?? patient.id)
     if (!Number.isFinite(patientUserIdNum)) {
       throw new Error('Invalid patient ID')
     }
 
-    // Derive hospital name from patient or stored user profile
+    // Minimal assessment payload; nurses’ intake is primary source
+    const assessmentData: Record<string, unknown> = {
+      archived_at: new Date().toISOString(),
+      doctor_name: userProfile.value.full_name,
+      note: 'Archived from doctor patient list'
+    }
+
+    // Derive hospital name safely without relying on userProfile.hospital_name
     let hospitalName = patient.hospital || ''
     try {
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}') as StoredUser
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}') as Record<string, unknown>
       const maybeHospital = typeof storedUser.hospital_name === 'string' ? storedUser.hospital_name : ''
       hospitalName = hospitalName || maybeHospital
     } catch { /* ignore parse errors */ }
 
     const payload: Record<string, unknown> = {
       patient_id: patientUserIdNum,
-      assessment_type: 'full_record',
-      assessment_data: { actor: 'doctor', doctor_name: userProfile.value.full_name },
-      full_record: true,
+      assessment_type: 'intake',
+      assessment_data: assessmentData,
       medical_condition: patient.medical_condition || '',
       hospital_name: hospitalName,
       doctor_id: userProfile.value.id,
-      specialization: userProfile.value.specialization || 'General',
-      archival_reason: archiveReason.value || ''
+      specialization: userProfile.value.specialization || 'General'
     }
 
     await api.post('/operations/archives/create/', payload)
-
-    // Remove from active list immediately (no page refresh)
-    patients.value = patients.value.filter(p => (p.user_id ?? p.id) !== (patient.user_id ?? patient.id))
-
-    $q.notify({ type: 'positive', message: 'Patient archived and removed from list' })
-    showArchiveDialog.value = false
-    selectedPatientForArchive.value = null
-    archiveReason.value = ''
-    // Optional: navigate to archive view
-    // void router.push({ name: 'DoctorPatientArchive' })
+    $q.notify({ type: 'positive', message: 'Record archived' })
+    void router.push({ name: 'DoctorPatientArchive' })
   } catch (err) {
     console.error('Archive failed:', err)
-    let msg = 'Failed to archive record'
-    if (typeof err === 'object' && err !== null) {
-      const e = err as ApiError
-      const apiMsg = e.response?.data?.error
-      if (typeof apiMsg === 'string' && apiMsg.trim()) {
-        msg = apiMsg
-      } else if (typeof e.message === 'string' && e.message.trim()) {
-        msg = e.message
-      }
-    } else if (typeof err === 'string' && err.trim()) {
-      msg = err
-    }
-    $q.notify({ type: 'negative', message: String(msg) })
+    $q.notify({ type: 'negative', message: 'Failed to archive record' })
   }
 }
 

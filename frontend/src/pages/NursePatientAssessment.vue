@@ -1957,17 +1957,15 @@ async function archiveCurrentRecord() {
 
     const assessmentData: Record<string, unknown> = {
       ...(intakePayload || {}),
-      actor: 'nurse',
+      archived_at: new Date().toISOString(),
       nurse_name: userProfile.value.full_name,
       message: sendForm.value.message || ''
     };
 
     const payload: Record<string, unknown> = {
       patient_id: patientUserIdNum,
-      assessment_type: 'full_record',
+      assessment_type: 'intake',
       assessment_data: assessmentData,
-      full_record: true,
-      archival_reason: sendForm.value.message || '',
       medical_condition: rawPatient.medical_condition || '',
       hospital_name: userProfile.value.hospital_name || ''
     };
@@ -1977,9 +1975,7 @@ async function archiveCurrentRecord() {
     }
 
     await api.post('/operations/archives/create/', payload);
-    // Remove from active list immediately
-    patients.value = patients.value.filter(p => String(p.id ?? p.user_id) !== String(rawPatient.id ?? rawPatient.user_id))
-    $q.notify({ type: 'positive', message: 'Patient archived and removed from list' });
+    $q.notify({ type: 'positive', message: 'Record archived successfully' });
 
     // Optional: keep dialog open to allow sending right after archiving
   } catch (err: unknown) {
