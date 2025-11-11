@@ -159,8 +159,8 @@
                     <q-chip dense :color="patient.queue_type === 'priority' ? 'red' : 'blue'" text-color="white" class="q-mr-sm">
                       {{ patient.queue_type === 'priority' ? 'Priority' : 'Normal' }}
                     </q-chip>
-                    <q-chip dense color="teal" text-color="white" class="q-mr-sm">
-                      Pos #{{ idx + 1 }}
+                    <q-chip dense color="positive" text-color="white" class="q-mr-sm">
+                      Queue #{{ patient.queue_number ?? '—' }}
                     </q-chip>
                     <span class="text-grey-7">{{ patient.department }}</span>
                   </q-item-label>
@@ -999,10 +999,7 @@ const fetchUserProfile = async () => {
       email: userData.email,
     };
 
-    // Show notification if verification status changed to approved
-    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus);
-    }
+    // Removed module-level verification toast; banner is shown only once at login
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {
