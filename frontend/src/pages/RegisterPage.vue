@@ -169,7 +169,6 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import type { AxiosError } from 'axios';
 import HospitalSelection from '../components/HospitalSelection.vue';
-import { departmentOptions } from '../utils/departments';
 
 interface RegistrationFormData {
   full_name: string;

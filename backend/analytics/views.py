@@ -762,6 +762,11 @@ def generate_analytics_pdf(request):
     Generate standardized PDF report of analytics findings with hospital information,
     role-specific data, and consistent branding across doctor and nurse views
     """
+    # Ensure we reference module-level imports for binary buffers and ReportLab symbols
+    global io, base64
+    global SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
+    global getSampleStyleSheet, ParagraphStyle, inch, colors
+    global TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY, A4
     if not PDF_AVAILABLE:
         # Try lazy import to avoid hard 503
         try:
@@ -773,8 +778,10 @@ def generate_analytics_pdf(request):
             from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
             import matplotlib
             matplotlib.use('Agg')
-            import io
-            import base64
+            # Load io/base64 into globals to avoid local scope shadowing
+            import importlib
+            io = importlib.import_module('io')
+            base64 = importlib.import_module('base64')
             globals()['PDF_AVAILABLE'] = True
         except Exception:
             # Graceful HTML fallback when PDF libs are unavailable
@@ -913,12 +920,12 @@ def generate_analytics_pdf(request):
         # Add analytics sections with visualizations and interpretations
         add_analytics_sections_with_visualizations(story, analytics_data, styles)
 
-        # Interpretation section (narrative + AI interpretation)
+        # Insights section (narrative)
         try:
             add_data_interpretation_section(story, analytics_data, styles)
         except Exception:
             pass
-        add_ai_interpretation_section(story, analytics_data, styles)
+        # Removed legacy AI interpretation block; recommendations module covers this content
 
         # Factor analysis section
         try:
@@ -960,7 +967,10 @@ def generate_analytics_pdf(request):
         # Log detailed traceback to server console for debugging
         try:
             import traceback
-            print("[PDF Generation] Error generating PDF report:", str(e))
+            print(
+                f"[PDF Generation] Error generating PDF report | role={user_role} type={report_type}:",
+                str(e)
+            )
             print(traceback.format_exc())
         except Exception:
             pass
@@ -1039,6 +1049,8 @@ def get_hospital_information(user):
         'email': 'info@medisync.healthcare'  # Default email
     }
 
+    return hospital_info
+
 def normalize_gender_proportions(gender_data):
     """Validate and normalize gender proportions to ensure integrity.
 
@@ -1089,7 +1101,6 @@ def normalize_gender_proportions(gender_data):
         # Fallback to a safe default in case of any unexpected error
         return {'Male': 50.0, 'Female': 48.0, 'Other': 2.0}
 
-    return hospital_info
 
 def get_custom_styles():
     """
@@ -1503,8 +1514,14 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
                 story.append(Spacer(1, 10))
                 # Interpretation
                 if isinstance(age_data, dict) and age_data:
-                    dominant_age = max(age_data, key=age_data.get)
-                    story.append(Paragraph(f"Interpretation: Majority of patients fall in the {dominant_age} group.", content_style))
+                    # Safely determine dominant age group using only numeric values
+                    try:
+                        numeric_items = [(k, v) for k, v in age_data.items() if isinstance(v, (int, float))]
+                        dominant_age = max(numeric_items, key=lambda kv: kv[1])[0] if numeric_items else None
+                    except Exception:
+                        dominant_age = None
+                    if dominant_age:
+                        story.append(Paragraph(f"Interpretation: Majority of patients fall in the {dominant_age} group.", content_style))
             
             # Add text data
             if isinstance(age_data, dict):
@@ -1524,12 +1541,20 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
                 story.append(Spacer(1, 10))
                 # Interpretation
                 if isinstance(gender_data, dict) and gender_data:
-                    dominant_gender = max(gender_data, key=gender_data.get)
-                    story.append(Paragraph(f"Interpretation: {dominant_gender} segment is most represented.", content_style))
+                    # Normalize proportions and choose dominant gender safely
+                    normalized = normalize_gender_proportions(gender_data)
+                    try:
+                        numeric_items = [(k, v) for k, v in normalized.items() if isinstance(v, (int, float))]
+                        dominant_gender = max(numeric_items, key=lambda kv: kv[1])[0] if numeric_items else None
+                    except Exception:
+                        dominant_gender = None
+                    if dominant_gender:
+                        story.append(Paragraph(f"Interpretation: {dominant_gender} segment is most represented.", content_style))
             
             # Add text data
             if isinstance(gender_data, dict):
-                for gender, percentage in gender_data.items():
+                normalized = normalize_gender_proportions(gender_data)
+                for gender, percentage in normalized.items():
                     story.append(Paragraph(f"• {gender}: {percentage}%", content_style))
             story.append(Spacer(1, 15))
             story.append(PageBreak())
@@ -1591,12 +1616,31 @@ def add_analytics_sections_with_visualizations(story, analytics_data, styles):
         story.append(Paragraph("4. Illness Prediction Analysis", section_style))
         prediction = analytics_data['illness_prediction']
         
-        if 'association_result' in prediction:
-            story.append(Paragraph(f"Statistical Analysis: {prediction['association_result']}", content_style))
-        if 'chi_square_statistic' in prediction:
-            story.append(Paragraph(f"Chi-Square Statistic: {prediction['chi_square_statistic']}", content_style))
-        if 'p_value' in prediction:
-            story.append(Paragraph(f"P-Value: {prediction['p_value']}", content_style))
+        # Render a factor-based graph instead of chi-square/p-value text
+        story.append(Paragraph("Top Contributing Factors:", subsection_style))
+        illness_chart = create_illness_prediction_chart(prediction or {})
+        if illness_chart:
+            story.append(illness_chart)
+            story.append(Spacer(1, 10))
+            # Brief interpretation without statistical metrics
+            sig_factors = prediction.get('significant_factors') if isinstance(prediction, dict) else None
+            if isinstance(sig_factors, list) and sig_factors:
+                # Display the factor names without p-values
+                cleaned = []
+                for f in sig_factors[:3]:
+                    try:
+                        name = str(f)
+                        # Remove any parenthetical notes like "(p < 0.01)"
+                        if '(' in name:
+                            name = name.split('(')[0].strip()
+                        cleaned.append(name)
+                    except Exception:
+                        pass
+                if cleaned:
+                    story.append(Paragraph(
+                        f"Interpretation: Factors such as {', '.join(cleaned)} are driving predicted illness risk.",
+                        content_style
+                    ))
         story.append(Spacer(1, 15))
         story.append(PageBreak())
     
@@ -1964,82 +2008,6 @@ def add_citations_section(story, styles):
     for c in citations:
         story.append(Paragraph(f"• {c}", content_style))
     story.append(Spacer(1, 12))
-    story.append(Paragraph("AI-Based Interpretation", section_style))
-    
-    # Build cohesive interpretation paragraph covering requested determinants
-    has_demo = bool(analytics_data.get('patient_demographics'))
-    has_trends = bool(analytics_data.get('health_trends'))
-    has_med = bool(analytics_data.get('medication_analysis'))
-    has_illness = bool(analytics_data.get('illness_prediction'))
-    has_volume = bool(analytics_data.get('volume_prediction'))
-    has_surge = bool(analytics_data.get('surge_prediction'))
-    
-    data_quality_bits = []
-    if has_demo:
-        data_quality_bits.append("demographics coverage (age and gender)")
-    if has_trends:
-        data_quality_bits.append("weekly condition frequencies")
-    if has_med:
-        data_quality_bits.append("medication usage counts")
-    if has_volume:
-        data_quality_bits.append("forecast evaluation metrics")
-    if has_surge:
-        data_quality_bits.append("monthly surge forecasts")
-    
-    data_quality_clause = (
-        f"Data quality appears adequate with available {', '.join(data_quality_bits)}; "
-        "however, missing fields in some modules and aggregation at weekly/monthly granularity may introduce noise and partial completeness."
-        if data_quality_bits else
-        "Data quality is mixed, with limited coverage across modules; potential noise and incompleteness should be considered when interpreting results."
-    )
-    
-    feature_bits = []
-    if has_demo:
-        feature_bits.append("age distribution and gender proportions")
-    if has_trends:
-        feature_bits.append("condition prevalence and time-indexed counts")
-    if has_med:
-        feature_bits.append("medication frequency patterns and category shares")
-    if has_illness:
-        feature_bits.append("association statistics (e.g., chi-square, p-values)")
-    if has_volume:
-        feature_bits.append("error metrics such as MAE/RMSE")
-    if has_surge:
-        feature_bits.append("forecasted case trajectories")
-    
-    feature_clause = (
-        f"Feature selection emphasizes clinically salient signals—{', '.join(feature_bits)}—prioritized for interpretability and operational utility."
-        if feature_bits else
-        "Feature selection favors clinically salient variables, balancing interpretability with predictive power."
-    )
-    
-    model_clause = (
-        "Model architecture choices likely combine time-series forecasting for volume/surge trends with statistical associations for illness risks; "
-        "architectures favor parsimonious, robust designs tailored to healthcare data cadences."
-    )
-    
-    training_clause = (
-        "Training employs standard optimization practices (e.g., regularization, early stopping) with hyperparameters tuned via validation; "
-        "objective functions and learning rates are chosen to stabilize convergence while preserving signal from sparse or skewed cohorts."
-    )
-    
-    domain_clause = (
-        "Contextually, outputs align with hospital operations—capacity planning, chronic disease management, and medication stewardship—ensuring interpretations remain actionable within the clinical workflow."
-    )
-    
-    interpretation_text = (
-        f"{data_quality_clause} {feature_clause} {model_clause} {training_clause} {domain_clause}"
-    )
-    
-    story.append(Paragraph(interpretation_text, interpretation_style))
-    
-    # Present subsequent analytical observations or supplementary insights
-    story.append(Paragraph("Analytical Observations", subheader_style))
-    ai_insights = generate_ai_insights(analytics_data)
-    for insight in ai_insights:
-        story.append(Paragraph(f"• {insight}", content_style))
-    
-    story.append(Spacer(1, 20))
 
 def generate_ai_insights(analytics_data):
     """Generate AI insights based on analytics data"""
@@ -2274,12 +2242,18 @@ def doctor_recommendations(request):
         return Response({'error': 'Forbidden: doctor role required'}, status=status.HTTP_403_FORBIDDEN)
     data = get_doctor_analytics_data(request.user)
     suggestions = build_recommendations(data, role='doctor')
+    # Include structured, machine-readable actions for downstream consumers
+    model = MediSyncAIInsights()
+    structured = model.generate_structured_recommendations(data)
+    doctor_actions = [a for a in structured.get('actions', []) if a.get('role') == 'doctor']
     return Response({
         'success': True,
         'role': 'doctor',
         'version': '1.0.0',
         'timestamp': timezone.now().isoformat(),
         'ai_suggestions': suggestions,
+        'structured_actions': structured,
+        'role_filtered_actions': doctor_actions,
     })
 
 
@@ -2291,12 +2265,18 @@ def nurse_recommendations(request):
         return Response({'error': 'Forbidden: nurse role required'}, status=status.HTTP_403_FORBIDDEN)
     data = get_nurse_analytics_data(request.user)
     suggestions = build_recommendations(data, role='nurse')
+    # Include structured, machine-readable actions for downstream consumers
+    model = MediSyncAIInsights()
+    structured = model.generate_structured_recommendations(data)
+    nurse_actions = [a for a in structured.get('actions', []) if a.get('role') == 'nurse']
     return Response({
         'success': True,
         'role': 'nurse',
         'version': '1.0.0',
         'timestamp': timezone.now().isoformat(),
         'ai_suggestions': suggestions,
+        'structured_actions': structured,
+        'role_filtered_actions': nurse_actions,
     })
 
 def add_doctor_signature(story, doctor_info, styles):
@@ -2339,11 +2319,33 @@ def add_doctor_signature(story, doctor_info, styles):
 def create_age_distribution_chart(age_data):
     """Create age distribution bar chart"""
     try:
+        # Validate input and coerce to safe dict
+        if not isinstance(age_data, dict):
+            age_data = {}
+
+        # Provide defaults if empty
+        if not age_data:
+            age_data = {
+                '0-17': 0,
+                '18-30': 0,
+                '31-50': 0,
+                '51-70': 0,
+                '70+': 0,
+            }
+
+        # Sanitize values
+        ages = []
+        counts = []
+        for k, v in age_data.items():
+            ages.append(str(k))
+            try:
+                num = float(v or 0)
+            except Exception:
+                num = 0.0
+            counts.append(max(num, 0.0))
+
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(8, 4))
-        
-        ages = list(age_data.keys())
-        counts = list(age_data.values())
         
         bars = ax.bar(ages, counts, color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'])
         ax.set_xlabel('Age Groups')
@@ -2412,6 +2414,9 @@ def create_gender_pie_chart(gender_data):
 def create_illness_trends_chart(illness_data):
     """Create illness trends bar chart"""
     try:
+        # Validate input list
+        if not isinstance(illness_data, list):
+            illness_data = []
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(10, 5))
         
@@ -2449,6 +2454,9 @@ def create_illness_trends_chart(illness_data):
 def create_medication_chart(medication_data):
     """Create medication frequency bar chart"""
     try:
+        # Validate input list
+        if not isinstance(medication_data, list):
+            medication_data = []
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(10, 5))
         
@@ -2483,16 +2491,81 @@ def create_medication_chart(medication_data):
         print(f"Error creating medication chart: {e}")
         return None
 
+def create_illness_prediction_chart(prediction_data):
+    """Create a bar chart summarizing top contributing factors for illness prediction.
+    This avoids statistical metrics like chi-square or p-value and focuses on factor importance.
+    """
+    try:
+        if not isinstance(prediction_data, dict):
+            prediction_data = {}
+        factors = prediction_data.get('significant_factors') or []
+        if not isinstance(factors, list):
+            factors = []
+
+        # Parse factor names and assign ordinal weights by order (first = highest)
+        names = []
+        weights = []
+        for idx, f in enumerate(factors[:5]):
+            try:
+                label = str(f)
+                # Remove trailing parenthetical notes (e.g., "(p < 0.01)")
+                if '(' in label:
+                    label = label.split('(')[0].strip()
+                names.append(label)
+                # Higher weight for earlier items (e.g., 5,4,3...)
+                weights.append(max(1, 5 - idx))
+            except Exception:
+                continue
+
+        if not names:
+            # Fallback: neutral message
+            fig, ax = plt.subplots(figsize=(6, 3))
+            ax.text(0.5, 0.5, 'No factor data available', ha='center', va='center')
+            ax.axis('off')
+        else:
+            fig, ax = plt.subplots(figsize=(7, 4))
+            bars = ax.bar(names, weights, color='#2ca02c')
+            ax.set_ylabel('Relative Importance')
+            ax.set_title('Illness Prediction – Top Contributing Factors')
+            plt.xticks(rotation=25, ha='right')
+            # Label bars with weights
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{int(height)}', ha='center', va='bottom')
+            plt.tight_layout()
+
+        # Convert to image for PDF
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
+        img_buffer.seek(0)
+        plt.close()
+
+        img = Image(img_buffer, width=6*inch, height=3*inch)
+        img.hAlign = 'CENTER'
+        return img
+    except Exception as e:
+        print(f"Error creating illness prediction chart: {e}")
+        return None
+
 def create_metrics_chart(metrics):
     """Create model performance metrics chart"""
     try:
+        # Validate dict input
+        if not isinstance(metrics, dict):
+            metrics = {}
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(6, 4))
         
         metric_names = ['MAE', 'RMSE']
+        def _to_float(val):
+            try:
+                return float(val)
+            except Exception:
+                return 0.0
         metric_values = [
-            float(metrics.get('mae', 0)),
-            float(metrics.get('rmse', 0))
+            _to_float(metrics.get('mae', 0)),
+            _to_float(metrics.get('rmse', 0))
         ]
         
         bars = ax.bar(metric_names, metric_values, color=['#d62728', '#9467bd'])
@@ -2525,6 +2598,9 @@ def create_metrics_chart(metrics):
 def create_forecast_chart(forecast_data):
     """Create forecast line chart"""
     try:
+        # Validate input list
+        if not isinstance(forecast_data, list):
+            forecast_data = []
         # Create matplotlib figure
         fig, ax = plt.subplots(figsize=(8, 4))
         

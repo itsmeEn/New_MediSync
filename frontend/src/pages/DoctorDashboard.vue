@@ -31,7 +31,7 @@
 
       <div class="dashboard-cards-section">
         <div class="dashboard-cards-grid">
-          <q-card class="dashboard-card appointments-card" @click="showTodayAppointmentsModal">
+          <q-card class="dashboard-card app-card appointments-card" @click="showTodayAppointmentsModal">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Appointment</div>
@@ -49,7 +49,7 @@
             </q-card-section>
           </q-card>
 
-          <q-card class="dashboard-card patients-card" @click="showTotalPatientsModal">
+          <q-card class="dashboard-card app-card patients-card" @click="showTotalPatientsModal">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Total Patient</div>
@@ -65,7 +65,7 @@
             </q-card-section>
           </q-card>
 
-          <q-card class="dashboard-card completed-card" @click="showCompletedAppointmentsModal">
+          <q-card class="dashboard-card app-card completed-card" @click="showCompletedAppointmentsModal">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Completed Appointment</div>
@@ -81,7 +81,7 @@
             </q-card-section>
           </q-card>
 
-          <q-card class="dashboard-card assessment-card" @click="showPendingAssessmentsModal">
+          <q-card class="dashboard-card app-card assessment-card" @click="showPendingAssessmentsModal">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Pending Assessment</div>

@@ -57,10 +57,10 @@ const goto = (id: string) => {
 
 <style>
 :root { 
-  --bg:#0f766e; 
+  --bg:#286660; 
   --bg2:#2dd4bf; 
   --teal:#0ea5a6; 
-  --teal-dark:#0f766e; 
+  --teal-dark:#286660; 
   --text:#0b1320; 
   --muted:#546579; 
   --card-bg:#f7faf9; 
@@ -80,7 +80,9 @@ const goto = (id: string) => {
 }
 .container{
   max-width:1100px;
-  margin:0 auto
+  margin:0 auto;
+  position: fixed;
+
 }
 .center{
   text-align:center

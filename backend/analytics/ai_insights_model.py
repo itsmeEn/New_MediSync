@@ -41,6 +41,7 @@ import joblib
 import json
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+import uuid
 
 # Define constants
 RANDOM_SEED = 42
@@ -182,10 +183,15 @@ class MediSyncAIInsights:
             if 'model_accuracy' in surge:
                 features.append([surge['model_accuracy']])
         
+        if not features:
+            # Age distribution placeholders (0-18, 19-35, 36-50, 51-65, 65+)
+            features.append([0, 0, 0, 0, 0])
+            # Total patients placeholder
+            features.append([0])
+
         # Flatten and combine all features
         X = np.concatenate([np.array(f).flatten() for f in features])
         
-        # If no labels were generated, create dummy labels
         if not labels:
             # Create synthetic labels based on feature patterns
             # High values in age groups 51-65 and 65+ often indicate higher risk
@@ -461,6 +467,376 @@ class MediSyncAIInsights:
             return 'moderate_risk'
         else:
             return 'low_risk'
+
+    def _safe_scale_features(self, X):
+        """Safely scale features using the fitted scaler when available."""
+        X = X.reshape(1, -1)
+        try:
+            return self.scaler.transform(X)
+        except Exception:
+            try:
+                # Fit on-the-fly if scaler exists but is not yet fitted
+                self.scaler.fit(X)
+                return self.scaler.transform(X)
+            except Exception:
+                # Fallback to unscaled features
+                return X
+
+    def _heuristic_risk_from_data(self, data):
+        """Rule-based fallback when ML models are unavailable or error out."""
+        # Default moderate
+        risk = 'moderate_risk'
+        elderly_ratio = 0.0
+        try:
+            demographics = data.get('patient_demographics', {})
+            age_dist = demographics.get('age_distribution', {})
+            total = sum(age_dist.values())
+            if total > 0:
+                elderly_ratio = (age_dist.get('51-65', 0) + age_dist.get('65+', 0)) / total
+        except Exception:
+            elderly_ratio = 0.0
+
+        increasing_critical = 0
+        any_increase = False
+        try:
+            trends = data.get('health_trends', {}).get('trend_analysis', {})
+            inc = trends.get('increasing_conditions', []) or []
+            critical_conditions = {'Heart Disease', 'Stroke', 'Cancer', 'Sepsis'}
+            increasing_critical = sum(1 for c in inc if c in critical_conditions)
+            any_increase = len(inc) > 0
+        except Exception:
+            pass
+
+        surge_increase_pct = 0.0
+        try:
+            forecasts = data.get('surge_prediction', {}).get('forecasted_monthly_cases', [])
+            if forecasts and len(forecasts) >= 2:
+                current = forecasts[0].get('total_cases', 0) or 0
+                nxt = forecasts[1].get('total_cases', 0) or 0
+                surge_increase_pct = ((nxt - current) / current) * 100 if current > 0 else 0.0
+        except Exception:
+            surge_increase_pct = 0.0
+
+        # Decide risk level based on simple thresholds
+        if elderly_ratio > 0.30 or increasing_critical > 0 or surge_increase_pct > 15:
+            risk = 'high_risk'
+        elif elderly_ratio > 0.15 or any_increase or surge_increase_pct > 0:
+            risk = 'moderate_risk'
+        else:
+            risk = 'low_risk'
+        return risk
+
+    def _predict_tensorflow_risk(self, data):
+        """Predict risk using the TensorFlow model with safe fallbacks."""
+        try:
+            X, _ = self.preprocess_data(data)
+            X_scaled = self._safe_scale_features(X)
+            if TF_AVAILABLE and self.tf_model is not None:
+                proba = self.tf_model.predict(X_scaled)[0]
+                pred_class = int(np.argmax(proba))
+                return {0: 'low_risk', 1: 'moderate_risk', 2: 'high_risk'}.get(pred_class, 'moderate_risk')
+        except Exception:
+            pass
+        # Fallback to heuristic
+        return self._heuristic_risk_from_data(data)
+
+    def _predict_random_forest_risk(self, data):
+        """Predict risk using the RandomForest model with safe fallbacks."""
+        try:
+            X, _ = self.preprocess_data(data)
+            X_scaled = self._safe_scale_features(X)
+            if self.rf_model is not None:
+                pred_class = int(self.rf_model.predict(X_scaled)[0])
+                return {0: 'low_risk', 1: 'moderate_risk', 2: 'high_risk'}.get(pred_class, 'moderate_risk')
+        except Exception:
+            pass
+        # Fallback to heuristic
+        return self._heuristic_risk_from_data(data)
+
+    def _generate_actionable_insights(self, data, tf_risk, rf_risk):
+        """Create concise, data-tied insights for dashboards.
+
+        Returns a list of short, human-readable bullets derived from
+        demographics, trends, and the consensus risk.
+        """
+        insights = []
+        consensus = self._get_consensus_risk(tf_risk, rf_risk)
+
+        # Demographics-derived insights
+        elderly_ratio = 0.0
+        if data and 'patient_demographics' in data:
+            demo = data['patient_demographics']
+            age_dist = demo.get('age_distribution', {})
+            total = sum(age_dist.values()) or 0
+            if total > 0:
+                elderly_ratio = (age_dist.get('65+', 0)) / total
+        if elderly_ratio > 0.3:
+            insights.append('Elderly population >30% — implement comprehensive geriatric protocols.')
+        elif elderly_ratio > 0.15:
+            insights.append('Moderate elderly population — enhance fall prevention and med review.')
+
+        # Trend-derived insights
+        if data.get('health_trends', {}).get('trend_analysis'):
+            inc = data['health_trends']['trend_analysis'].get('increasing_conditions', [])
+            if inc:
+                insights.append(f"Rising conditions detected: {', '.join(inc)} — prepare targeted pathways.")
+
+        # Surge prediction insights
+        forecasts = data.get('surge_prediction', {}).get('forecasted_monthly_cases', [])
+        if forecasts and len(forecasts) >= 2:
+            current_cases = forecasts[0].get('total_cases', 0)
+            next_cases = forecasts[1].get('total_cases', 0)
+            if current_cases > 0:
+                increase_percent = ((next_cases - current_cases) / current_cases) * 100
+                if increase_percent > 10:
+                    insights.append(f"Projected case increase ~{increase_percent:.1f}% next month — plan capacity.")
+
+        # Risk-level guardrails
+        if consensus in ('high_risk', 'critical_risk'):
+            insights.append('High/critical risk consensus — activate enhanced monitoring and escalation pathways.')
+        elif consensus == 'moderate_risk':
+            insights.append('Moderate risk — increase surveillance and focus on prevention.')
+
+        # De-duplicate while preserving order
+        seen = set()
+        deduped = []
+        for item in insights:
+            if item not in seen:
+                deduped.append(item)
+                seen.add(item)
+        return deduped
+
+    def _generate_doctor_recommendations(self, data, tf_risk, rf_risk):
+        """Generate physician-facing recommendations as a simple list of actions.
+
+        This aligns with current consumers that expect a list[str].
+        """
+        recs = []
+        consensus = self._get_consensus_risk(tf_risk, rf_risk)
+
+        # Age-specific actions
+        age_actions = self._get_age_specific_recommendations({'patient_demographics': data.get('patient_demographics', {})})
+        # Convert structured sets to compact doctor directives
+        recs.extend([
+            'Initiate comprehensive geriatric assessment (CGA) for patients >65.',
+            'Perform medication reconciliation; adjust for age-related pharmacokinetics.',
+        ] if age_actions['immediate'] else [])
+
+        # Condition trends
+        inc = data.get('health_trends', {}).get('trend_analysis', {}).get('increasing_conditions', [])
+        if inc:
+            recs.append(f"Develop targeted pathways for rising conditions: {', '.join(inc)}.")
+
+        # Surge planning
+        forecasts = data.get('surge_prediction', {}).get('forecasted_monthly_cases', [])
+        if forecasts and len(forecasts) >= 2:
+            recs.append('Review capacity plans and adjust clinic schedules for forecasted volume.')
+
+        # Risk-level protocols
+        risk = self.get_detailed_risk_assessment(data)
+        protocols = self.generate_evidence_based_protocols(risk)
+        if consensus == 'critical_risk':
+            recs.extend([
+                'Activate rapid response and consider ICU transfer criteria.',
+                'Order urgent labs and imaging per emergency protocol.',
+            ])
+        elif consensus == 'high_risk':
+            recs.extend([
+                'Increase rounding frequency and set individualized care plans.',
+                'Coordinate multidisciplinary team consultation.',
+            ])
+
+        # Always include monitoring and documentation anchors from protocols
+        if protocols.get('monitoring_protocols'):
+            recs.append('Adhere to monitoring protocol frequencies based on risk level.')
+        if protocols.get('documentation_requirements'):
+            recs.append('Ensure documentation of risk level, interventions, and response.')
+
+        # Remove duplicates and cap list length to keep UI legible
+        seen = set()
+        deduped = []
+        for item in recs:
+            if item not in seen:
+                deduped.append(item)
+                seen.add(item)
+        return deduped[:12]
+
+    def _generate_nurse_recommendations(self, data, tf_risk, rf_risk):
+        """Generate nurse-facing recommendations as a simple list of actions."""
+        recs = []
+        consensus = self._get_consensus_risk(tf_risk, rf_risk)
+
+        # Monitoring frequencies by risk
+        monitoring = self._get_monitoring_frequency(consensus)
+        recs.append(f"Set vitals: {monitoring.get('vital_signs', 'per policy')}; assessments: {monitoring.get('assessments', 'per policy')}.")
+
+        # Age-specific safety
+        age_actions = self._get_age_specific_recommendations({'patient_demographics': data.get('patient_demographics', {})})
+        if age_actions['preventive']:
+            recs.append('Implement fall precautions and delirium prevention for elderly patients.')
+
+        # Education and family involvement
+        lifestyle = self._get_lifestyle_recommendations()
+        recs.append('Provide education on smoking cessation, nutrition, and exercise; arrange referrals.')
+
+        # Escalation criteria
+        esc = self._get_escalation_criteria(consensus)
+        recs.append('Follow escalation criteria; notify charge nurse/physician per policy on deterioration.')
+
+        # Surge preparation
+        forecasts = data.get('surge_prediction', {}).get('forecasted_monthly_cases', [])
+        if forecasts and len(forecasts) >= 2:
+            recs.append('Coordinate staffing adjustments and triage flows for forecasted volume changes.')
+
+        # Deduplicate and cap
+        seen = set()
+        deduped = []
+        for item in recs:
+            if item not in seen:
+                deduped.append(item)
+                seen.add(item)
+        return deduped[:12]
+
+    def generate_structured_recommendations(self, data):
+        """Return machine-readable, context-aware recommendations with parameters and outcomes.
+
+        The output is designed for downstream consumers and ties directly to
+        model capabilities and helper functions defined in this module.
+        """
+        risk = self.get_detailed_risk_assessment(data)
+        consensus = risk.get('overall_risk_level', 'moderate_risk')
+
+        # Compute commonly reused signals
+        age_dist = data.get('patient_demographics', {}).get('age_distribution', {})
+        total_age = sum(age_dist.values()) or 0
+        elderly_ratio = (age_dist.get('65+', 0)) / total_age if total_age > 0 else 0.0
+        inc = data.get('health_trends', {}).get('trend_analysis', {}).get('increasing_conditions', [])
+        forecasts = data.get('surge_prediction', {}).get('forecasted_monthly_cases', [])
+        increase_percent = None
+        if forecasts and len(forecasts) >= 2 and forecasts[0].get('total_cases', 0) > 0:
+            increase_percent = ((forecasts[1].get('total_cases', 0) - forecasts[0].get('total_cases', 0)) / forecasts[0].get('total_cases', 0)) * 100
+
+        protocols = self.generate_evidence_based_protocols(risk)
+
+        def mk_action(role, priority, title, description, params, preconds, timeframe_hours, expected, guidance):
+            return {
+                'id': f"REC-{uuid.uuid4().hex[:8]}",
+                'role': role,
+                'priority': priority,  # 'high' | 'medium' | 'low'
+                'title': title,
+                'description': description,
+                'parameters': params,
+                'preconditions': preconds,
+                'timeframe_hours': timeframe_hours,
+                'responsible_party': 'Doctor' if role == 'doctor' else 'Nurse',
+                'escalation_path': self._get_escalation_criteria(consensus),
+                'expected_outcomes': expected,
+                'guidance': guidance,
+                'protocol_refs': {
+                    'assessment': protocols.get('assessment_protocols', []),
+                    'intervention': protocols.get('intervention_protocols', []),
+                    'monitoring': protocols.get('monitoring_protocols', []),
+                    'documentation': protocols.get('documentation_requirements', []),
+                    'quality_metrics': protocols.get('quality_metrics', []),
+                },
+                'source_functions': [
+                    'get_detailed_risk_assessment',
+                    '_get_age_specific_recommendations',
+                    'generate_evidence_based_protocols',
+                    '_get_monitoring_frequency',
+                    '_get_escalation_criteria'
+                ]
+            }
+
+        actions = []
+
+        # High priority: elder care if threshold met
+        if elderly_ratio > 0.30:
+            actions.append(mk_action(
+                role='doctor',
+                priority='high',
+                title='Activate comprehensive geriatric assessment (CGA)',
+                description='High elderly ratio requires CGA and medication review.',
+                params={'thresholds': {'elderly_ratio_gt': 0.30}},
+                preconds=['patient_demographics.age_distribution present'],
+                timeframe_hours=4,
+                expected=['Reduce falls and delirium incidence', 'Improve medication safety'],
+                guidance=['Perform CGA', 'Review polypharmacy', 'Initiate fall prevention']
+            ))
+            actions.append(mk_action(
+                role='nurse',
+                priority='high',
+                title='Implement fall precautions and delirium prevention',
+                description='Apply elderly safety bundle across units.',
+                params={'bundle': 'elderly_safety', 'monitoring': self._get_monitoring_frequency(consensus)},
+                preconds=['elderly_ratio > 0.30'],
+                timeframe_hours=2,
+                expected=['Fewer fall events', 'Early delirium detection'],
+                guidance=['Bed alarms', 'Hourly rounding', 'Orientation cues']
+            ))
+
+        # High/Medium priority: rising critical conditions
+        critical_conditions = {'Heart Disease', 'Stroke', 'Cancer', 'Sepsis'}
+        rising_critical = [c for c in inc if c in critical_conditions]
+        if rising_critical:
+            actions.append(mk_action(
+                role='doctor',
+                priority='high' if consensus in ('high_risk', 'critical_risk') else 'medium',
+                title='Deploy targeted pathways for rising critical conditions',
+                description=f"Conditions rising: {', '.join(rising_critical)}.",
+                params={'conditions': rising_critical},
+                preconds=['health_trends.trend_analysis.increasing_conditions present'],
+                timeframe_hours=12,
+                expected=['Faster diagnosis', 'More consistent treatment quality'],
+                guidance=['Adopt disease-specific protocols', 'Coordinate multidisciplinary consults']
+            ))
+
+        # Medium priority: surge planning if forecast increase
+        if increase_percent and increase_percent > 10:
+            actions.append(mk_action(
+                role='nurse',
+                priority='medium',
+                title='Prepare staffing and triage for forecasted surge',
+                description=f"Projected case increase ~{increase_percent:.1f}% next month.",
+                params={'increase_percent': round(increase_percent, 1)},
+                preconds=['surge_prediction.forecasted_monthly_cases >= 2'],
+                timeframe_hours=48,
+                expected=['Improved throughput', 'Maintained care quality during surge'],
+                guidance=['Adjust schedules', 'Pre-stage triage stations', 'Review escalation flow']
+            ))
+
+        # Always present: monitoring and documentation anchors
+        actions.append(mk_action(
+            role='nurse',
+            priority='low' if consensus == 'low_risk' else 'medium',
+            title='Follow risk-based monitoring frequencies',
+            description='Apply monitoring cadence from risk assessment.',
+            params={'frequency': self._get_monitoring_frequency(consensus)},
+            preconds=['risk assessment available'],
+            timeframe_hours=1,
+            expected=['Early detection of deterioration', 'Consistent nursing documentation'],
+            guidance=protocols.get('monitoring_protocols', []) or ['Follow unit policy']
+        ))
+
+        # Always present: documentation requirements
+        actions.append(mk_action(
+            role='doctor',
+            priority='low' if consensus == 'low_risk' else 'medium',
+            title='Ensure complete risk and intervention documentation',
+            description='Document risk level, factors, interventions, and response.',
+            params={'documentation': protocols.get('documentation_requirements', [])},
+            preconds=['EHR access'],
+            timeframe_hours=24,
+            expected=['Higher compliance', 'Audit-ready records'],
+            guidance=protocols.get('documentation_requirements', [])
+        ))
+
+        return {
+            'version': '1.0.0',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'risk_level': consensus,
+            'actions': actions
+        }
     
     def get_detailed_risk_assessment(self, data):
         """Generate comprehensive risk assessment with clinical stratification."""

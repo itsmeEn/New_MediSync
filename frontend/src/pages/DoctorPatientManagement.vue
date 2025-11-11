@@ -25,7 +25,7 @@
         <div class="management-cards-grid">
           <!-- Left Column: Patient List -->
           <div class="left-column">
-            <q-card class="dashboard-card patient-list-card">
+  <q-card class="dashboard-card app-card patient-list-card">
               <q-card-section class="card-header">
                 <h5 class="card-title">Patient List</h5>
                 <q-btn color="primary" icon="refresh" size="sm" @click="loadPatients" :loading="loading" />
@@ -194,7 +194,7 @@
           <!-- Right Column: Statistics + Medical Requests -->
           <div class="right-column">
             <!-- Patient Statistics Card -->
-            <q-card class="dashboard-card statistics-card q-mb-lg">
+  <q-card class="dashboard-card app-card statistics-card q-mb-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Patient Statistics</div>
@@ -236,7 +236,7 @@
 
 
             <!-- List of Available Nurses Card -->
-            <q-card class="dashboard-card nurses-card q-mt-lg">
+  <q-card class="dashboard-card app-card nurses-card q-mt-lg">
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Available Nurses</div>
@@ -931,7 +931,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import type { AxiosError } from 'axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';

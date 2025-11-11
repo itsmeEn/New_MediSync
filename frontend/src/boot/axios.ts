@@ -242,6 +242,38 @@ export default defineBoot(async ({ app }) => {
   app.config.globalProperties.$axios = axios;
   app.config.globalProperties.$api = api;
 
+  // Dev-only token injection via URL params for rapid testing
+  if (import.meta.env.DEV) {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const devAccess = params.get('access_token') || params.get('devAccessToken');
+      const devRefresh = params.get('refresh_token') || params.get('devRefreshToken');
+      const devUser = params.get('user') || params.get('devUserJson');
+
+      if (devAccess) localStorage.setItem('access_token', devAccess);
+      if (devRefresh) localStorage.setItem('refresh_token', devRefresh);
+      if (devUser) {
+        try {
+          const parsed = JSON.parse(devUser);
+          localStorage.setItem('user', JSON.stringify(parsed));
+        } catch {
+          // Store as-is if not JSON
+          localStorage.setItem('user', devUser);
+        }
+      }
+
+      // Clean sensitive params from URL
+      if (devAccess || devRefresh || devUser) {
+        const url = new URL(window.location.href);
+        ['access_token','refresh_token','user','devAccessToken','devRefreshToken','devUserJson']
+          .forEach(k => url.searchParams.delete(k));
+        window.history.replaceState({}, document.title, url.toString());
+      }
+    } catch (e) {
+      console.warn('Dev token injection failed:', e);
+    }
+  }
+
   // Skip endpoint probe on the landing route to avoid noisy network errors
   const hash = window.location?.hash || '';
   const onLanding = hash.includes('/landing');

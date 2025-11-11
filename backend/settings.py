@@ -335,11 +335,19 @@ MESSAGE_ENCRYPTION_KEY = "your-32-character-secret-key-here"  # Change this in p
 ASGI_APPLICATION = "backend.asgi.application"
 
 # Channel Layers Configuration
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
+# Channel Layers Configuration
+if DEBUG:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],
+            },
         },
-    },
-}
+    }

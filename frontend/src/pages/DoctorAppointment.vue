@@ -253,29 +253,10 @@
       <!-- Dashboard Cards Section -->
       <div class="dashboard-cards-section">
         <div class="dashboard-cards-grid">
-          <!-- Patient Medical Records Card -->
-          <q-card class="dashboard-card medical-records-card" @click="viewMedicalRequests">
-            <q-card-section class="card-content">
-              <div class="card-text">
-                <div class="card-title">Patient Medical Records</div>
-                <div class="card-description">Based on completed assessments</div>
-                <div class="card-value">
-                  <q-spinner v-if="medicalRecordsLoading" size="md" />
-                  <transition name="fade">
-                    <span v-if="!medicalRecordsLoading" :key="dashboardStats.medicalRecords">
-                      {{ dashboardStats.medicalRecords }}
-                    </span>
-                  </transition>
-                </div>
-              </div>
-              <div class="card-icon">
-                <q-icon name="assignment" size="2.5rem" />
-              </div>
-            </q-card-section>
-          </q-card>
+          <!-- Patient Medical Records Card removed per feature deprecation -->
 
           <!-- Today's Schedule Card -->
-          <q-card class="dashboard-card schedule-card" @click="showTodayScheduleDialog = true">
+          <q-card class="dashboard-card app-card schedule-card" @click="showTodayScheduleDialog = true">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Schedule</div>
@@ -305,7 +286,7 @@
           </q-card>
 
           <!-- Total Cancelled Appointments Card -->
-          <q-card class="dashboard-card performance-card">
+          <q-card class="dashboard-card app-card performance-card">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Total Cancelled Appointments</div>
@@ -326,7 +307,7 @@
           </q-card>
 
           <!-- Notifications Card -->
-          <q-card class="dashboard-card notifications-card">
+          <q-card class="dashboard-card app-card notifications-card">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Notifications</div>
@@ -351,9 +332,9 @@
       <div class="q-pa-md">
         <!-- Calendar Navigation Bar -->
         <div class="calendar-navigation-bar q-mb-md">
-          <div class="row items-center justify-between">
+          <div class="row items-center justify-between calendar-row-wrap">
             <!-- Month Navigation -->
-            <div class="col-auto">
+            <div class="col-auto calendar-section calendar-section--nav">
               <div class="month-navigation">
                 <q-btn round flat icon="chevron_left" @click="previousMonth" class="nav-btn" />
                 <h4 class="month-year">{{ currentMonthYear }}</h4>
@@ -361,25 +342,26 @@
                 <q-btn flat label="Today" @click="goToToday" class="today-btn" />
               </div>
             </div>
-            <div class="col-auto">
+            <div class="col-auto calendar-section calendar-section--actions">
               <q-btn
                 color="negative"
                 icon="block"
                 label="Block Date"
                 @click="blockDate"
                 :disable="selectedDate?.isBlocked"
-                class="q-mr-sm"
+                class="q-mr-sm action-btn"
               />
               <q-btn
                 color="primary"
                 icon="add"
                 label="New Appointment"
                 @click="showNewAppointmentDialog = true"
+                class="action-btn"
               />
             </div>
 
             <!-- View Selector and Export Options -->
-            <div class="col-auto">
+            <div class="col-auto calendar-section calendar-section--controls">
               <div class="view-export-controls">
                 <!-- View Selector -->
                 <q-btn-group flat class="view-selector">
@@ -627,132 +609,7 @@
       </q-card>
     </q-dialog>
 
-    <!-- Medical Requests Dialog -->
-    <q-dialog v-model="showMedicalRequestsDialog" persistent>
-      <q-card style="min-width: 600px; max-width: 800px;">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">
-            <q-icon name="folder_shared" class="q-mr-sm" color="primary" />
-            Medical History Requests
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <q-card-section>
-          <div v-if="medicalRequests.length === 0" class="text-center q-pa-lg">
-            <q-icon name="inbox" size="4rem" color="grey-5" />
-            <div class="text-h6 q-mt-md text-grey-6">No pending requests</div>
-            <div class="text-body2 text-grey-5">All medical history requests have been processed</div>
-          </div>
-
-          <div v-else>
-            <q-list separator>
-              <q-item 
-                v-for="request in medicalRequests" 
-                :key="request.id"
-                clickable
-                @click="viewRequestDetails(request)"
-                class="q-pa-md"
-              >
-                <q-item-section avatar>
-                  <q-avatar color="primary" text-color="white" icon="person" />
-                </q-item-section>
-
-                <q-item-section>
-                  <q-item-label class="text-weight-medium">
-                    {{ request.patientName || 'Unknown Patient' }}
-                  </q-item-label>
-                  <q-item-label caption>
-                    {{ request.type }} - {{ request.details }}
-                  </q-item-label>
-                  <q-item-label caption class="text-grey-6">
-                    Requested: {{ new Date(request.createdAt).toLocaleDateString() }}
-                  </q-item-label>
-                </q-item-section>
-
-                <q-item-section side>
-                  <q-chip 
-                    :color="request.status === 'pending' ? 'orange' : 'green'" 
-                    text-color="white" 
-                    size="sm"
-                  >
-                    {{ request.status }}
-                  </q-chip>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </div>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Request Details Dialog -->
-    <q-dialog v-model="showRequestDetailsDialog" persistent>
-      <q-card style="min-width: 500px;">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">
-            <q-icon name="assignment" class="q-mr-sm" color="primary" />
-            Request Details
-          </div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <q-card-section v-if="selectedRequest">
-          <div class="q-gutter-md">
-            <div class="row">
-              <div class="col-4 text-weight-medium">Patient:</div>
-              <div class="col-8">{{ selectedRequest.patientName || 'Unknown' }}</div>
-            </div>
-            
-            <div class="row">
-              <div class="col-4 text-weight-medium">Email:</div>
-              <div class="col-8">{{ selectedRequest.patientEmail || 'Not provided' }}</div>
-            </div>
-            
-            <div class="row">
-              <div class="col-4 text-weight-medium">Request Type:</div>
-              <div class="col-8">{{ selectedRequest.type }}</div>
-            </div>
-            
-            <div class="row">
-              <div class="col-4 text-weight-medium">Details:</div>
-              <div class="col-8">{{ selectedRequest.details }}</div>
-            </div>
-            
-            <div class="row">
-              <div class="col-4 text-weight-medium">Date Requested:</div>
-              <div class="col-8">{{ new Date(selectedRequest.createdAt).toLocaleString() }}</div>
-            </div>
-            
-            <div class="row">
-              <div class="col-4 text-weight-medium">Status:</div>
-              <div class="col-8">
-                <q-chip 
-                  :color="selectedRequest.status === 'pending' ? 'orange' : 'green'" 
-                  text-color="white" 
-                  size="sm"
-                >
-                  {{ selectedRequest.status }}
-                </q-chip>
-              </div>
-            </div>
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn label="Cancel" color="grey" flat v-close-popup />
-          <q-btn 
-            v-if="selectedRequest?.status === 'pending'"
-            label="Send Medical History" 
-            color="primary" 
-            @click="sendMedicalHistory(selectedRequest)"
-            icon="email"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <!-- Medical Requests UI removed per feature deprecation -->
 
 
   </q-layout>
@@ -774,41 +631,19 @@ const text = ref('');
 const showNotifications = ref(false);
 
 // Dashboard stats
-const dashboardStats = ref({
-  medicalRecords: 15,
-  todayAppointments: 28,
-  performanceScore: '94%',
-  notifications: 12
-});
+// Removed unused dashboardStats to resolve linter diagnostic
 // Monthly cancelled appointments count
 const monthlyCancelled = ref(0);
 // Per-card loading states
 const monthlyCancelledLoading = ref(true);
-const medicalRecordsLoading = ref(true);
 const notificationsLoading = ref(true);
 // Simple caches to avoid unnecessary state churn
 const lastCountsCache = ref({
   monthlyCancelled: 0,
-  medicalRecords: 0,
   notificationsUnread: 0,
 });
 
-// Medical requests functionality
-const medicalRequests = ref<MedicalRequest[]>([]);
-const showMedicalRequestsDialog = ref(false);
-const selectedRequest = ref<MedicalRequest | null>(null);
-const showRequestDetailsDialog = ref(false);
-
-interface MedicalRequest {
-  id: number;
-  type: string;
-  recipient: string;
-  details: string;
-  status: string;
-  createdAt: string;
-  patientName?: string;
-  patientEmail?: string;
-}
+// Medical requests functionality removed per feature deprecation
 
 // Real-time time and weather
 const currentTime = ref('');
@@ -1640,73 +1475,7 @@ const markAllNotificationsRead = async (): Promise<void> => {
   }
 };
 
-// Medical requests functions
-const loadMedicalRequests = (opts: { silent?: boolean } = {}): void => {
-  try {
-    if (!opts.silent) medicalRecordsLoading.value = true;
-    const storedRequests = localStorage.getItem('medicalRequests');
-    if (storedRequests) {
-      const requests = JSON.parse(storedRequests);
-      medicalRequests.value = requests.filter((req: MedicalRequest) => req.status === 'pending');
-      
-      // Update dashboard stats
-      const count = medicalRequests.value.length;
-      if (count !== lastCountsCache.value.medicalRecords) {
-        dashboardStats.value.medicalRecords = count;
-        lastCountsCache.value.medicalRecords = count;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading medical requests:', error);
-  } finally {
-    if (!opts.silent) medicalRecordsLoading.value = false;
-  }
-};
-
-const viewMedicalRequests = (): void => {
-  loadMedicalRequests();
-  showMedicalRequestsDialog.value = true;
-};
-
-const viewRequestDetails = (request: MedicalRequest): void => {
-  selectedRequest.value = request;
-  showRequestDetailsDialog.value = true;
-};
-
-const sendMedicalHistory = (request: MedicalRequest) => {
-  try {
-    // Simulate sending email
-    $q.notify({
-      type: 'positive',
-      message: `Medical history sent to ${request.patientName || 'patient'} via email`,
-      position: 'top',
-    });
-
-    // Update request status
-    request.status = 'completed';
-    
-    // Update localStorage
-    const storedRequests = localStorage.getItem('medicalRequests');
-    if (storedRequests) {
-      const allRequests = JSON.parse(storedRequests);
-      const updatedRequests = allRequests.map((req: MedicalRequest) => 
-        req.id === request.id ? { ...req, status: 'completed' } : req
-      );
-      localStorage.setItem('medicalRequests', JSON.stringify(updatedRequests));
-    }
-
-    // Refresh the requests list
-    loadMedicalRequests();
-    showRequestDetailsDialog.value = false;
-  } catch (error) {
-    console.error('Error sending medical history:', error);
-    $q.notify({
-      type: 'negative',
-      message: 'Failed to send medical history',
-      position: 'top',
-    });
-  }
-};
+// Medical requests logic removed per feature deprecation
 
 // WebSocket handle for doctor messaging; kept at module scope for proper cleanup
 let doctorMessagingWS: WebSocket | null = null;
@@ -1734,7 +1503,6 @@ const refreshStats = async (): Promise<void> => {
   await Promise.all([
     fetchMonthlyCancelled(),
     loadNotifications({ silent: false }),
-    Promise.resolve().then(() => loadMedicalRequests({ silent: false })),
   ]);
 };
 
@@ -1746,9 +1514,6 @@ onMounted(async () => {
 
   // Load notifications
   void loadNotifications();
-
-  // Load medical requests
-  loadMedicalRequests();
 
   // Initialize real-time features
   updateTime(); // Set initial time
@@ -2056,6 +1821,17 @@ onUnmounted(() => {
   margin-bottom: 24px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   margin: 0 auto 24px;
+}
+
+/* Calendar Navigation - responsive helpers */
+.calendar-row-wrap {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.calendar-section {
+  display: flex;
+  align-items: center;
 }
 
 .month-navigation {
@@ -3321,6 +3097,89 @@ onUnmounted(() => {
 
   .card-value {
     font-size: 30px;
+  }
+}
+
+/* Responsive fixes for calendar navigation - mobile */
+@media (max-width: 768px) {
+  .calendar-navigation-bar {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .calendar-row-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .calendar-section {
+    width: 100%;
+  }
+
+  .month-navigation {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .month-year {
+    font-size: 20px;
+    min-width: 0;
+    text-align: left;
+    flex: 1;
+  }
+
+  .today-btn {
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+
+  .calendar-section--actions {
+    gap: 8px;
+  }
+
+  .calendar-section--actions .action-btn {
+    flex: 1 1 48%;
+    min-width: 0;
+  }
+
+  .view-export-controls {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .view-selector .q-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .export-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Extra-small screens: stack actions fully */
+@media (max-width: 480px) {
+  .calendar-section--actions .action-btn {
+    flex: 1 1 100%;
+  }
+
+  .view-export-controls {
+    gap: 8px;
+  }
+
+  .view-selector {
+    width: 100%;
+  }
+
+  .view-selector .q-btn {
+    flex: 1 1 auto;
   }
 }
 

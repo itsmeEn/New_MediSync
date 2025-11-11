@@ -29,6 +29,10 @@ const routes: RouteRecordRaw[] = [
     path: '/verification',
     component: () => import('pages/VerificationPage.vue'),
   },
+  {
+    path: '/otp-verify',
+    component: () => import('pages/OtpVerifyPage.vue'),
+  },
   // Add landing route
   {
     path: '/landing',
@@ -110,10 +114,6 @@ const routes: RouteRecordRaw[] = [
     component: () => import('pages/PatientAppointmentSchedule.vue')
   },
   {
-    path: '/patient-medical-request',
-    component: () => import('pages/PatientMedicalRequest.vue')
-  },
-  {
     path: '/patient-queue',
     component: () => import('pages/PatientQueue.vue')
   },
@@ -124,6 +124,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/patient-settings',
     component: () => import('pages/PatientSettings.vue')
+  },
+  {
+    path: '/terms',
+    name: 'TermsAndConditions',
+    component: () => import('pages/TermsAndConditions.vue')
   },
   {
     path: '/home',

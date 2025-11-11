@@ -89,8 +89,8 @@ class Command(BaseCommand):
             value = max(0, int(round(avg_recent * (1 + j))))
             forecasted.append({
                 "date": (today + timedelta(days=i)).strftime("%Y-%m-%d"),
-                "predicted": value,
-                "actual": None,
+                "predicted_volume": value,
+                "actual_volume": None,
             })
 
         # Comparison data for the most recent period
@@ -98,15 +98,15 @@ class Command(BaseCommand):
         comparison_data = [
             {
                 "date": d,
-                "predicted": max(0, int(round(c * (1 + random.uniform(-0.15, 0.15))))),
-                "actual": c,
+                "predicted_volume": max(0, int(round(c * (1 + random.uniform(-0.15, 0.15))))),
+                "actual_volume": c,
             }
             for d, c in days_sorted[-comparison_span:]
         ]
 
         # Basic metrics (synthetic if historical is thin)
         if comparison_data:
-            diffs = [abs(item["actual"] - item["predicted"]) for item in comparison_data]
+            diffs = [abs(item["actual_volume"] - item["predicted_volume"]) for item in comparison_data]
             mae = round(sum(diffs) / len(diffs), 2)
             rmse = round((sum(d * d for d in diffs) / len(diffs)) ** 0.5, 2)
         else:

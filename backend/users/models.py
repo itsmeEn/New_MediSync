@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import RegexValidator
+from django.utils import timezone
 
 from .managers import CustomUserManager
 
@@ -118,6 +119,36 @@ class NurseProfile(models.Model):
 
     def __str__(self):
         return f"Nurse {self.user.full_name}"
+
+
+class LoginOTP(models.Model):
+    """
+    Ephemeral OTP records for login verification.
+    - Stores a unique alphanumeric OTP code per user
+    - Expires after a short window (e.g., 5 minutes)
+    - Marked as consumed after successful verification
+    """
+    PURPOSE_LOGIN = 'login'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='login_otps')
+    code = models.CharField(max_length=16)  # alphanumeric, min 4; we will generate 6-10
+    purpose = models.CharField(max_length=20, default=PURPOSE_LOGIN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    consumed = models.BooleanField(default=False)
+    attempt_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'expires_at', 'consumed']),
+        ]
+        ordering = ['-created_at']
+
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    def __str__(self):
+        return f"OTP({self.purpose}) for {self.user.email} created {self.created_at.isoformat()}"
     
     #patient profile
 class PatientProfile(models.Model): #can be the content of medical history
