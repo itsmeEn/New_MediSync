@@ -107,6 +107,78 @@
       </div>
     </q-toolbar>
 
+    <!-- Mobile Header Layout -->
+    <div class="mobile-header-layout" aria-label="Mobile header controls">
+      <!-- Top Row: Menu, Weather, Notifications -->
+      <div class="header-top-row" role="toolbar" aria-label="Primary actions">
+        <q-btn
+          flat
+          round
+          icon="menu"
+          class="menu-toggle-btn"
+          aria-label="Open menu"
+          @click="$emit('toggle-drawer')"
+        />
+
+        <div class="header-info" aria-live="polite">
+          <!-- Weather Display -->
+          <div class="weather-display" v-if="weatherData">
+            <q-icon :name="getWeatherIcon(weatherData.condition)" size="sm" aria-hidden="true" />
+            <span class="weather-text">{{ weatherData.temperature }}°C</span>
+            <span class="weather-location">{{ weatherData.location }}</span>
+          </div>
+          <!-- Loading Weather -->
+          <div class="weather-loading" v-else-if="weatherLoading">
+            <q-spinner size="sm" aria-label="Loading weather" />
+            <span class="weather-text">Loading...</span>
+          </div>
+          <!-- Weather Error -->
+          <div class="weather-error" v-else-if="weatherError" role="status">
+            <q-icon name="error" size="sm" aria-hidden="true" />
+            <span class="weather-text">Weather Update</span>
+          </div>
+        </div>
+
+        <q-btn
+          flat
+          round
+          icon="notifications"
+          class="notification-btn"
+          aria-label="Open notifications"
+          @click="showNotifications = true"
+        >
+          <q-badge
+            color="red"
+            floating
+            v-if="props.unreadNotificationsCount && props.unreadNotificationsCount > 0"
+            >{{ props.unreadNotificationsCount }}</q-badge
+          >
+        </q-btn>
+      </div>
+
+      <!-- Bottom Row: Search Bar -->
+      <div class="header-bottom-row" aria-label="Search">
+        <div class="search-container">
+          <q-input
+            outlined
+            dense
+            v-model="searchText"
+            placeholder="Search Patients, Appointments and Medical Records"
+            class="search-input"
+            bg-color="white"
+            @input="onSearchInput"
+          >
+            <template v-slot:prepend>
+              <q-icon name="search" color="grey-6" aria-hidden="true" />
+            </template>
+            <template v-slot:append v-if="searchText">
+              <q-icon name="clear" class="cursor-pointer" @click="clearSearch" aria-label="Clear search" />
+            </template>
+          </q-input>
+        </div>
+      </div>
+    </div>
+
     <!-- Notifications Dialog -->
     <q-dialog v-model="showNotifications" class="notifications-dialog">
       <q-card class="notifications-card">
@@ -585,7 +657,7 @@ onUnmounted(() => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
 }
 
 .notification-btn {
@@ -804,5 +876,47 @@ onUnmounted(() => {
   .search-container {
     max-width: 200px;
   }
+}
+</style>
+
+<style scoped>
+/* Mobile-specific layout to match appointment header */
+/* Default: hide mobile layout on desktop to prevent duplication */
+.mobile-header-layout { display: none; }
+
+@media (max-width: 768px) {
+  /* Hide desktop toolbar, show mobile layout */
+  .header-toolbar { display: none; }
+  .mobile-header-layout { display: block; padding: 8px 12px; padding-top: max(env(safe-area-inset-top), 8px); }
+
+  .header-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    min-height: 44px;
+  }
+
+  /* Ensure 48x48 touch targets */
+  .header-top-row .q-btn { min-width: 48px; min-height: 48px; }
+
+  .header-info {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-bottom-row { padding: 0 12px 6px; }
+  .header-bottom-row .search-container { max-width: 100%; }
+
+  /* Hide time on mobile as per appointment header */
+  .time-display { display: none; }
+  .weather-location { display: none; }
+}
+
+@media (max-width: 480px) {
+  .mobile-header-layout { display: block; padding: 6px 8px; padding-top: max(env(safe-area-inset-top), 12px); }
 }
 </style>

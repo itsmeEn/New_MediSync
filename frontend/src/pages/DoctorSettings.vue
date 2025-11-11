@@ -347,6 +347,8 @@ import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
 
 import { showVerificationToastOnce } from 'src/utils/verificationToast';
+import { useRouter } from 'vue-router';
+import { performLogout } from 'src/utils/logout';
 // import { AxiosError } from 'axios' // Unused import
 
 // Reactive data
@@ -386,6 +388,7 @@ interface Notification {
 
 // Loading states
 const saving = ref(false);
+const originalTwoFactor = ref<boolean | null>(null);
 
 // Form data
 const profileForm = ref({
@@ -450,6 +453,7 @@ const userInitials = computed(() => {
 
 
 const $q = useQuasar();
+const router = useRouter();
 
 
 
@@ -487,17 +491,104 @@ const saveSettings = async () => {
     // Note: phone field is not supported by the current backend
     // ProfileUpdateSerializer and would need backend changes to be saved
 
-    // Save notification preferences (if endpoint exists)
+    // Handle Two-Factor Authentication changes
     try {
-      await api.put('/users/notification-preferences/', {
-        patient_alerts: notificationSettings.value.patientAlerts,
-        appointment_reminders: notificationSettings.value.appointmentReminders,
-        message_notifications: notificationSettings.value.messageNotifications,
-        analytics_updates: notificationSettings.value.analyticsUpdates,
+      // Always refresh current backend state before applying changes
+      // and log the refresh event
+      try {
+        const statusResp = await api.get('/users/profile/');
+        const currentFlag = !!statusResp.data?.user?.two_factor_enabled;
+        securityForm.value.twoFactorAuth = currentFlag;
+        if (originalTwoFactor.value === null) {
+          originalTwoFactor.value = currentFlag;
+        }
+        void api.post('/operations/client-log/', {
+          level: 'info',
+          message: '2FA status refreshed',
+          route: 'DoctorSettings',
+          context: { two_factor_enabled: currentFlag }
+        });
+      } catch (refreshErr) {
+        console.warn('[DoctorSettings] Failed to refresh 2FA status before save:', refreshErr);
+      }
+
+      // Initialize originalTwoFactor if not yet loaded
+      if (originalTwoFactor.value === null) {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        originalTwoFactor.value = !!storedUser.two_factor_enabled;
+      }
+
+      if (originalTwoFactor.value !== securityForm.value.twoFactorAuth) {
+        if (securityForm.value.twoFactorAuth) {
+          // Enable 2FA via backend
+          const { status } = await api.post('/users/2fa/enable/');
+          if (status === 200) {
+            originalTwoFactor.value = true;
+            // Update local cache to avoid stale fallback on refresh
+            const userLS = JSON.parse(localStorage.getItem('user') || '{}');
+            userLS.two_factor_enabled = true;
+            localStorage.setItem('user', JSON.stringify(userLS));
+            void api.post('/operations/client-log/', {
+              level: 'info',
+              message: '2FA enabled',
+              route: 'DoctorSettings',
+              context: { two_factor_enabled: true }
+            });
+            $q.notify({
+              type: 'positive',
+              message: 'Two-factor authentication enabled. You will be logged out now.',
+              position: 'top',
+            });
+            await performLogout(router);
+            return; // Exit after logout
+          }
+        } else {
+          // Disable 2FA requires password confirmation
+          const { status } = await api.post('/users/2fa/disable/', {
+            password: securityForm.value.currentPassword,
+          });
+          if (status === 200) {
+            originalTwoFactor.value = false;
+            // Update local cache to avoid stale fallback on refresh
+            const userLS = JSON.parse(localStorage.getItem('user') || '{}');
+            userLS.two_factor_enabled = false;
+            localStorage.setItem('user', JSON.stringify(userLS));
+            void api.post('/operations/client-log/', {
+              level: 'info',
+              message: '2FA disabled',
+              route: 'DoctorSettings',
+              context: { two_factor_enabled: false }
+            });
+            $q.notify({
+              type: 'positive',
+              message: 'Two-factor authentication disabled.',
+              position: 'top',
+            });
+            // Refresh from backend to ensure UI sync post-change
+            try {
+              const statusResp = await api.get('/users/profile/');
+              const currentFlag = !!statusResp.data?.user?.two_factor_enabled;
+              securityForm.value.twoFactorAuth = currentFlag;
+              originalTwoFactor.value = currentFlag;
+            } catch (refreshErr) {
+              console.warn('[DoctorSettings] Post-change 2FA refresh failed:', refreshErr);
+            }
+          }
+        }
+      }
+    } catch (twoFaError) {
+      console.error('2FA update failed:', twoFaError);
+      void api.post('/operations/client-log/', {
+        level: 'error',
+        message: '2FA update failed',
+        route: 'DoctorSettings',
+        context: { error: String(twoFaError) }
       });
-    } catch (notificationError) {
-      console.log('Notification preferences endpoint not available:', notificationError);
-      // Continue without failing the entire save operation
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to update two-factor authentication settings.',
+        position: 'top',
+      });
     }
 
     // Save security settings if password is being changed
@@ -753,6 +844,10 @@ const loadUserProfile = async () => {
       hospitalAddress: userData.hospital_address || '',
       licenseNumber: userData.doctor_profile?.license_number || '',
     };
+
+    // Initialize 2FA toggle state from backend profile
+    securityForm.value.twoFactorAuth = !!userData.two_factor_enabled;
+    originalTwoFactor.value = securityForm.value.twoFactorAuth;
   } catch (error) {
     console.error('Failed to load user profile:', error);
 
@@ -854,6 +949,24 @@ const formatDate = (dateString: string): string => {
 onMounted(() => {
   void loadUserProfile();
   void fetchUserProfile();
+
+  // Log refresh event and ensure 2FA UI reflects backend state
+  void (async () => {
+    try {
+      const resp = await api.get('/users/profile/');
+      const flag = !!resp.data?.user?.two_factor_enabled;
+      securityForm.value.twoFactorAuth = flag;
+      originalTwoFactor.value = flag;
+      void api.post('/operations/client-log/', {
+        level: 'info',
+        message: 'DoctorSettings mounted; synced 2FA status',
+        route: 'DoctorSettings',
+        context: { two_factor_enabled: flag }
+      });
+    } catch (err) {
+      console.warn('[DoctorSettings] Failed to sync 2FA on mount:', err);
+    }
+  })();
 
   // Load notifications
   void loadNotifications();

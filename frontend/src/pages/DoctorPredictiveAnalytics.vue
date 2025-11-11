@@ -235,7 +235,7 @@
 
       <!-- Analytics Data Display Section -->
       <div class="analytics-section">
-        <q-card class="analytics-card">
+  <q-card class="analytics-card app-card">
           <q-card-section class="analytics-header" v-if="false">
             <h3 class="analytics-title">REAL-TIME ANALYTICS INSIGHTS</h3>
             <div class="analytics-actions">

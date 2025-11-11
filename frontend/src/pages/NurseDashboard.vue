@@ -36,7 +36,7 @@
       <div class="dashboard-cards-section">
         <div class="dashboard-cards-grid">
           <!-- Today's Tasks Card -->
-          <q-card class="dashboard-card tasks-card" clickable aria-label="Today's Tasks">
+          <q-card class="dashboard-card app-card tasks-card" clickable aria-label="Today's Tasks">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Tasks</div>
@@ -53,7 +53,7 @@
           </q-card>
 
           <!-- Patients Under Care Card -->
-          <q-card class="dashboard-card patients-card" clickable aria-label="Patients Under Care">
+          <q-card class="dashboard-card app-card patients-card" clickable aria-label="Patients Under Care">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Patients Under Care</div>
@@ -70,7 +70,7 @@
           </q-card>
 
           <!-- Vitals Checked Card -->
-          <q-card class="dashboard-card vitals-card" clickable aria-label="Vitals Checked">
+          <q-card class="dashboard-card app-card vitals-card" clickable aria-label="Vitals Checked">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Vitals Checked</div>
@@ -87,7 +87,7 @@
           </q-card>
 
           <!-- Medications Given Card -->
-          <q-card class="dashboard-card medications-card" clickable aria-label="Medications Given">
+          <q-card class="dashboard-card app-card medications-card" clickable aria-label="Medications Given">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Medications Given</div>

@@ -1,0 +1,58 @@
+/* Shared standardized card styling */
+:root {
+  /* Base tile card height scales with viewport to preserve proportion */
+  --card-standard-height: clamp(160px, 22vh, 220px);
+  --card-standard-height-sm: clamp(140px, 26vh, 200px);
+  --card-standard-height-lg: clamp(180px, 20vh, 240px);
+}
+
+/* Apply to any Quasar card that opts in via .app-card */
+.q-card.app-card {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--card-standard-height);
+  min-height: var(--card-standard-height);
+}
+
+/* Ensure common inner layout stays aligned */
+.q-card.app-card .q-card__section.card-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Optional: make icon areas consistent */
+.q-card.app-card .card-icon { display: flex; align-items: center; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .q-card.app-card {
+    height: var(--card-standard-height-sm);
+    min-height: var(--card-standard-height-sm);
+  }
+}
+
+@media (min-width: 1200px) {
+  .q-card.app-card {
+    height: var(--card-standard-height-lg);
+    min-height: var(--card-standard-height-lg);
+  }
+}
+
+/* Convenience: dashboard-card adopts same sizing without changing markup */
+.q-card.dashboard-card { 
+  height: var(--card-standard-height); 
+  min-height: var(--card-standard-height); 
+}
+@media (max-width: 768px) {
+  .q-card.dashboard-card { 
+    height: var(--card-standard-height-sm); 
+    min-height: var(--card-standard-height-sm); 
+  }
+}
+@media (min-width: 1200px) {
+  .q-card.dashboard-card { 
+    height: var(--card-standard-height-lg); 
+    min-height: var(--card-standard-height-lg); 
+  }
+}

@@ -58,7 +58,7 @@
               </q-card-section>
             </q-card>
           </div>
-          <q-card class="analytics-card main-analytics-card" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
+  <q-card class="analytics-card app-card main-analytics-card" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
             <q-card-section class="analytics-content">
               <div class="analytics-panels-container structured-grid">
                 <div class="analytics-panel medication-panel">

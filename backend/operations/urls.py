@@ -3,7 +3,6 @@ from . import views
 from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs, archive_update, archive_unarchive
 from . import secure_views
 from . import monitoring_views
-from .medical_request_views import medical_requests, approve_medical_request, deliver_medical_request
 
 urlpatterns = [
     # Dashboard statistics
@@ -98,9 +97,6 @@ urlpatterns = [
     path('verification-status/', monitoring_views.verification_status, name='verification_status'),
 
     # Medical record requests endpoints
-    path('medical-requests/', medical_requests, name='medical_requests'),
-    path('medical-requests/<int:request_id>/approve/', approve_medical_request, name='approve_medical_request'),
-    path('medical-requests/<int:request_id>/deliver/', deliver_medical_request, name='deliver_medical_request'),
 ]
 
 urlpatterns += [
