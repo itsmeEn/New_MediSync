@@ -291,9 +291,7 @@ const loadUserProfile = async () => {
     };
 
     // Notify when verification becomes approved
-    if (userData.verification_status === 'approved') {
-      $q.notify({ type: 'positive', message: 'Your account is verified', position: 'top', timeout: 3000 });
-    }
+      // Removed sidebar verification toast; notification now appears only once at login
   } catch (error) {
     console.error('Error loading nurse profile:', error);
   }

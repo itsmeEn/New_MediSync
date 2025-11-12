@@ -1478,7 +1478,11 @@ def available_doctors_free(request):
         include_email = str(request.GET.get('include_email', 'true')).lower() == 'true'
 
         cache_key = f"avail:free_doctors:{user.hospital_name}:{specialization.lower()}"
-        cached = cache.get(cache_key)
+        cached = None
+        try:
+            cached = cache.get(cache_key)
+        except Exception:
+            cached = None
         if cached:
             return Response(cached, status=status.HTTP_200_OK)
 
@@ -1532,7 +1536,10 @@ def available_doctors_free(request):
         }
 
         # Cache for 60 seconds
-        cache.set(cache_key, payload, timeout=60)
+        try:
+            cache.set(cache_key, payload, timeout=60)
+        except Exception:
+            pass
         return Response(payload, status=status.HTTP_200_OK)
 
     except DatabaseError as db_err:
@@ -1557,7 +1564,11 @@ def available_nurses(request):
 
         search = request.GET.get('search', '').strip()
         cache_key = f"avail:nurses:{user.hospital_name}:{search.lower()}"
-        cached = cache.get(cache_key)
+        cached = None
+        try:
+            cached = cache.get(cache_key)
+        except Exception:
+            cached = None
         if cached:
             return Response(cached, status=status.HTTP_200_OK)
 
@@ -1622,7 +1633,10 @@ def available_nurses(request):
             'count': len(results),
             'nurses': results,
         }
-        cache.set(cache_key, payload, timeout=60)
+        try:
+            cache.set(cache_key, payload, timeout=60)
+        except Exception:
+            pass
         return Response(payload, status=status.HTTP_200_OK)
 
     except DatabaseError as db_err:

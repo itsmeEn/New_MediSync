@@ -1,37 +1,65 @@
 {
   "assessment": {
-    "allergies": [
-      {
-        "reaction": "Rash",
-        "substance": "Penicillin"
-      }
-    ],
+    "actor": "nurse",
+    "allergies": [],
     "archived": true,
-    "archived_at": "2025-11-02T14:06:05.358Z",
-    "assessed_at": "2025-11-02T14:06:04.478Z",
-    "chief_complaint": "Asthma monitoring",
-    "current_medications": [],
-    "fall_risk_score": 10,
-    "height_cm": 186,
-    "mental_status": "alert",
-    "nurse_name": "Eunice Ibardaloza",
-    "pain_score": 2,
-    "vitals": {
-      "bp": "120/80",
-      "hr": 72,
-      "o2_sat": 98,
-      "rr": 16,
-      "temp_c": 36.7
+    "archived_at": "2025-11-11T09:10:29.079672+00:00",
+    "archived_by": 4,
+    "bp": "",
+    "chiefComplaint": "",
+    "discharge_checklist_summary": {},
+    "fallRisk": "",
+    "graphic_flow_sheets": [],
+    "height": "",
+    "history_and_physical": null,
+    "hr": "",
+    "medication_administration_records": [],
+    "mentalStatus": "",
+    "message": "",
+    "nurse_name": "Calnova Rantosa",
+    "nursing_intake_assessment": {
+      "allergies": [],
+      "assessed_at": "2025-11-11T09:10:24.796Z",
+      "chief_complaint": "",
+      "current_medications": [],
+      "fall_risk_score": 0.0,
+      "height_cm": 0.0,
+      "mental_status": "",
+      "pain_score": 0.0,
+      "vitals": {
+        "bp": "",
+        "hr": 0,
+        "o2_sat": 0,
+        "rr": 0,
+        "temp_c": 0
+      },
+      "weight_kg": 0.0
     },
-    "weight_kg": 86.8
+    "o2": "",
+    "operative_procedure_reports": [],
+    "painScore": 0,
+    "patient": {
+      "date_of_birth": "2002-12-12",
+      "email": "gelrodel17@gmail.com",
+      "full_name": "Angelo Rodel",
+      "gender": "male",
+      "id": 73,
+      "mrn": ""
+    },
+    "patient_education_record": [],
+    "progress_notes": [],
+    "provider_order_sheets": [],
+    "rr": "",
+    "temp": "",
+    "weight": ""
   },
-  "assessment_type": "intake",
+  "assessment_type": "full_record",
   "diagnostics": {},
-  "hospital_name": "Catanduanes Medical Hospital",
+  "hospital_name": "Baseco Public Hospital",
   "id": 1,
-  "last_assessed_at": "2025-11-02T14:06:05.411005+00:00",
-  "medical_condition": "Bronchial Asthma",
+  "last_assessed_at": "2025-11-11T09:10:29.079799+00:00",
+  "medical_condition": "",
   "medical_history_summary": "",
-  "patient_id": 341,
-  "patient_name": "Alfred Fernandez"
+  "patient_id": 73,
+  "patient_name": "Angelo Rodel"
 }

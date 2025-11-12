@@ -2,169 +2,24 @@
   "assessment": {
     "actor": "nurse",
     "allergies": [],
-    "archived": true,
-    "archived_at": "2025-11-03T12:07:23.971587+00:00",
-    "archived_by": 362,
+    "archived": false,
+    "archived_at": "2025-11-11T09:28:37.031083+00:00",
+    "archived_by": 4,
     "bp": "",
     "chiefComplaint": "",
-    "discharge_checklist_summary": {
-      "discharge_vitals": {
-        "bp": "118/76",
-        "hr": 70
-      },
-      "discharged_at": "2025-10-30T13:00:46.510960+00:00",
-      "equipment_needs": [],
-      "follow_up_appointments_made": true,
-      "nurse_signature": "Nurse Alfred Bautista",
-      "patient_acknowledgment": true,
-      "transportation_status": "self",
-      "understanding_confirmed": true,
-      "written_instructions_provided": true
-    },
+    "discharge_checklist_summary": {},
     "fallRisk": "",
-    "graphic_flow_sheets": [
-      {
-        "handoff_note": "BP trending up; notify MD if >140/90",
-        "intake_ml": 500,
-        "nursing_interventions": [
-          "assisted ambulation"
-        ],
-        "output_ml": 400,
-        "repeated_vitals": {
-          "bp": "130/85",
-          "hr": 80,
-          "o2_sat": 97,
-          "pain": 2,
-          "rr": 18,
-          "temp_c": 37.0
-        },
-        "site_checks": "IV site clean/dry/intact",
-        "time_of_reading": "2025-12-08T16:33:00+00:00"
-      },
-      {
-        "handoff_note": "Stable; continue monitoring",
-        "intake_ml": 750,
-        "nursing_interventions": [
-          "repositioned patient"
-        ],
-        "output_ml": 600,
-        "repeated_vitals": {
-          "bp": "130/85",
-          "hr": 80,
-          "o2_sat": 98,
-          "pain": 0,
-          "rr": 20,
-          "temp_c": 37.6
-        },
-        "site_checks": "IV site clean/dry/intact",
-        "time_of_reading": "2025-07-29T14:14:00+00:00"
-      },
-      {
-        "handoff_note": "Stable; continue monitoring",
-        "intake_ml": 750,
-        "nursing_interventions": [
-          "assisted ambulation"
-        ],
-        "output_ml": 400,
-        "repeated_vitals": {
-          "bp": "130/85",
-          "hr": 68,
-          "o2_sat": 97,
-          "pain": 3,
-          "rr": 20,
-          "temp_c": 37.6
-        },
-        "site_checks": "No infiltration noted",
-        "time_of_reading": "2025-08-29T17:02:00+00:00"
-      },
-      {
-        "handoff_note": "BP trending up; notify MD if >140/90",
-        "intake_ml": 500,
-        "nursing_interventions": [
-          "assisted ambulation"
-        ],
-        "output_ml": 200,
-        "repeated_vitals": {
-          "bp": "140/90",
-          "hr": 80,
-          "o2_sat": 98,
-          "pain": 0,
-          "rr": 20,
-          "temp_c": 37.7
-        },
-        "site_checks": "No infiltration noted",
-        "time_of_reading": "2025-06-09T10:02:00+00:00"
-      },
-      {
-        "handoff_note": "Stable; continue monitoring",
-        "intake_ml": 750,
-        "nursing_interventions": [
-          "assisted ambulation"
-        ],
-        "output_ml": 600,
-        "repeated_vitals": {
-          "bp": "130/85",
-          "hr": 68,
-          "o2_sat": 97,
-          "pain": 1,
-          "rr": 18,
-          "temp_c": 37.5
-        },
-        "site_checks": "No infiltration noted",
-        "time_of_reading": "2025-04-17T10:02:00+00:00"
-      }
-    ],
+    "graphic_flow_sheets": [],
     "height": "",
     "history_and_physical": null,
     "hr": "",
-    "medication_administration_records": [
-      {
-        "datetime_administered": "2025-10-30T13:00:46.510918+00:00",
-        "dose": "500 mg",
-        "name": "Acetaminophen",
-        "nurse_initials": "NT",
-        "prn_reason": "Headache 4/10",
-        "prn_response": "Improved to 2/10",
-        "route": "PO",
-        "withheld_reason": null
-      },
-      {
-        "datetime_administered": "2025-08-21T14:10:00+00:00",
-        "dose": "500 mg",
-        "name": "Metformin",
-        "nurse_initials": "RN",
-        "prn_reason": "Asthma exacerbation",
-        "prn_response": "Improved",
-        "route": "IV",
-        "withheld_reason": null
-      },
-      {
-        "datetime_administered": "2025-03-27T16:55:00+00:00",
-        "dose": "2 puffs",
-        "name": "Metformin",
-        "nurse_initials": "RN",
-        "prn_reason": "Blood sugar control",
-        "prn_response": "Stable",
-        "route": "IV",
-        "withheld_reason": null
-      },
-      {
-        "datetime_administered": "2025-03-18T16:13:00+00:00",
-        "dose": "10 mg",
-        "name": "Lisinopril",
-        "nurse_initials": "RN",
-        "prn_reason": "Blood sugar control",
-        "prn_response": "Improved",
-        "route": "IV",
-        "withheld_reason": null
-      }
-    ],
+    "medication_administration_records": [],
     "mentalStatus": "",
     "message": "",
-    "nurse_name": "Eunice Ibardaloza",
+    "nurse_name": "Calnova Rantosa",
     "nursing_intake_assessment": {
       "allergies": [],
-      "assessed_at": "2025-11-03T12:07:23.276Z",
+      "assessed_at": "2025-11-11T09:28:26.261Z",
       "chief_complaint": "",
       "current_medications": [],
       "fall_risk_score": 0.0,
@@ -181,109 +36,30 @@
       "weight_kg": 0.0
     },
     "o2": "",
-    "operative_procedure_reports": [
-      {
-        "anesthesia_dose": "lidocaine 10ml",
-        "anesthesia_type": "local",
-        "complications": "none",
-        "consent_status": "obtained",
-        "created_at": "2025-10-30T13:00:46.511011+00:00",
-        "date_time_performed": "2025-10-30T13:00:46.511008+00:00",
-        "disposition_plan": "home",
-        "findings": "benign appearing",
-        "indications": "suspicious lesion",
-        "patient_id": "341",
-        "procedure_name": "Skin lesion excision",
-        "procedure_steps": "prep, excision, closure",
-        "surgeon_signature": "Dr. Arvin Valdez"
-      }
-    ],
+    "operative_procedure_reports": [],
     "painScore": 0,
     "patient": {
-      "date_of_birth": "",
-      "email": "patient.zidgdluq@medisync.local",
-      "full_name": "Alfred Fernandez",
-      "gender": "female",
-      "id": 341,
+      "date_of_birth": "2002-12-12",
+      "email": "angelorodel13@gmail.com",
+      "full_name": "Angelo Rodel",
+      "gender": "male",
+      "id": 2,
       "mrn": ""
     },
-    "patient_education_record": [
-      {
-        "barriers_to_learning": [
-          "none"
-        ],
-        "comprehension_level": "good",
-        "recorded_at": "2025-10-30T13:00:46.510955+00:00",
-        "return_demonstration": "successful",
-        "teaching_method": "verbal",
-        "topics": [
-          "wound care",
-          "medication adherence"
-        ]
-      }
-    ],
-    "progress_notes": [
-      {
-        "assessment": "Hypertension stable",
-        "created_at": "2025-10-30T13:00:46.510993+00:00",
-        "date_time": "2025-01-30T09:04:00+00:00",
-        "follow_up_date": "2025-11-29",
-        "lab_imaging_results": "CBC normal",
-        "objective": "VS stable",
-        "plan": "Maintain meds; lifestyle counseling",
-        "provider_signature": "Dr. Arvin Valdez",
-        "subjective": "Feels well",
-        "vitals": {
-          "bp": "118/76",
-          "hr": "70",
-          "temp": "36.6"
-        }
-      }
-    ],
-    "provider_order_sheets": [
-      {
-        "consultation_orders": [
-          {
-            "question": "evaluate hypertension",
-            "specialty": "cardiology"
-          }
-        ],
-        "created_at": "2025-10-30T13:00:46.511002+00:00",
-        "date_time_placed": "2025-10-30T13:00:46.510998+00:00",
-        "diagnostic_orders": [
-          {
-            "priority": "routine",
-            "reason": "monitoring",
-            "test_name": "CBC"
-          }
-        ],
-        "general_orders": [
-          "low sodium diet"
-        ],
-        "medication_orders": [
-          {
-            "dose": "10mg",
-            "drug_name": "Lisinopril",
-            "frequency": "daily",
-            "route": "PO"
-          }
-        ],
-        "order_status": "new",
-        "order_type": "medication",
-        "ordering_provider": "Dr. Arvin Valdez"
-      }
-    ],
+    "patient_education_record": [],
+    "progress_notes": [],
+    "provider_order_sheets": [],
     "rr": "",
     "temp": "",
     "weight": ""
   },
   "assessment_type": "full_record",
   "diagnostics": {},
-  "hospital_name": "Catanduanes Medical Hospital",
+  "hospital_name": "Baseco Public Hospital",
   "id": 6,
-  "last_assessed_at": "2025-11-03T12:07:23.971630+00:00",
-  "medical_condition": "Bronchial Asthma",
+  "last_assessed_at": "2025-11-11T09:28:37.031178+00:00",
+  "medical_condition": "",
   "medical_history_summary": "",
-  "patient_id": 341,
-  "patient_name": "Alfred Fernandez"
+  "patient_id": 2,
+  "patient_name": "Angelo Rodel"
 }

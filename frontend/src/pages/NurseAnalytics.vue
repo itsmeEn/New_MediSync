@@ -294,7 +294,6 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from 'src/components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 import { Bar, Doughnut, Line } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -862,9 +861,7 @@ const fetchUserProfile = async () => {
   try {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
-
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
+    // Module-level verification toast removed; banner is shown only at login
 
     userProfile.value = {
       first_name: userData.first_name,
@@ -877,9 +874,7 @@ const fetchUserProfile = async () => {
       email: userData.email,
     };
 
-    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus);
-    }
+    // Removed module-level verification toast; banner is shown only once at login
 
     if (userData.profile_picture) {
       localStorage.setItem('profile_picture', userData.profile_picture);

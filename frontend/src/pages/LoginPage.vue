@@ -231,6 +231,21 @@ const performLogin = async () => {
     // Optimized navigation logic
     const user = response.data.user;
 
+    // Show one-time verification banner only during login if backend indicates
+    try {
+      if (response.data.show_verification_banner === true) {
+        $q.notify({
+          type: 'positive',
+          message: 'Your account has been verified!',
+          position: 'top',
+          timeout: 5000,
+          actions: [{ icon: 'close', color: 'white' }],
+        });
+      }
+    } catch (e) {
+      console.error('Verification banner notify failed:', e);
+    }
+
     // Use nextTick for better performance on iOS
     void nextTick();
 

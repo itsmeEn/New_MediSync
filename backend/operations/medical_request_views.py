@@ -111,16 +111,18 @@ def medical_requests(request):
             except NurseProfile.DoesNotExist:
                 qs = MedicalRecordRequest.objects.filter(requested_by=user)
         elif role == 'doctor':
-            try:
-                doc = user.generaldoctorprofile
+            # Use correct reverse accessor for doctor profile
+            doc = getattr(user, 'doctor_profile', None)
+            if doc:
                 qs = MedicalRecordRequest.objects.filter(attending_doctor=doc)
-            except GeneralDoctorProfile.DoesNotExist:
+            else:
                 qs = MedicalRecordRequest.objects.filter(approved_by=user)
         else:
             # Admin or other roles see their own initiated
             qs = MedicalRecordRequest.objects.filter(requested_by=user)
 
-        return Response(MedicalRecordRequestSerializer(qs.order_by('-created_at'), many=True).data)
+        serializer = MedicalRecordRequestSerializer(qs.order_by('-created_at'), many=True, context={'request': request})
+        return Response(serializer.data)
 
     # POST create
     serializer = CreateMedicalRecordRequestSerializer(data=request.data)
@@ -135,14 +137,18 @@ def medical_requests(request):
             attending_doctor = GeneralDoctorProfile.objects.filter(id=data['attending_doctor_id']).first()
 
         # Auto-derive nurse/doctor if possible
+        # If attending doctor not explicitly provided, derive based on requester role
         if not attending_doctor:
-            attending_doctor = getattr(getattr(patient, 'generaldoctorprofile', None), 'user', None)
-            if isinstance(attending_doctor, User):
-                attending_doctor = getattr(attending_doctor, 'generaldoctorprofile', None)
+            req_role = getattr(user, 'role', None)
+            if req_role == 'doctor':
+                attending_doctor = getattr(user, 'doctor_profile', None)
         try:
             primary_nurse = patient.patient_profile.assigned_nurse if hasattr(patient, 'patient_profile') else None
         except Exception:
             primary_nurse = None
+        # If requester is a nurse and no assigned nurse, use their profile
+        if not primary_nurse and getattr(user, 'role', None) == 'nurse':
+            primary_nurse = getattr(user, 'nurse_profile', None)
 
         # RBAC: patients can only request their own
         if getattr(user, 'role', None) == 'patient' and patient.id != user.id:
@@ -157,6 +163,9 @@ def medical_requests(request):
             requested_records=data.get('requested_records') or {},
             reason=data.get('reason') or '',
             urgency=data.get('urgency') or 'medium',
+            purpose=data.get('purpose') or '',
+            requested_date_range_start=data.get('requested_date_range_start'),
+            requested_date_range_end=data.get('requested_date_range_end'),
             status='pending'
         )
 
@@ -215,7 +224,8 @@ def approve_medical_request(request, request_id: int):
         targets = [mreq.patient_id, getattr(getattr(mreq.primary_nurse, 'user', None), 'id', None)]
         _broadcast_notification(targets, notif)
 
-    return Response(MedicalRecordRequestSerializer(mreq).data)
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)
 
 
 @api_view(['POST'])
@@ -281,4 +291,160 @@ def deliver_medical_request(request, request_id: int):
     }
     _broadcast_notification([mreq.patient_id], notif)
 
-    return Response(MedicalRecordRequestSerializer(mreq).data)
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reject_medical_request(request, request_id: int):
+    """Reject a medical certificate request."""
+    user: User = request.user
+    role = getattr(user, 'role', None)
+    if role != 'doctor':
+        return Response({'error': 'Only doctors can reject record requests.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        mreq = MedicalRecordRequest.objects.get(id=request_id)
+    except MedicalRecordRequest.DoesNotExist:
+        return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    rejection_reason = request.data.get('rejection_reason', '')
+    if not rejection_reason:
+        return Response({'error': 'Rejection reason is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        mreq.status = 'rejected'
+        mreq.rejected_by = user
+        mreq.rejected_at = timezone.now()
+        mreq.rejection_reason = rejection_reason
+        mreq.save(update_fields=['status', 'rejected_by', 'rejected_at', 'rejection_reason', 'updated_at'])
+
+        ArchiveAccessLog.objects.create(
+            record=None, user=user, action='update', ip_address=request.META.get('REMOTE_ADDR', ''), 
+            query_params=f'reject:{mreq.id}'
+        )
+
+        notif = {
+            'type': 'medical_record_request_rejected',
+            'request_id': mreq.id,
+            'patient_id': mreq.patient_id,
+            'rejected_by': getattr(user, 'full_name', user.email),
+            'rejection_reason': rejection_reason,
+        }
+        targets = [mreq.patient_id, getattr(getattr(mreq.primary_nurse, 'user', None), 'id', None)]
+        _broadcast_notification(targets, notif)
+
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upload_certificate(request, request_id: int):
+    """Upload a medical certificate file for a request."""
+    user: User = request.user
+    role = getattr(user, 'role', None)
+    if role != 'doctor':
+        return Response({'error': 'Only doctors can upload certificates.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        mreq = MedicalRecordRequest.objects.get(id=request_id)
+    except MedicalRecordRequest.DoesNotExist:
+        return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if 'certificate_file' not in request.FILES:
+        return Response({'error': 'Certificate file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    certificate_file = request.FILES['certificate_file']
+    
+    # Validate file type (PDF, images)
+    allowed_extensions = ['.pdf', '.png', '.jpg', '.jpeg']
+    file_ext = certificate_file.name.lower().split('.')[-1] if '.' in certificate_file.name else ''
+    if f'.{file_ext}' not in allowed_extensions:
+        return Response({'error': 'Invalid file type. Allowed: PDF, PNG, JPG, JPEG'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        mreq.certificate_file = certificate_file
+        if mreq.status == 'approved':
+            mreq.status = 'completed'
+        elif mreq.status == 'pending':
+            mreq.status = 'processing'
+        mreq.save(update_fields=['certificate_file', 'status', 'updated_at'])
+
+        ArchiveAccessLog.objects.create(
+            record=None, user=user, action='update', ip_address=request.META.get('REMOTE_ADDR', ''), 
+            query_params=f'upload_certificate:{mreq.id}'
+        )
+
+        notif = {
+            'type': 'medical_certificate_uploaded',
+            'request_id': mreq.id,
+            'patient_id': mreq.patient_id,
+            'uploaded_by': getattr(user, 'full_name', user.email),
+        }
+        _broadcast_notification([mreq.patient_id], notif)
+
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_doctor_notes(request, request_id: int):
+    """Add or update doctor notes for a medical certificate request."""
+    user: User = request.user
+    role = getattr(user, 'role', None)
+    if role != 'doctor':
+        return Response({'error': 'Only doctors can add notes.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        mreq = MedicalRecordRequest.objects.get(id=request_id)
+    except MedicalRecordRequest.DoesNotExist:
+        return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    doctor_notes = request.data.get('doctor_notes', '')
+    
+    with transaction.atomic():
+        mreq.doctor_notes = doctor_notes
+        if mreq.status == 'pending':
+            mreq.status = 'processing'
+        mreq.save(update_fields=['doctor_notes', 'status', 'updated_at'])
+
+        ArchiveAccessLog.objects.create(
+            record=None, user=user, action='update', ip_address=request.META.get('REMOTE_ADDR', ''), 
+            query_params=f'add_notes:{mreq.id}'
+        )
+
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_request_processing(request, request_id: int):
+    """Mark a request as processing."""
+    user: User = request.user
+    role = getattr(user, 'role', None)
+    if role != 'doctor':
+        return Response({'error': 'Only doctors can mark requests as processing.'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        mreq = MedicalRecordRequest.objects.get(id=request_id)
+    except MedicalRecordRequest.DoesNotExist:
+        return Response({'error': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if mreq.status != 'pending':
+        return Response({'error': f'Cannot mark as processing. Current status: {mreq.status}'}, status=status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
+        mreq.status = 'processing'
+        mreq.save(update_fields=['status', 'updated_at'])
+
+        ArchiveAccessLog.objects.create(
+            record=None, user=user, action='update', ip_address=request.META.get('REMOTE_ADDR', ''), 
+            query_params=f'mark_processing:{mreq.id}'
+        )
+
+    serializer = MedicalRecordRequestSerializer(mreq, context={'request': request})
+    return Response(serializer.data)

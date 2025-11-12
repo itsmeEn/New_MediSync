@@ -33,7 +33,6 @@
               <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.start_date" label="Start Date" type="date" outlined dense/></div>
               <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.end_date" label="End Date" type="date" outlined dense/></div>
               <div class="col-12 col-sm-6 col-md-3"><q-btn color="primary" icon="search" label="Search" class="full-width" :loading="archivesLoading" @click="searchArchives"/></div>
-              <div class="col-12 col-sm-6 col-md-3"><q-btn flat color="secondary" icon="clear" label="Reset" class="full-width" @click="resetArchiveFilters"/></div>
             </div>
 
             <q-inner-loading :showing="archivesLoading"><q-spinner color="primary"/></q-inner-loading>
@@ -83,7 +82,92 @@
                   <div class="q-mb-sm"><b>Medical History:</b> {{ selectedArchive?.medical_history_summary || '—' }}</div>
                   <div class="q-mt-md">
                     <div class="text-subtitle2 q-mb-xs">Assessment Data</div>
-                    <pre class="q-pa-sm bg-grey-2" style="white-space: pre-wrap;">{{ formatJson(selectedArchive?.decrypted_assessment_data) }}</pre>
+                    <div v-if="selectedArchive">
+                      <div class="q-mb-md">
+                        <div class="text-body1 text-bold q-mb-sm">Overview</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in overviewRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                      <div class="q-mb-md">
+                        <div class="text-body1 text-bold q-mb-sm">Participants</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in participantRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                      <div class="q-mb-md">
+                        <div class="text-body1 text-bold q-mb-sm">Vitals</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in vitalsRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                      <div class="q-mb-md">
+                        <div class="text-body1 text-bold q-mb-sm">Scores & Status</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in metricRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                      <div class="q-mb-md">
+                        <div class="text-body1 text-bold q-mb-sm">Notes</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in noteRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                      <div class="q-mb-md" v-if="listSections.length">
+                        <div class="text-body1 text-bold q-mb-sm">Lists</div>
+                        <div class="q-gutter-sm">
+                          <div v-for="lst in listSections" :key="lst.title">
+                            <div class="text-subtitle2 q-mb-xs">{{ lst.title }}</div>
+                            <q-markup-table flat separator="cell">
+                              <tbody>
+                                <tr v-if="!lst.items.length">
+                                  <td>—</td>
+                                </tr>
+                                <tr v-for="(item, idx) in lst.items" :key="idx">
+                                  <td>{{ item }}</td>
+                                </tr>
+                              </tbody>
+                            </q-markup-table>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="q-mb-md" v-if="otherRows.length">
+                        <div class="text-body1 text-bold q-mb-sm">Other Fields</div>
+                        <q-markup-table flat separator="cell">
+                          <tbody>
+                            <tr v-for="row in otherRows" :key="row.label">
+                              <td class="text-weight-medium">{{ row.label }}</td>
+                              <td>{{ row.value || '—' }}</td>
+                            </tr>
+                          </tbody>
+                        </q-markup-table>
+                      </div>
+                    </div>
                   </div>
                 </q-card-section>
                 <q-separator/>
@@ -142,11 +226,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import NurseHeader from 'components/NurseHeader.vue'
 import NurseSidebar from 'components/NurseSidebar.vue'
 import { api } from 'boot/axios'
+import { normalizeAssessmentData, formatSectionRows } from 'src/utils/archiveFormat'
 
 // Sidebar state
 const rightDrawerOpen = ref(false)
@@ -186,13 +271,7 @@ const formatDateDisplay = (dateStr: string): string => {
   return d.toLocaleString()
 }
 
-const formatJson = (obj: unknown): string => {
-  try {
-    return JSON.stringify(obj ?? {}, null, 2)
-  } catch {
-    return obj ? '[Unable to format object]' : ''
-  }
-}
+// Removed raw JSON formatter in favor of human-readable sections
 
 // Safely read a primitive field from decrypted assessment data
 const getAssessmentField = (key: string, rec?: ArchiveRecord | null): string | number | undefined => {
@@ -243,10 +322,7 @@ const searchArchives = async () => {
   }
 }
 
-const resetArchiveFilters = () => {
-  archiveFilters.value = { query: '', patient_id: '', assessment_type: '', medical_condition: '', start_date: '', end_date: '' }
-  archivedRecords.value = []
-}
+
 
 const viewArchive = async (rec: ArchiveRecord) => {
   try {
@@ -258,6 +334,49 @@ const viewArchive = async (rec: ArchiveRecord) => {
     $q.notify({ type: 'negative', message: 'Failed to load archive detail', position: 'top' })
   }
 }
+
+// Human-readable computed rows
+const overviewRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.overview)
+})
+
+const participantRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.participants)
+})
+
+const vitalsRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.vitals)
+})
+
+const metricRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.metrics)
+})
+
+const noteRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.notes)
+})
+
+const listSections = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return Object.entries(sections.lists).map(([title, items]) => ({ title, items }))
+})
+
+const otherRows = computed(() => {
+  const data = selectedArchive.value?.decrypted_assessment_data
+  const sections = normalizeAssessmentData(data)
+  return formatSectionRows(sections.other)
+})
 
 const exportArchive = async (rec: ArchiveRecord) => {
   try {

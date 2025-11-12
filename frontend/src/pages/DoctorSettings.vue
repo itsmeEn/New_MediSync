@@ -345,8 +345,7 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import DoctorHeader from '../components/DoctorHeader.vue';
 import DoctorSidebar from '../components/DoctorSidebar.vue';
-
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
+// Module-level verification toast removed; banner is shown only at login
 // import { AxiosError } from 'axios' // Unused import
 
 // Reactive data
@@ -697,9 +696,7 @@ const fetchUserProfile = async () => {
     // Check localStorage for updated profile picture
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
 
-    // Check if verification status has changed
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
+    // Module-level verification toast removed; banner is shown only at login
 
     userProfile.value = {
       first_name: userData.first_name,
@@ -717,14 +714,11 @@ const fetchUserProfile = async () => {
       accountStatus.value.memberSince = formatDate(userData.date_joined);
     }
 
-    // Show notification if verification status changed to approved
-    if (previousStatus !== newStatus && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
-    }
+    // Removed module-level verification toast; now shown only once at login
 
     // Update localStorage with new verification status
     if (storedUser) {
-      storedUser.verification_status = newStatus;
+      storedUser.verification_status = userData.verification_status;
       localStorage.setItem('user', JSON.stringify(storedUser));
     }
   } catch (error) {

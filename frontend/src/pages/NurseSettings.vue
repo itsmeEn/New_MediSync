@@ -299,7 +299,6 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 
 // Type definitions
 interface Medicine {
@@ -554,10 +553,6 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user;
 
-    // Check if verification status has changed
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
-
     userProfile.value = {
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -572,15 +567,12 @@ const fetchUserProfile = async () => {
       accountStatus.value.memberSince = formatDate(userData.date_joined);
     }
 
-    // Show notification if verification status changed to approved
-    if (previousStatus !== newStatus && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
-    }
+    // Removed module-level verification toast; now shown only once at login
 
     // Update localStorage with new verification status
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
     if (storedUser) {
-      storedUser.verification_status = newStatus;
+      storedUser.verification_status = userData.verification_status;
       localStorage.setItem('user', JSON.stringify(storedUser));
     }
 

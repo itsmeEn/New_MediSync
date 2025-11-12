@@ -678,7 +678,6 @@ import { api } from 'src/boot/axios';
 import axios from 'axios';
 import NurseHeader from 'src/components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 
 const $q = useQuasar();
 
@@ -1617,9 +1616,7 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
-    // Check for verification status change
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
+    // Module-level verification toast removed; banner is shown only at login
 
     userProfile.value = {
       first_name: userData.first_name,
@@ -1632,10 +1629,7 @@ const fetchUserProfile = async () => {
       email: userData.email,
     };
 
-    // Show notification if verification status changed to approved
-    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus);
-    }
+    // Removed module-level verification toast; banner is shown only once at login
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {

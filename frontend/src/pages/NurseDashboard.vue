@@ -159,8 +159,8 @@
                     <q-chip dense :color="patient.queue_type === 'priority' ? 'red' : 'blue'" text-color="white" class="q-mr-sm">
                       {{ patient.queue_type === 'priority' ? 'Priority' : 'Normal' }}
                     </q-chip>
-                    <q-chip dense color="teal" text-color="white" class="q-mr-sm">
-                      Pos #{{ idx + 1 }}
+                    <q-chip dense color="positive" text-color="white" class="q-mr-sm">
+                      Queue #{{ patient.queue_number ?? '—' }}
                     </q-chip>
                     <span class="text-grey-7">{{ patient.department }}</span>
                   </q-item-label>
@@ -432,7 +432,6 @@ import { useQuasar } from 'quasar';
 import { api } from '../boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 const router = useRouter();
 const $q = useQuasar();
 const rightDrawerOpen = ref(false);
@@ -984,9 +983,7 @@ const fetchUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user; // The API returns nested user data
 
-    // Check for verification status change
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
+    // Module-level verification toast removed; banner is shown only at login
 
     userProfile.value = {
       first_name: userData.first_name,
@@ -999,10 +996,7 @@ const fetchUserProfile = async () => {
       email: userData.email,
     };
 
-    // Show notification if verification status changed to approved
-    if (previousStatus && previousStatus !== 'approved' && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus);
-    }
+    // Removed module-level verification toast; banner is shown only once at login
 
     // Store profile picture in localStorage if available
     if (userData.profile_picture) {

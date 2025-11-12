@@ -393,20 +393,35 @@ class MedicalRecordRequestSerializer(serializers.ModelSerializer):
     requested_by = UserSerializer(read_only=True)
     attending_doctor = UserSerializer(source='attending_doctor.user', read_only=True)
     primary_nurse = UserSerializer(source='primary_nurse.user', read_only=True)
+    approved_by = UserSerializer(read_only=True)
+    rejected_by = UserSerializer(read_only=True)
+    certificate_file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = MedicalRecordRequest
         fields = [
             'id', 'patient', 'requested_by', 'primary_nurse', 'attending_doctor',
-            'request_type', 'requested_records', 'reason', 'urgency',
-            'status', 'approved_by', 'approved_at', 'delivered_at', 'delivery_reference',
+            'request_type', 'requested_records', 'reason', 'urgency', 'purpose',
+            'requested_date_range_start', 'requested_date_range_end', 'doctor_notes',
+            'certificate_file', 'certificate_file_url', 'rejection_reason',
+            'status', 'approved_by', 'approved_at', 'rejected_by', 'rejected_at',
+            'delivered_at', 'delivery_reference', 'request_reference_number',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'patient', 'requested_by', 'primary_nurse', 'attending_doctor',
-            'status', 'approved_by', 'approved_at', 'delivered_at', 'delivery_reference',
-            'created_at', 'updated_at'
+            'status', 'approved_by', 'approved_at', 'rejected_by', 'rejected_at',
+            'delivered_at', 'delivery_reference', 'request_reference_number',
+            'created_at', 'updated_at', 'certificate_file_url'
         ]
+
+    def get_certificate_file_url(self, obj):
+        if obj.certificate_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.certificate_file.url)
+            return obj.certificate_file.url
+        return None
 
 class CreateMedicalRecordRequestSerializer(serializers.Serializer):
     patient_id = serializers.IntegerField()
@@ -415,3 +430,6 @@ class CreateMedicalRecordRequestSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
     urgency = serializers.ChoiceField(choices=['low', 'medium', 'high', 'urgent'], default='medium')
     attending_doctor_id = serializers.IntegerField(required=False)
+    purpose = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    requested_date_range_start = serializers.DateField(required=False, allow_null=True)
+    requested_date_range_end = serializers.DateField(required=False, allow_null=True)

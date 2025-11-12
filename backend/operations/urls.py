@@ -3,7 +3,10 @@ from . import views
 from .archive_views import archive_list, archive_detail, archive_create, archive_export, archive_logs, archive_update, archive_unarchive
 from . import secure_views
 from . import monitoring_views
-from .medical_request_views import medical_requests, approve_medical_request, deliver_medical_request
+from .medical_request_views import (
+    medical_requests, approve_medical_request, deliver_medical_request,
+    reject_medical_request, upload_certificate, add_doctor_notes, mark_request_processing
+)
 
 urlpatterns = [
     # Dashboard statistics
@@ -100,7 +103,11 @@ urlpatterns = [
     # Medical record requests endpoints
     path('medical-requests/', medical_requests, name='medical_requests'),
     path('medical-requests/<int:request_id>/approve/', approve_medical_request, name='approve_medical_request'),
+    path('medical-requests/<int:request_id>/reject/', reject_medical_request, name='reject_medical_request'),
     path('medical-requests/<int:request_id>/deliver/', deliver_medical_request, name='deliver_medical_request'),
+    path('medical-requests/<int:request_id>/upload-certificate/', upload_certificate, name='upload_certificate'),
+    path('medical-requests/<int:request_id>/add-notes/', add_doctor_notes, name='add_doctor_notes'),
+    path('medical-requests/<int:request_id>/mark-processing/', mark_request_processing, name='mark_request_processing'),
 ]
 
 urlpatterns += [

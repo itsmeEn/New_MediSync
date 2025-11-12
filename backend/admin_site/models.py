@@ -170,6 +170,11 @@ class VerificationRequest(models.Model):
             # Align approval with main app expectations: mark both flags
             user.verification_status = 'approved'
             user.is_verified = True
+            # Record the timestamp of verification for login banner logic
+            try:
+                user.verified_at = self.reviewed_at or timezone.now()
+            except Exception:
+                pass
             user.save()
         except User.DoesNotExist:
             # User might not exist in the main app, that's okay

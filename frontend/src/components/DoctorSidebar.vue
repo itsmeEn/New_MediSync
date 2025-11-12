@@ -149,7 +149,6 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'boot/axios';
 import { performLogout } from 'src/utils/logout';
-import { showVerificationToastOnce } from 'src/utils/verificationToast';
 
 // Props
 interface Props {
@@ -283,10 +282,6 @@ const loadUserProfile = async () => {
     const response = await api.get('/users/profile/');
     const userData = response.data.user || response.data;
 
-    // Check if verification status has changed
-    const previousStatus = userProfile.value.verification_status;
-    const newStatus = userData.verification_status;
-
     userProfile.value = {
       id: userData.id,
       full_name: userData.full_name,
@@ -296,10 +291,7 @@ const loadUserProfile = async () => {
       last_name: userData.last_name,
     };
 
-    // Show notification if verification status changed to approved
-    if (previousStatus !== newStatus && newStatus === 'approved') {
-      showVerificationToastOnce(newStatus, '🎉 Your account has been verified!');
-    }
+    // Removed sidebar-triggered verification toast; banner is shown only once at login
   } catch (error) {
     console.error('Error loading user profile:', error);
   }

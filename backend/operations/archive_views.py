@@ -20,6 +20,29 @@ import hashlib
 import json
 from django.conf import settings
 
+# --- Cache safety helpers ---
+def _safe_cache_get(key):
+    try:
+        return cache.get(key)
+    except Exception:
+        return None
+
+def _safe_cache_set(key, value, timeout=60):
+    try:
+        cache.set(key, value, timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+def _is_cache_available():
+    token_key = "_health:archives"
+    try:
+        cache.set(token_key, "ok", timeout=5)
+        val = cache.get(token_key)
+        return val == "ok"
+    except Exception:
+        return False
+
 # --- Dual-store helpers ---
 DUAL_STORE_ROOT = os.path.join(os.path.dirname(__file__), 'dual_store')
 DOCTOR_STORE_DIR = os.path.join(DUAL_STORE_ROOT, 'doctor_archives')
@@ -154,7 +177,7 @@ def archive_list(request):
                 pass
 
         cache_key = f"archives:list:{request.user.id}:{hash(frozenset(request.GET.items()))}"
-        cached = cache.get(cache_key)
+        cached = _safe_cache_get(cache_key)
         if cached:
             try:
                 ArchiveAccessLog.objects.create(
@@ -167,7 +190,7 @@ def archive_list(request):
 
         serializer = PatientAssessmentArchiveSerializer(qs.order_by('-last_assessed_at')[:200], many=True)
         data = serializer.data
-        cache.set(cache_key, data, timeout=60)
+        _safe_cache_set(cache_key, data, timeout=60)
 
         try:
             ArchiveAccessLog.objects.create(
@@ -178,7 +201,49 @@ def archive_list(request):
             pass
         return Response(data, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({'error': f'Failed to list archives: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Fallback path: compute response without any cache operations and return 200
+        try:
+            qs = PatientAssessmentArchive.objects.filter(assessment_data__archived=True)
+            patient_id = request.GET.get('patient_id')
+            patient_name = request.GET.get('patient_name')
+            start_date = request.GET.get('start')
+            end_date = request.GET.get('end')
+            assessment_type = request.GET.get('assessment_type')
+            condition = request.GET.get('condition')
+
+            if patient_id:
+                qs = qs.filter(user__id=patient_id)
+            if patient_name:
+                qs = qs.filter(user__full_name__icontains=patient_name)
+            if assessment_type:
+                qs = qs.filter(assessment_type__iexact=assessment_type)
+            if condition:
+                qs = qs.filter(medical_condition__icontains=condition)
+            if start_date:
+                try:
+                    sd = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    qs = qs.filter(last_assessed_at__date__gte=sd)
+                except Exception:
+                    pass
+            if end_date:
+                try:
+                    ed = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    qs = qs.filter(last_assessed_at__date__lte=ed)
+                except Exception:
+                    pass
+
+            serializer = PatientAssessmentArchiveSerializer(qs.order_by('-last_assessed_at')[:200], many=True)
+            data = serializer.data
+            try:
+                ArchiveAccessLog.objects.create(
+                    user=request.user, action='search', record=qs.first() if qs.exists() else None,
+                    query_params=str(dict(request.GET)), duration_ms=int((timezone.now()-start_time).total_seconds()*1000)
+                )
+            except Exception:
+                pass
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as db_err:
+            return Response({'error': 'Failed to list archives', 'detail': str(db_err), 'cache_available': _is_cache_available()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -191,25 +256,47 @@ def archive_detail(request, archive_id):
             return Response({'error': 'Archive record not found'}, status=status.HTTP_404_NOT_FOUND)
 
         cache_key = f"archives:detail:{archive_id}"
-        cached = cache.get(cache_key)
+        cached = _safe_cache_get(cache_key)
         if cached:
-            ArchiveAccessLog.objects.create(
-                user=request.user, action='view', record=record,
-                duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
-            )
+            try:
+                ArchiveAccessLog.objects.create(
+                    user=request.user, action='view', record=record,
+                    duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
+                )
+            except Exception:
+                pass
             return Response(cached, status=status.HTTP_200_OK)
 
         serializer = PatientAssessmentArchiveSerializer(record)
         data = serializer.data
-        cache.set(cache_key, data, timeout=120)
+        _safe_cache_set(cache_key, data, timeout=120)
 
-        ArchiveAccessLog.objects.create(
-            user=request.user, action='view', record=record,
-            duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
-        )
+        try:
+            ArchiveAccessLog.objects.create(
+                user=request.user, action='view', record=record,
+                duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
+            )
+        except Exception:
+            pass
         return Response(data, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({'error': f'Failed to fetch archive: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Fallback: attempt to read from DB and serialize without cache
+        try:
+            record = PatientAssessmentArchive.objects.filter(id=archive_id).first()
+            if not record:
+                return Response({'error': 'Archive record not found'}, status=status.HTTP_404_NOT_FOUND)
+            serializer = PatientAssessmentArchiveSerializer(record)
+            data = serializer.data
+            try:
+                ArchiveAccessLog.objects.create(
+                    user=request.user, action='view', record=record,
+                    duration_ms=int((timezone.now()-start_time).total_seconds()*1000),
+                )
+            except Exception:
+                pass
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as db_err:
+            return Response({'error': 'Failed to fetch archive', 'detail': str(db_err), 'cache_available': _is_cache_available()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def _verify_signature(payload: dict, signature: str) -> bool:
