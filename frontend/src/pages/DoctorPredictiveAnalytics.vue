@@ -55,7 +55,12 @@
                   <div class="stat-row">
                     <span class="stat-label">Average Age:</span>
                     <span class="stat-value"
-                      >{{ analyticsData.patient_demographics?.average_age ?? 'N/A' }} years</span
+                      >{{
+                        analyticsData.patient_demographics?.average_age !== undefined &&
+                        analyticsData.patient_demographics?.average_age !== null
+                          ? Math.round(Number(analyticsData.patient_demographics?.average_age))
+                          : 'N/A'
+                      }} years</span
                     >
                   </div>
                   <div class="stat-row">
@@ -66,7 +71,7 @@
                         :key="gender"
                         class="gender-item"
                       >
-                        {{ gender }}: {{ percentage }}%
+                        {{ gender }}: {{ Math.round(Number(percentage)) }}%
                       </span>
                     </div>
                   </div>
@@ -235,8 +240,7 @@
 
       <!-- Analytics Data Display Section -->
       <div class="analytics-section">
-  <q-card class="analytics-card app-card">
-          <q-card-section class="analytics-header" v-if="false">
+          <div class="analytics-header" v-if="false">
             <h3 class="analytics-title">REAL-TIME ANALYTICS INSIGHTS</h3>
             <div class="analytics-actions">
               <q-btn
@@ -256,9 +260,9 @@
                 class="action-btn"
               />
             </div>
-          </q-card-section>
+          </div>
 
-          <q-card-section class="analytics-content">
+          <div class="analytics-content">
             <!-- Analytics Panels -->
             <div class="analytics-panels-container structured-grid">
               <!-- Demographics Panel -->
@@ -284,7 +288,12 @@
                       <div class="stat-item">
                         <span class="stat-label">Average Age:</span>
                         <span class="stat-value"
-                          >{{ analyticsData.patient_demographics?.average_age ?? 'N/A' }} years</span
+                          >{{
+                            analyticsData.patient_demographics?.average_age !== undefined &&
+                            analyticsData.patient_demographics?.average_age !== null
+                              ? Math.round(Number(analyticsData.patient_demographics?.average_age))
+                              : 'N/A'
+                          }} years</span
                         >
                       </div>
                     </div>
@@ -321,34 +330,32 @@
                     </div>
 
                     <!-- Trend Analysis -->
-                    <div class="trend-analysis">
-                      <div class="trend-section">
-                        <h5>Increasing Conditions:</h5>
-                        <div class="trend-items">
-                          <span
-                            v-for="condition in analyticsData.health_trends.trend_analysis
-                              ?.increasing_conditions"
+                  <div class="trend-analysis">
+                    <div class="trend-section">
+                      <h5>Increasing Conditions:</h5>
+                      <div class="trend-items">
+                        <span
+                            v-for="condition in (analyticsData.health_trends?.trend_analysis?.increasing_conditions || [])"
                             :key="condition"
                             class="trend-item increasing"
                           >
-                            {{ condition }}
-                          </span>
-                        </div>
+                          {{ condition }}
+                        </span>
                       </div>
-                      <div class="trend-section">
-                        <h5>Decreasing Conditions:</h5>
-                        <div class="trend-items">
-                          <span
-                            v-for="condition in analyticsData.health_trends.trend_analysis
-                              ?.decreasing_conditions"
+                    </div>
+                    <div class="trend-section">
+                      <h5>Decreasing Conditions:</h5>
+                      <div class="trend-items">
+                        <span
+                            v-for="condition in (analyticsData.health_trends?.trend_analysis?.decreasing_conditions || [])"
                             :key="condition"
                             class="trend-item decreasing"
                           >
-                            {{ condition }}
-                          </span>
-                        </div>
+                          {{ condition }}
+                        </span>
                       </div>
                     </div>
+                  </div>
                   </div>
                   <div v-else class="empty-data">
                     <p>No health trends data available</p>
@@ -459,8 +466,8 @@
                         <div class="col-auto emerging-illness-answer">
                           <span class="label text-subtitle2">Emerging illness:</span>
                           <span class="illness-type text-bold text-primary q-ml-xs">{{ emergingIllnessSummary.illness || 'Unknown' }}</span>
-                          <span v-if="emergingIllnessSummary.predictedTotal != null" class="illness-count q-ml-xs">— {{ formatNumber(emergingIllnessSummary.predictedTotal) }} cases</span>
-                          <q-badge v-if="emergingIllnessSummary.riskLevel" :color="riskLevelColor(emergingIllnessSummary.riskLevel)" :label="emergingIllnessSummary.riskLevel" class="q-ml-xs" />
+                          <span v-if="emergingIllnessSummary.predictedTotal != null" class="illness-count q-ml-xs">— {{ formatNumber(emergingIllnessSummary.predictedTotal ?? 0) }} cases</span>
+                          <q-badge v-if="emergingIllnessSummary.riskLevel" :color="riskLevelColor(emergingIllnessSummary.riskLevel ?? undefined)" :label="emergingIllnessSummary.riskLevel ?? ''" class="q-ml-xs" />
                         </div>
                       </div>
                     </div>
@@ -474,7 +481,7 @@
                       <h5>Predicted Illness Outbreaks:</h5>
                       <div class="illness-predictions">
                         <div 
-                          v-for="(condition, index) in analyticsData.health_trends.trend_analysis.increasing_conditions" 
+                          v-for="(condition, index) in (analyticsData.health_trends?.trend_analysis?.increasing_conditions || [])" 
                           :key="condition"
                           class="illness-prediction-card"
                         >
@@ -500,7 +507,7 @@
                       <h5>Monthly Illness Forecast (SARIMA):</h5>
                       <div class="monthly-forecast-list">
                         <div
-                          v-for="item in analyticsData.monthly_illness_forecast.monthly_illness_forecast.slice(0, 6)"
+                          v-for="item in (analyticsData.monthly_illness_forecast?.monthly_illness_forecast?.slice(0, 6) || [])"
                           :key="`${item.illness}-${item.month}`"
                           class="monthly-forecast-card"
                         >
@@ -533,11 +540,11 @@
                       <h5>Current Top Illnesses:</h5>
                       <div class="current-illnesses-list">
                         <div 
-                          v-for="illness in analyticsData.health_trends.top_illnesses_by_week.slice(0, 5)" 
+                          v-for="illness in (analyticsData.health_trends?.top_illnesses_by_week?.slice(0, 5) || [])" 
                           :key="illness.medical_condition"
                           class="current-illness-item"
                         >
-                          <span class="illness-rank">{{ analyticsData.health_trends.top_illnesses_by_week.indexOf(illness) + 1 }}</span>
+                          <span class="illness-rank">{{ (analyticsData.health_trends?.top_illnesses_by_week || []).indexOf(illness) + 1 }}</span>
                           <span class="illness-name-text">{{ illness.medical_condition }}</span>
                           <span class="illness-count">{{ illness.count }} cases</span>
                         </div>
@@ -579,8 +586,7 @@
 
             <!-- AI Recommendations UI removed; recommendations are consolidated into generated PDF reports. -->
 
-          </q-card-section>
-        </q-card>
+          </div>
       </div>
 
 
@@ -726,14 +732,7 @@ interface VolumePrediction {
 }
 
 // Local type for normalizing legacy comparison entries without using any
-type ComparisonEntry = {
-  date: string;
-  predicted_volume?: number;
-  actual_volume?: number;
-  Forecasted?: number;
-  forecasted?: number;
-  Actual?: number;
-};
+// Removed legacy comparison entry type; chart now uses forecasted_data directly
 
 interface SurgePrediction {
   forecasted_monthly_cases?: Array<{
@@ -794,7 +793,24 @@ const nextMonthVolumeTotals = computed<{ predicted: number; actual: number; labe
   });
   const slice = filtered.length ? filtered : vp.slice(0, Math.min(30, vp.length));
   const pred = slice.reduce((sum: number, it) => sum + Number(it.predicted_volume || 0), 0);
-  const act = slice.reduce((sum: number, it) => sum + (typeof it.actual_volume === 'number' ? Number(it.actual_volume) : 0), 0);
+  let act = slice.reduce((sum: number, it) => sum + (typeof it.actual_volume === 'number' ? Number(it.actual_volume) : 0), 0);
+  // Fallback: if next-month actuals are unavailable, use the latest month with actuals
+  if (act === 0) {
+    const actualItems = vp.filter((it) => typeof it.actual_volume === 'number');
+    if (actualItems.length) {
+      // Find latest date with actuals
+      const sorted = [...actualItems].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (sorted.length > 0) {
+        const last = sorted[sorted.length - 1]!;
+        const lastDate = new Date(last.date);
+        const monthActuals = actualItems.filter((it) => {
+          const d = new Date(it.date);
+          return d.getMonth() === lastDate.getMonth() && d.getFullYear() === lastDate.getFullYear();
+        });
+        act = monthActuals.reduce((sum: number, it) => sum + Number(it.actual_volume as number), 0);
+      }
+    }
+  }
   if (!slice.length) {
     const sp = analyticsData.value.surge_prediction?.forecasted_monthly_cases ?? [];
     if (sp.length > 0) {
@@ -905,7 +921,26 @@ const currentDate = computed(() => {
 const fetchDoctorAnalytics = async () => {
   try {
     const response = await api.get('/analytics/doctor/');
-    analyticsData.value = response.data.data;
+    const data = response.data?.data || {};
+
+    // Normalize volume_prediction: build forecasted_data from legacy comparison_data if needed
+    if (data.volume_prediction && !data.volume_prediction.forecasted_data) {
+      const cmp = data.volume_prediction.comparison_data as Array<{
+        date: string;
+        Forecasted?: number;
+        forecasted?: number;
+        Actual?: number;
+      }>;
+      if (Array.isArray(cmp)) {
+        data.volume_prediction.forecasted_data = cmp.map((item) => ({
+          date: item.date,
+          predicted_volume: Number(item.Forecasted ?? item.forecasted ?? 0),
+          actual_volume: typeof item.Actual !== 'undefined' ? Number(item.Actual) : undefined,
+        }));
+      }
+    }
+
+    analyticsData.value = data;
     console.log('Doctor analytics loaded:', analyticsData.value);
 
     // Create charts after data is loaded
@@ -1162,17 +1197,41 @@ const createGenderChart = () => {
   const ctx = genderChart.value.getContext('2d');
   if (!ctx) return;
 
-  const data = analyticsData.value.patient_demographics.gender_proportions;
+  const raw = analyticsData.value.patient_demographics.gender_proportions as Record<string, number>;
+  // Normalize labels: merge "Others" into "Other" and only include Male/Female/Other
+  const normalized: Record<string, number> = {};
+  for (const [label, val] of Object.entries(raw)) {
+    const lower = String(label).trim().toLowerCase();
+    let key = label;
+    if (lower === 'others') key = 'Other';
+    if (lower === 'other') key = 'Other';
+    if (lower === 'male') key = 'Male';
+    if (lower === 'female') key = 'Female';
+    if (['Male', 'Female', 'Other'].includes(key)) {
+      normalized[key] = (normalized[key] ?? 0) + Number(val);
+    }
+  }
 
-  genderChartInstance = new Chart(ctx, {
+  const labels = Object.keys(normalized);
+  const values: number[] = labels.map((l) => Number(normalized[l] ?? 0));
+  // Color map with orange for Other
+  const colorMap: Record<string, { bg: string; border: string }> = {
+    Male: { bg: 'rgba(54, 162, 235, 0.8)', border: 'rgba(54, 162, 235, 1)' },
+    Female: { bg: 'rgba(255, 99, 132, 0.8)', border: 'rgba(255, 99, 132, 1)' },
+    Other: { bg: 'rgba(255, 159, 64, 0.8)', border: 'rgba(255, 159, 64, 1)' },
+  };
+  const bgColors = labels.map((l) => colorMap[l]?.bg ?? 'rgba(200, 200, 200, 0.5)');
+  const borderColors = labels.map((l) => colorMap[l]?.border ?? 'rgba(200, 200, 200, 1)');
+
+  genderChartInstance = new Chart<'pie', number[], string>(ctx, {
     type: 'pie',
     data: {
-      labels: Object.keys(data),
+      labels,
       datasets: [
         {
-          data: Object.values(data),
-          backgroundColor: ['rgba(54, 162, 235, 0.8)', 'rgba(255, 99, 132, 0.8)'],
-          borderColor: ['rgba(54, 162, 235, 1)', 'rgba(255, 99, 132, 1)'],
+          data: values,
+          backgroundColor: bgColors,
+          borderColor: borderColors,
           borderWidth: 1,
         },
       ],
@@ -1184,6 +1243,17 @@ const createGenderChart = () => {
         title: {
           display: true,
           text: 'Gender Distribution',
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx: TooltipItem<'pie'>) => {
+              const total = ctx.dataset.data.reduce((s: number, n: number) => s + (typeof n === 'number' ? n : Number(n)), 0);
+              const val = typeof ctx.parsed === 'number' ? ctx.parsed : Number(ctx.parsed);
+              const pct = total ? Math.round((val / total) * 100) : 0;
+              const whole = Math.round(val);
+              return `${ctx.label}: ${whole} (${pct}%)`;
+            },
+          },
         },
       },
     },
@@ -1303,10 +1373,79 @@ const createSurgeChart = () => {
   const sorted = [...dataSrc].sort((a: { date: string }, b: { date: string }) => parseMonth(a.date) - parseMonth(b.date));
   const data = sorted.length ? sorted : [{ date: 'No Data', total_cases: 0 }];
 
+  // Build illness-specific monthly series using Monthly Illness Forecast (if available)
+  const mif = analyticsData.value.monthly_illness_forecast?.monthly_illness_forecast || [];
+  type MonthlyIllnessEntry = { month: string; illness: string; predicted_cases?: number };
+  const typedMif = (Array.isArray(mif) ? mif : []) as MonthlyIllnessEntry[];
+  const labels = data.map((item) => item.date);
+  const illnessMonthMap = new Map<string, Map<string, number>>();
+  for (const row of typedMif) {
+    const ill = row.illness;
+    const month = row.month;
+    const val = Number(row.predicted_cases ?? 0);
+    if (!illnessMonthMap.has(ill)) illnessMonthMap.set(ill, new Map<string, number>());
+    illnessMonthMap.get(ill)!.set(month, val);
+  }
+  // Normalize month keys so illness series align with chart labels
+  const MONTHS: Record<string, number> = {
+    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+  };
+  const normalizeMonthKey = (m: string): string => {
+    const d = new Date(m);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${y}-${mm}`;
+    }
+    const rgx = m.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
+    if (rgx) {
+      const y = Number(rgx[1]);
+      const mm = String(Number(rgx[2])).padStart(2, '0');
+      return `${y}-${mm}`;
+    }
+    const words = m.trim().toLowerCase();
+    const m2 = words.match(/^([a-z]{3,})\s+(\d{4})$/);
+    if (m2) {
+      const monAbbrev = (m2[1] ?? '').slice(0, 3);
+      const mon = MONTHS[monAbbrev] ?? 0;
+      const mm = String(mon + 1).padStart(2, '0');
+      const yearStr = m2[2] ?? '0000';
+      return `${yearStr}-${mm}`;
+    }
+    return m; // fallback
+  };
+  const labelKeys = labels.map((l) => normalizeMonthKey(l));
+  const normalizedIllnessMonthMap = new Map<string, Map<string, number>>();
+  for (const [illness, months] of illnessMonthMap.entries()) {
+    const norm = new Map<string, number>();
+    for (const [month, val] of months.entries()) {
+      norm.set(normalizeMonthKey(month), val);
+    }
+    normalizedIllnessMonthMap.set(illness, norm);
+  }
+  // Rank illnesses by total predicted across available months and take top 3
+  const rankedIllnesses = Array.from(illnessMonthMap.entries())
+    .map(([illness, months]) => ({
+      illness,
+      total: Array.from(months.values()).reduce((s, v) => s + v, 0),
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 3)
+    .map((x) => x.illness);
+
+  const COLORS = [
+    'rgba(33, 150, 243, 1)', // blue
+    'rgba(76, 175, 80, 1)',  // green
+    'rgba(255, 193, 7, 1)',  // amber
+    'rgba(244, 67, 54, 1)',  // red
+    'rgba(156, 39, 176, 1)', // purple
+  ];
+
   surgeChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: data.map((item) => item.date),
+      labels,
       datasets: [
         {
           label: 'Total Predicted Cases',
@@ -1317,6 +1456,22 @@ const createSurgeChart = () => {
           fill: true,
           tension: 0.4,
         },
+        // Add up to three illness-specific series so hover tooltips show per-illness predictions
+        ...rankedIllnesses.map((illness, idx) => {
+          const monthVals = normalizedIllnessMonthMap.get(illness)!;
+          const color = (COLORS[idx % COLORS.length] ?? 'rgba(100, 100, 100, 1)');
+          return {
+            label: `${illness} Predicted Cases`,
+            data: labelKeys.map((k) => monthVals.get(k) ?? 0),
+            borderColor: color,
+            backgroundColor: color.replace('1)', '0.15)'),
+            borderWidth: 2,
+            fill: false,
+            tension: 0.3,
+            spanGaps: true,
+            pointRadius: 3,
+          };
+        }),
       ],
     },
     options: {
@@ -1326,6 +1481,17 @@ const createSurgeChart = () => {
         title: { display: true, text: 'Monthly Surge Prediction' },
         legend: {
           position: 'bottom',
+        },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          callbacks: {
+            label: (ctx: TooltipItem<'line'>) => {
+              const label = ctx.dataset.label || '';
+              const val = ctx.parsed?.y ?? ctx.raw ?? 0;
+              return `${label}: ${Number(val).toLocaleString()}`;
+            },
+          },
         },
       },
       scales: {
@@ -1577,64 +1743,19 @@ const createVolumeComparisonChart = () => {
     analyticsData.value.volume_prediction?.forecasted_data &&
     Array.isArray(analyticsData.value.volume_prediction.forecasted_data)
   ) {
-    const vp = analyticsData.value.volume_prediction || {};
-    const forecast = vp.forecasted_data || [];
-    const comparisonRaw = vp.comparison_data || [];
-
-    // Normalize legacy shapes for comparison_data without using any
-    const comparison = comparisonRaw.map((item: ComparisonEntry) => ({
-      date: String(item.date),
-      predicted_volume: Number(item.predicted_volume ?? item.Forecasted ?? item.forecasted ?? 0),
-      actual_volume:
-        typeof item.actual_volume === 'number'
-          ? Number(item.actual_volume)
-          : typeof item.Actual === 'number'
-          ? Number(item.Actual)
-          : undefined,
-    }));
-
-    // Merge by date: keep forecast predicted values, add actuals only when defined
-    const byDate: Record<string, ForecastPoint> = {};
-    for (const f of forecast) {
-      if (!f || !f.date) continue;
-      const row: ForecastPoint = {
-        date: f.date,
-        predicted_volume: Number(f.predicted_volume || 0),
-      };
-      if (typeof f.actual_volume === 'number') {
-        row.actual_volume = Number(f.actual_volume);
-      }
-      byDate[f.date] = row;
-    }
-    for (const c of comparison) {
-      if (!c || !c.date) continue;
-      const existing = byDate[c.date];
-      const actualFromC = typeof c.actual_volume === 'number' ? Number(c.actual_volume) : undefined;
-      if (existing) {
+    const forecast = (analyticsData.value.volume_prediction || {}).forecasted_data || [];
+    const mergedRows: ForecastPoint[] = forecast
+      .map((f: { date: string; predicted_volume?: number; actual_volume?: number | null }) => {
         const row: ForecastPoint = {
-          date: c.date,
-          predicted_volume: Number(existing.predicted_volume ?? c.predicted_volume ?? 0),
+          date: String(f.date),
+          predicted_volume: Number(f.predicted_volume || 0),
         };
-        if (typeof existing.actual_volume === 'number') {
-          row.actual_volume = existing.actual_volume;
+        if (typeof f.actual_volume === 'number') {
+          row.actual_volume = Number(f.actual_volume);
         }
-        if (typeof actualFromC === 'number') {
-          row.actual_volume = actualFromC;
-        }
-        byDate[c.date] = row;
-      } else {
-        const row: ForecastPoint = {
-          date: c.date,
-          predicted_volume: Number(c.predicted_volume || 0),
-        };
-        if (typeof actualFromC === 'number') {
-          row.actual_volume = actualFromC;
-        }
-        byDate[c.date] = row;
-      }
-    }
-
-    const mergedRows = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+        return row;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
     const chartData = buildVolumeForecastChart(mergedRows);
     volumeComparisonChartInstance = new Chart(ctx, {
       type: 'line',
@@ -1644,7 +1765,7 @@ const createVolumeComparisonChart = () => {
         maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'Predicted vs Actual Patient Volume' },
-          legend: { display: true, position: 'bottom' },
+          legend: { display: true, position: 'bottom', labels: { boxWidth: 18, boxHeight: 2 } },
           tooltip: {
             callbacks: {
               label: (context: TooltipItem<'line'>) => {
@@ -1657,8 +1778,11 @@ const createVolumeComparisonChart = () => {
           },
         },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Number of Patients' } },
-          x: { title: { display: true, text: 'Month' } },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Number of Patients' },
+          },
+          x: { title: { display: true, text: 'Time Period' }, ticks: { maxTicksLimit: 3 } },
         },
       },
     });
@@ -1691,7 +1815,12 @@ const createVolumeComparisonChart = () => {
           },
         },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Number of Patients' } },
+          y: {
+            min: 0,
+            max: 1000,
+            title: { display: true, text: 'Number of Patients' },
+            ticks: { stepSize: 100 },
+          },
           x: { title: { display: true, text: 'Month' } },
         },
       },
@@ -1709,7 +1838,12 @@ const createVolumeComparisonChart = () => {
           legend: { display: true, position: 'bottom' },
         },
         scales: {
-          y: { beginAtZero: true, title: { display: true, text: 'Number of Patients' } },
+          y: {
+            min: 0,
+            max: 1000,
+            title: { display: true, text: 'Number of Patients' },
+            ticks: { stepSize: 100 },
+          },
           x: { title: { display: true, text: 'Month' } },
         },
       },
@@ -2933,6 +3067,8 @@ onUnmounted(() => {
   border-radius: 12px;
   padding: 15px;
 }
+
+/* Removed custom hover overlay and front-layer hover info styles */
 
 .summary-stats {
   display: grid;

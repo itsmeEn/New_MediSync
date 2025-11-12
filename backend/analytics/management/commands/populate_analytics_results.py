@@ -25,6 +25,7 @@ class Command(BaseCommand):
         self.create_illness_prediction()
         self.create_health_trends()
         self.create_surge_prediction()
+        self.create_volume_prediction()
 
         self.stdout.write(
             self.style.SUCCESS('Successfully created mock analytics results!')
@@ -145,4 +146,55 @@ class Command(BaseCommand):
             status='completed',
             results=forecast_data,
             created_at=timezone.now() - timedelta(hours=4)
+        )
+
+    def create_volume_prediction(self):
+        """Create patient volume prediction analytics result (3-month window).
+
+        Produces exactly three monthly points with separate actual and predicted
+        volumes and no combined series. Past months include actual values,
+        the upcoming month includes only predicted.
+        """
+        base_date = datetime.now().replace(day=1)
+
+        # Synthetic baseline and gentle upward trend
+        baseline = random.randint(80, 120)
+        growth = random.randint(12, 24)  # month-to-month increase
+
+        def month_label(dt: datetime) -> str:
+            return dt.strftime('%Y-%m')
+
+        # Build three months: previous 2 months (with actuals) and next month (predicted only)
+        months = [
+            base_date - timedelta(days=60),  # approx -2 months
+            base_date - timedelta(days=30),  # approx -1 month
+            base_date + timedelta(days=30),  # approx +1 month
+        ]
+
+        data = []
+        for idx, dt in enumerate(months):
+            # Predicted follows baseline + trend
+            predicted = baseline + growth * (idx + 1)
+            # Add light jitter to keep visuals natural
+            predicted += random.randint(-6, 6)
+            actual = None
+            if idx < 2:
+                # Actuals slightly below/above predicted in past months
+                actual = max(0, predicted + random.randint(-8, 4))
+            data.append({
+                'date': month_label(dt),
+                'predicted_volume': int(predicted),
+                'actual_volume': int(actual) if actual is not None else None,
+            })
+
+        result_payload = {
+            'forecasted_data': data,
+            'model_accuracy': round(random.uniform(86, 95), 1),
+        }
+
+        AnalyticsResult.objects.create(
+            analysis_type='patient_volume_prediction',
+            status='completed',
+            results=result_payload,
+            created_at=timezone.now() - timedelta(hours=5)
         )

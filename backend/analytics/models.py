@@ -151,6 +151,46 @@ class AnalyticsCache(models.Model):
         return timezone.now() > self.expires_at
 
 
+class PatientVolumeSnapshot(models.Model):
+    """
+    Stores combined patient volume snapshots aggregated from queue and appointments.
+
+    - resolution: 'daily' | 'weekly' | 'monthly'
+    - period_start: start date for the bucket
+    - actual_volume: combined actual count for that period
+    - predicted_volume: optional predicted count for that period
+    - department: optional link for department filtering
+    - generated_at: when this snapshot was computed
+    """
+    RESOLUTION_CHOICES = (
+        ("daily", "Daily"),
+        ("weekly", "Weekly"),
+        ("monthly", "Monthly"),
+    )
+
+    resolution = models.CharField(max_length=16, choices=RESOLUTION_CHOICES, default="monthly")
+    period_start = models.DateField()
+    department = models.ForeignKey(
+        "operations.Department", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    actual_volume = models.PositiveIntegerField(default=0)
+    predicted_volume = models.PositiveIntegerField(null=True, blank=True)
+    generated_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-period_start']
+        db_table = 'patient_volume_snapshots'
+        indexes = [
+            models.Index(fields=["resolution", "period_start"]),
+            models.Index(fields=["department", "resolution", "period_start"]),
+        ]
+        unique_together = ("resolution", "period_start", "department")
+
+    def __str__(self):
+        dept = self.department.name if self.department else "All"
+        return f"{self.resolution} snapshot {self.period_start} [{dept}]"
+
+
 class UsageEvent(models.Model):
     """
     Captures user and system usage events for analytics and telemetry.

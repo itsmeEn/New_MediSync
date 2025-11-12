@@ -6,7 +6,15 @@ from django.db import transaction
 from celery import shared_task
 from celery.utils.log import get_task_logger
 
-from .models import AnalyticsResult, AnalyticsTask, DataUpdateLog, AnalyticsCache, PatientRecord
+from .models import (
+    AnalyticsResult,
+    AnalyticsTask,
+    DataUpdateLog,
+    AnalyticsCache,
+    PatientRecord,
+    PatientVolumeSnapshot,
+)
+from backend.operations.models import QueueManagement, AppointmentManagement
 
 # Import analytics functions with error handling
 try:
@@ -30,6 +38,146 @@ except ImportError as e:
     ANALYTICS_AVAILABLE = False
 
 logger = get_task_logger(__name__)
+
+
+def _month_start(dt):
+    return datetime(dt.year, dt.month, 1).date()
+
+
+def _format_month_label(d):
+    return d.strftime('%Y-%m')
+
+
+@shared_task
+def compute_combined_patient_volume(months_back=6, forecast_months=3):
+    """
+    Aggregate queue + appointment volumes monthly and store snapshots.
+    Also produce a combined series in AnalyticsResult for patient_volume_prediction.
+    """
+    try:
+        now = timezone.now()
+        start_ref = now - timedelta(days=months_back * 30)
+        # Build historical months
+        historical_months = []
+        cursor = datetime(start_ref.year, start_ref.month, 1)
+        while cursor <= datetime(now.year, now.month, 1):
+            historical_months.append(cursor.date())
+            # advance to next month
+            if cursor.month == 12:
+                cursor = datetime(cursor.year + 1, 1, 1)
+            else:
+                cursor = datetime(cursor.year, cursor.month + 1, 1)
+
+        series = []
+        for period_start in historical_months:
+            y, m = period_start.year, period_start.month
+            appt_count = AppointmentManagement.objects.filter(
+                appointment_date__year=y, appointment_date__month=m
+            ).count()
+            queue_count = QueueManagement.objects.filter(
+                enqueue_time__year=y, enqueue_time__month=m
+            ).count()
+            combined = appt_count + queue_count
+
+            # Persist snapshot
+            PatientVolumeSnapshot.objects.update_or_create(
+                resolution='monthly',
+                period_start=period_start,
+                department=None,
+                defaults={
+                    'actual_volume': combined,
+                    'predicted_volume': None,
+                    'generated_at': timezone.now(),
+                },
+            )
+
+            series.append({
+                'date': _format_month_label(period_start),
+                'actual_volume': combined,
+                'predicted_volume': combined,  # historical baseline
+            })
+
+        # Forecast next months via simple linear regression on historical totals
+        if series:
+            xs = list(range(len(series)))
+            ys = [pt['actual_volume'] for pt in series]
+            n = len(xs)
+            sum_x = sum(xs)
+            sum_y = sum(ys)
+            sum_x2 = sum(x * x for x in xs)
+            sum_xy = sum(x * y for x, y in zip(xs, ys))
+            denom = (n * sum_x2 - sum_x * sum_x) or 1
+            slope = (n * sum_xy - sum_x * sum_y) / denom
+            intercept = (sum_y - slope * sum_x) / n
+
+            # Create forecast months
+            last_month_date = historical_months[-1]
+            fcursor = datetime(last_month_date.year, last_month_date.month, 1)
+            # advance one month from last historical
+            if fcursor.month == 12:
+                fcursor = datetime(fcursor.year + 1, 1, 1)
+            else:
+                fcursor = datetime(fcursor.year, fcursor.month + 1, 1)
+
+            for i in range(forecast_months):
+                period = fcursor.date()
+                # regression index continues after historical
+                idx = len(series) + i
+                pred = max(0, round(slope * idx + intercept))
+
+                PatientVolumeSnapshot.objects.update_or_create(
+                    resolution='monthly',
+                    period_start=period,
+                    department=None,
+                    defaults={
+                        'actual_volume': 0,
+                        'predicted_volume': pred,
+                        'generated_at': timezone.now(),
+                    },
+                )
+
+                series.append({
+                    'date': _format_month_label(period),
+                    'actual_volume': None,
+                    'predicted_volume': pred,
+                })
+
+        # Store in AnalyticsResult under patient_volume_prediction
+        results_payload = {
+            'forecasted_data': series,
+            'evaluation_metrics': {
+                'method': 'linear_regression_monthly',
+                'historical_months': len(historical_months),
+                'forecast_months': forecast_months,
+            }
+        }
+
+        AnalyticsResult.objects.create(
+            analysis_type='patient_volume_prediction',
+            status='completed',
+            results=results_payload,
+            processed_by_id=1,
+        )
+
+        # Update cache for <1 minute latency targets
+        cache_key = 'analytics_patient_volume_prediction'
+        AnalyticsCache.objects.update_or_create(
+            cache_key=cache_key,
+            defaults={
+                'data': {
+                    'results': results_payload,
+                    'updated_at': timezone.now().isoformat(),
+                    'analysis_type': 'patient_volume_prediction',
+                },
+                'expires_at': timezone.now() + timedelta(minutes=30),
+            },
+        )
+
+        logger.info('Combined patient volume computed and cached successfully')
+        return {'status': 'ok', 'points': len(series)}
+    except Exception as exc:
+        logger.error(f"Error computing combined patient volume: {exc}")
+        return {'status': 'error', 'error': str(exc)}
 
 @shared_task(bind=True, max_retries=3)
 def run_analytics_task_async(self, task_id, analysis_type):
@@ -245,7 +393,10 @@ def run_scheduled_analytics():
         # Run full analysis
         task_id = str(uuid.uuid4())
         run_analytics_task_async.delay(task_id, 'full_analysis')
-        
+
+        # Combined patient volume aggregation (update every schedule tick)
+        compute_combined_patient_volume.delay()
+
         # Refresh cache
         refresh_analytics_cache.delay()
         

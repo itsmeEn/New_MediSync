@@ -9,7 +9,10 @@ import django
 from django.conf import settings
 
 # Add the project root to Python path
-sys.path.append('/Users/judeibardaloza/Desktop/medisync')
+# Ensure project root is in Python path
+PROJECT_ROOT = '/Users/judeibardaloza/New_MediSync'
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
@@ -23,6 +26,11 @@ from backend.analytics.views import (
     add_standardized_header,
     add_analytics_sections_with_visualizations,
     add_ai_interpretation_section,
+    add_executive_summary_section,
+    add_data_interpretation_section,
+    add_factor_analysis_section,
+    add_ai_recommendations_module,
+    add_key_takeaways_section,
     add_doctor_signature,
     add_standardized_footer
 )
@@ -97,12 +105,14 @@ def test_pdf_generation():
                 ]
             },
             'illness_prediction': {
-                'association_result': 'Strong association detected between BMI and hypertension',
-                'chi_square_statistic': 27.5,
-                'p_value': 0.004
+                'significant_factors': ['BMI (p<0.01)', 'Smoking Status', 'Age', 'Blood Pressure']
             },
             'volume_prediction': {
-                'evaluation_metrics': {'mae': 2.4, 'rmse': 3.1}
+                'forecasted_data': [
+                    {'date': '2025-09', 'actual_volume': 120, 'predicted_volume': 115},
+                    {'date': '2025-10', 'actual_volume': 130, 'predicted_volume': 128},
+                    {'date': '2025-11', 'actual_volume': 125, 'predicted_volume': 127}
+                ]
             },
             'surge_prediction': {
                 'forecasted_monthly_cases': [
@@ -122,9 +132,28 @@ def test_pdf_generation():
             styles['ContentText']
         ))
         
-        # New analytics sections and AI recommendations
+        # Executive Summary
+        story.append(PageBreak())
+        add_executive_summary_section(story, mock_analytics_data, styles)
+        
+        # New analytics sections and visualizations
         add_analytics_sections_with_visualizations(story, mock_analytics_data, styles)
-        add_ai_interpretation_section(story, mock_analytics_data, styles)
+        
+        # Interpretation of Results
+        story.append(PageBreak())
+        add_data_interpretation_section(story, mock_analytics_data, styles)
+        
+        # Factor Analysis
+        story.append(PageBreak())
+        add_factor_analysis_section(story, mock_analytics_data, styles)
+        
+        # AI Recommendations (doctor view)
+        story.append(PageBreak())
+        add_ai_recommendations_module(story, mock_analytics_data, "Doctor", styles)
+        
+        # Key Takeaways
+        story.append(PageBreak())
+        add_key_takeaways_section(story, mock_analytics_data, styles)
         
         # Prepared by signature
         add_doctor_signature(story, user_info, styles)
@@ -137,11 +166,13 @@ def test_pdf_generation():
         doc.build(story)
         print("✓ PDF built successfully")
         
-        # Save test PDF to file
-        with open('/Users/judeibardaloza/Desktop/medisync/test_analytics_report.pdf', 'wb') as f:
+        # Save test PDF to repo for preview
+        preview_dir = os.path.join(PROJECT_ROOT, 'frontend', 'public', 'pdf_preview')
+        os.makedirs(preview_dir, exist_ok=True)
+        out_path = os.path.join(preview_dir, 'test_analytics_report.pdf')
+        with open(out_path, 'wb') as f:
             f.write(response.content)
-        
-        print("✓ Test PDF saved as 'test_analytics_report.pdf'")
+        print(f"✓ Test PDF saved at '{out_path}'")
         print("\n🎉 All tests passed! Standardized PDF template is working correctly.")
         
         return True
@@ -173,7 +204,8 @@ def test_nurse_pdf():
         user_info = {
             'name': mock_nurse.full_name,
             'role': 'Nurse',
-            'department': 'Emergency'
+            'department': 'Emergency',
+            'nurse_names': ['Nurse Jane Doe', 'Nurse John Smith']
         }
         
         doc = create_standardized_pdf_template(response, hospital_info, user_info)
@@ -208,12 +240,14 @@ def test_nurse_pdf():
                 ]
             },
             'illness_prediction': {
-                'association_result': 'Strong association detected between BMI and hypertension',
-                'chi_square_statistic': 27.5,
-                'p_value': 0.004
+                'significant_factors': ['BMI (p<0.01)', 'Smoking Status', 'Age', 'Blood Pressure']
             },
             'volume_prediction': {
-                'evaluation_metrics': {'mae': 2.4, 'rmse': 3.1}
+                'forecasted_data': [
+                    {'date': '2025-09', 'actual_volume': 200, 'predicted_volume': 195},
+                    {'date': '2025-10', 'actual_volume': 215, 'predicted_volume': 210},
+                    {'date': '2025-11', 'actual_volume': 205, 'predicted_volume': 208}
+                ]
             },
             'surge_prediction': {
                 'forecasted_monthly_cases': [
@@ -233,9 +267,28 @@ def test_nurse_pdf():
             styles['ContentText']
         ))
         
-        # New analytics sections and AI recommendations
+        # Executive Summary
+        story.append(PageBreak())
+        add_executive_summary_section(story, mock_nurse_data, styles)
+        
+        # New analytics sections and visualizations
         add_analytics_sections_with_visualizations(story, mock_nurse_data, styles)
-        add_ai_interpretation_section(story, mock_nurse_data, styles)
+        
+        # Interpretation of Results
+        story.append(PageBreak())
+        add_data_interpretation_section(story, mock_nurse_data, styles)
+        
+        # Factor Analysis
+        story.append(PageBreak())
+        add_factor_analysis_section(story, mock_nurse_data, styles)
+        
+        # AI Recommendations (nurse view)
+        story.append(PageBreak())
+        add_ai_recommendations_module(story, mock_nurse_data, "Nurse", styles)
+        
+        # Key Takeaways
+        story.append(PageBreak())
+        add_key_takeaways_section(story, mock_nurse_data, styles)
         
         # Prepared by signature
         add_doctor_signature(story, user_info, styles)
@@ -246,11 +299,14 @@ def test_nurse_pdf():
         
         doc.build(story)
         
-        with open('/Users/judeibardaloza/Desktop/medisync/test_nurse_analytics_report.pdf', 'wb') as f:
+        preview_dir = os.path.join(PROJECT_ROOT, 'frontend', 'public', 'pdf_preview')
+        os.makedirs(preview_dir, exist_ok=True)
+        out_path = os.path.join(preview_dir, 'test_nurse_analytics_report.pdf')
+        with open(out_path, 'wb') as f:
             f.write(response.content)
         
         print("✓ Nurse PDF test completed successfully")
-        print("✓ Test PDF saved as 'test_nurse_analytics_report.pdf'")
+        print(f"✓ Nurse test PDF saved at '{out_path}'")
         
         return True
         

@@ -108,7 +108,6 @@
               <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.start_date" label="Start Date" type="date" outlined dense/></div>
               <div class="col-12 col-sm-6 col-md-3"><q-input v-model="archiveFilters.end_date" label="End Date" type="date" outlined dense/></div>
               <div class="col-12 col-sm-6 col-md-3"><q-btn color="primary" icon="search" label="Search" class="full-width" :loading="archivesLoading" @click="searchArchives"/></div>
-              <div class="col-12 col-sm-6 col-md-3"><q-btn flat color="secondary" icon="clear" label="Reset" class="full-width" @click="resetArchiveFilters"/></div>
             </div>
 
             <q-inner-loading :showing="archivesLoading"><q-spinner color="primary"/></q-inner-loading>
@@ -311,10 +310,7 @@ const searchArchives = async () => {
   }
 }
 
-const resetArchiveFilters = () => {
-  archiveFilters.value = { query: '', patient_id: '', assessment_type: '', medical_condition: '', start_date: '', end_date: '' }
-  archivedRecords.value = []
-}
+
 
 const viewArchive = async (rec: ArchiveRecord) => {
   try {
