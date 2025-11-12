@@ -58,8 +58,7 @@
               </q-card-section>
             </q-card>
           </div>
-  <q-card class="analytics-card app-card main-analytics-card" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
-            <q-card-section class="analytics-content">
+  <div class="analytics-content" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
               <div class="analytics-panels-container structured-grid">
                 <div class="analytics-panel medication-panel">
                   <h4 class="panel-title">Medication Analysis</h4>
@@ -210,8 +209,7 @@
                   </div>
                 </div>
               </div>
-            </q-card-section>
-          </q-card>
+            </div>
         </div>
 
         <div class="dashboard-sidebar-section">
@@ -275,7 +273,7 @@ ChartJS.register(
   Legend,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
 );
 
 const $q = useQuasar();
@@ -596,83 +594,46 @@ const nextMonthVolume = computed<NextMonthVolumeShape>(() => {
 });
 
 
-// Unified monthly forecast data (historical + next 3 months)
-// Local type for normalizing legacy comparison entries without using any
-type ComparisonEntry = {
-  date: string;
-  predicted_volume?: number;
-  actual_volume?: number;
-  Forecasted?: number;
-  forecasted?: number;
-  Actual?: number;
-};
+// Unified monthly forecast data (3-month window)
 
 const volumeForecastChartData = computed(() => {
-  const vp = analyticsData.value.volume_prediction || {};
-  const forecast = vp.forecasted_data || [];
-  const comparisonRaw = vp.comparison_data || [];
-
-  // Normalize any legacy shapes in comparison_data (e.g., Forecasted/Actual keys)
-  const comparison = comparisonRaw.map((item: ComparisonEntry) => ({
-    date: String(item.date),
-    predicted_volume: Number(item.predicted_volume ?? item.Forecasted ?? item.forecasted ?? 0),
-    actual_volume:
-      typeof item.actual_volume === 'number'
-        ? Number(item.actual_volume)
-        : typeof item.Actual === 'number'
-        ? Number(item.Actual)
-        : undefined,
-  }));
-
-  // Merge by date: use forecast for future dates and fill actuals from comparison
-  const byDate: Record<string, ForecastPoint> = {};
-  for (const f of forecast) {
-    if (!f || !f.date) continue;
-    const row: ForecastPoint = {
-      date: f.date,
-      predicted_volume: Number(f.predicted_volume || 0),
-    };
-    if (typeof f.actual_volume === 'number') {
-      row.actual_volume = Number(f.actual_volume);
-    }
-    byDate[f.date] = row;
-  }
-  for (const c of comparison) {
-    if (!c || !c.date) continue;
-    const existing = byDate[c.date];
-    const actualFromC = typeof c.actual_volume === 'number' ? Number(c.actual_volume) : undefined;
-    if (existing) {
-      const row: ForecastPoint = {
-        date: c.date,
-        predicted_volume: Number(existing.predicted_volume ?? c.predicted_volume ?? 0),
+  const forecast = (analyticsData.value.volume_prediction || {}).forecasted_data || [];
+  const rows: ForecastPoint[] = forecast
+    .map((f: { date: string; predicted_volume?: number; actual_volume?: number | null }) => {
+      const base: ForecastPoint = {
+        date: String(f.date),
+        predicted_volume: Number(f.predicted_volume || 0),
       };
-      if (typeof existing.actual_volume === 'number') {
-        row.actual_volume = existing.actual_volume;
+      if (typeof f.actual_volume === 'number') {
+        base.actual_volume = Number(f.actual_volume);
       }
-      if (typeof actualFromC === 'number') {
-        row.actual_volume = actualFromC;
-      }
-      byDate[c.date] = row;
-    } else {
-      const row: ForecastPoint = {
-        date: c.date,
-        predicted_volume: Number(c.predicted_volume || 0),
-      };
-      if (typeof actualFromC === 'number') {
-        row.actual_volume = actualFromC;
-      }
-      byDate[c.date] = row;
-    }
-  }
-
-  const mergedRows = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-  return buildVolumeForecastChart(mergedRows);
+      return base;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return buildVolumeForecastChart(rows);
 });
 
 const volumeTotals = computed<{ predicted: number; actual: number }>(() => {
   const p = nextMonthVolume.value.predicted.reduce((sum: number, v) => sum + (typeof v === 'number' ? v : 0), 0);
   const actualNumbers = nextMonthVolume.value.actual.filter((v): v is number => typeof v === 'number');
-  const a = actualNumbers.reduce((sum: number, v) => sum + v, 0);
+  let a = actualNumbers.reduce((sum: number, v) => sum + v, 0);
+  // Fallback: use the latest available month with actuals if next-month actuals are missing
+  if (a === 0) {
+    const fd = analyticsData.value.volume_prediction?.forecasted_data ?? [];
+    const actualItems = fd.filter((it) => typeof it.actual_volume === 'number');
+    if (actualItems.length) {
+      const sorted = [...actualItems].sort((x, y) => new Date(x.date).getTime() - new Date(y.date).getTime());
+      const last = sorted[sorted.length - 1];
+      if (last) {
+        const lastDate = new Date(last.date);
+        const monthActuals = actualItems.filter((it) => {
+          const d = new Date(it.date);
+          return d.getMonth() === lastDate.getMonth() && d.getFullYear() === lastDate.getFullYear();
+        });
+        a = monthActuals.reduce((sum: number, it) => sum + Number(it.actual_volume as number), 0);
+      }
+    }
+  }
   return { predicted: p, actual: a };
 });
 
@@ -833,14 +794,14 @@ const volumeLineOptions: ChartOptions<'line'> = {
       text: 'Predicted vs Actual Patient Volume',
       font: { size: 16, weight: 'bold' },
     },
-    legend: {
-      display: true,
-      position: 'bottom',
-    },
+    legend: { display: true, position: 'bottom', labels: { boxWidth: 18, boxHeight: 2 } },
   },
   scales: {
-    x: { title: { display: true, text: 'Month' } },
-    y: { beginAtZero: true, title: { display: true, text: 'Number of Patients' } },
+    x: { title: { display: true, text: 'Time Period' }, ticks: { maxTicksLimit: 3 } },
+    y: {
+      beginAtZero: true,
+      title: { display: true, text: 'Number of Patients' },
+    },
   },
 };
 
@@ -1099,6 +1060,21 @@ const fetchNurseAnalytics = async () => {
           { date: '2024-04', predicted_volume: 55, actual_volume: 52 },
           { date: '2024-05', predicted_volume: 60, actual_volume: 58 },
           { date: '2024-06', predicted_volume: 58, actual_volume: 56 },
+        ],
+      };
+    }
+
+    // Fallback: seed Medication Analysis demo data when backend returns none
+    const hasPareto = Array.isArray(data.medication_analysis?.medication_pareto_data) && data.medication_analysis!.medication_pareto_data!.length > 0;
+    const hasUsage = Array.isArray(data.medication_analysis?.medication_usage) && data.medication_analysis!.medication_usage!.length > 0;
+    if (!hasPareto && !hasUsage) {
+      data.medication_analysis = {
+        medication_pareto_data: [
+          { medication: 'Paracetamol', frequency: 45, cumulative_percentage: 32 },
+          { medication: 'Ibuprofen', frequency: 32, cumulative_percentage: 55 },
+          { medication: 'Amoxicillin', frequency: 28, cumulative_percentage: 75 },
+          { medication: 'Aspirin', frequency: 22, cumulative_percentage: 91 },
+          { medication: 'Metformin', frequency: 18, cumulative_percentage: 100 },
         ],
       };
     }
@@ -1526,8 +1502,13 @@ onUnmounted(() => {
   .analytics-panel {
     min-height: 300px;
   }
-  .chart-container {
-    height: 200px;
-  }
+.chart-container {
+  height: 200px;
+}
+
+/* Hover overlay styles for all charts in this component */
+.chart-hover-overlay {
+  transition: opacity 200ms ease, transform 200ms ease, box-shadow 200ms ease, z-index 200ms linear;
+}
 }
 </style>
