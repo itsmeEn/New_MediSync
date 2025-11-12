@@ -103,7 +103,7 @@
         <!-- Inventory Statistics -->
         <div class="stats-section">
           <div class="stats-grid">
-            <q-card class="stat-card total-medicines" clickable>
+  <q-card class="stat-card app-card total-medicines" clickable>
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Total Medicines</div>
@@ -116,7 +116,7 @@
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card low-stock" clickable>
+  <q-card class="stat-card app-card low-stock" clickable>
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Low Stock Items</div>
@@ -129,7 +129,7 @@
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card out-of-stock" clickable>
+  <q-card class="stat-card app-card out-of-stock" clickable>
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Out of Stock</div>
@@ -142,7 +142,7 @@
               </q-card-section>
             </q-card>
 
-            <q-card class="stat-card expiring-soon" clickable>
+  <q-card class="stat-card app-card expiring-soon" clickable>
               <q-card-section class="card-content">
                 <div class="card-text">
                   <div class="card-title">Expiring Soon</div>

@@ -13,6 +13,84 @@
             </div>
           </q-card-section>
         </q-card>
+        
+        <!-- Archive Analytics -->
+        <q-card class="white-card section-spacing">
+          <q-card-section class="card-header">
+            <h5 class="card-title">Archive Analytics</h5>
+          </q-card-section>
+          <q-card-section class="card-content">
+            <div class="row q-col-gutter-md">
+              <div class="col-12 col-md-6">
+                <div class="chart-container">
+                  <q-inner-loading :showing="archivesLoading"><q-spinner color="primary" /></q-inner-loading>
+                  <Line 
+                    :data="archiveVolumeChartData" 
+                    :options="archiveVolumeChartOptions"
+                    aria-label="Archived patient volume line chart"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <div class="q-mb-sm flex items-center q-gutter-sm">
+                  <div class="text-subtitle2">Sort</div>
+                  <q-btn-toggle
+                    v-model="forecastSortOrder"
+                    toggle-color="primary"
+                    size="sm"
+                    :options="[
+                      { label: 'Desc', value: 'desc' },
+                      { label: 'Asc', value: 'asc' }
+                    ]"
+                  />
+                </div>
+                <div class="chart-container">
+                  <q-inner-loading :showing="archivesLoading"><q-spinner color="primary" /></q-inner-loading>
+                  <Bar 
+                    :data="archiveIllnessForecastData"
+                    :options="archiveIllnessForecastOptions"
+                    aria-label="Illness forecast bar chart"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <div class="chart-container">
+                  <q-inner-loading :showing="archivesLoading"><q-spinner color="primary" /></q-inner-loading>
+                  <Doughnut 
+                    :data="archiveGenderData" 
+                    :options="doughnutOptions"
+                    aria-label="Archive gender distribution doughnut chart"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <div class="q-mb-sm flex items-center q-gutter-sm">
+                  <div class="text-subtitle2">Show Top</div>
+                  <q-select v-model="topMedCount" :options="[3,5,8,10]" dense outlined emit-value map-options style="width: 90px;" />
+                </div>
+                <div class="chart-container">
+                  <q-inner-loading :showing="archivesLoading"><q-spinner color="primary" /></q-inner-loading>
+                  <Bar 
+                    :data="archiveMedicationData" 
+                    :options="{
+                      ...barOptions,
+                      indexAxis: 'y',
+                      scales: {
+                        x: { title: { display: true, text: 'Total Dispensed (count)' }, ticks: { precision: 0, callback: (v: number | string) => `${Math.round(Number(v))}` } },
+                        y: { title: { display: true, text: 'Medicine' } }
+                      },
+                      plugins: {
+                        ...barOptions.plugins,
+                        title: { display: true, text: 'Most Dispensed Medications', font: { size: 16, weight: 'bold' } }
+                      }
+                    }"
+                    aria-label="Archive medication analysis horizontal bar chart"
+                  />
+                </div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
 
         <!-- Main archive card (search, results) -->
         <q-card class="white-card archive-card section-spacing">
@@ -97,11 +175,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import NurseHeader from 'components/NurseHeader.vue'
 import NurseSidebar from 'components/NurseSidebar.vue'
 import { api } from 'boot/axios'
+import { Bar, Doughnut, Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+} from 'chart.js'
+import type { TooltipItem, Point } from 'chart.js'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement
+)
+
+const palette = {
+  blue: '#2196f3', blueDark: '#1976d2',
+  green: '#4caf50', greenDark: '#388e3c',
+  orange: '#ff9800', orangeDark: '#f57c00',
+  red: '#f44336', redDark: '#d32f2f',
+  purple: '#9c27b0', purpleDark: '#7b1fa2'
+}
 
 // Sidebar state
 const rightDrawerOpen = ref(false)
@@ -243,6 +355,156 @@ const exportFilteredArchives = async () => {
     console.error('Export failed:', err)
     $q.notify({ type: 'negative', message: 'Export failed', position: 'top' })
   }
+}
+
+// ===== Archive Analytics (derived from archivedRecords) =====
+const topMedCount = ref<number>(5)
+const forecastSortOrder = ref<'desc' | 'asc'>('desc')
+
+// Volume over time: count records per day/month; use month label for readability
+const archiveVolumeEntries = computed(() => {
+  const map: Record<string, number> = {}
+  for (const rec of archivedRecords.value) {
+    const d = rec.last_assessed_at ? new Date(rec.last_assessed_at) : null
+    if (!d) continue
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    map[key] = (map[key] || 0) + 1
+  }
+  return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]))
+})
+const archiveVolumeYLabels = computed(() => archiveVolumeEntries.value.map((e) => e[0]))
+const archiveVolumeChartData = computed(() => {
+  const points = archiveVolumeEntries.value.map((e, idx) => ({ x: e[1], y: idx }))
+  return {
+    datasets: [
+      { label: 'Actual Volume', data: points, borderColor: palette.green, backgroundColor: 'rgba(76,175,80,0.15)', borderWidth: 2, tension: 0.3, pointRadius: 3, pointBackgroundColor: palette.green }
+    ]
+  }
+})
+const archiveVolumeChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'bottom' as const },
+    title: { display: true, text: 'Archived Patient Volume', font: { size: 16, weight: 'bold' as const } },
+    tooltip: { callbacks: { label: (ctx: TooltipItem<'line'>) => { const p = ctx.parsed as Point; const timeLabel = archiveVolumeYLabels.value[Math.round(Number(p.y))] || ''; return `${Math.round(p.x)} patients on ${timeLabel}` } } }
+  },
+  scales: {
+    x: { title: { display: true, text: 'Patients (count)' }, ticks: { precision: 0, callback: (v: number | string) => `${Math.round(Number(v))}` } },
+    y: { type: 'linear' as const, title: { display: true, text: 'Time Period' }, ticks: { callback: (value: string | number) => {
+      const idx = Math.round(Number(value))
+      return archiveVolumeYLabels.value[idx] || ''
+    } } }
+  }
+}
+
+// Illness forecast: counts of medical_condition sorted
+const archiveIllnessForecastData = computed(() => {
+  const map: Record<string, number> = {}
+  for (const rec of archivedRecords.value) {
+    if (rec.medical_condition) {
+      map[rec.medical_condition] = (map[rec.medical_condition] || 0) + 1
+    }
+  }
+  const arr = Object.entries(map).map(([condition, count]) => ({ condition, count }))
+  arr.sort((a, b) => forecastSortOrder.value === 'desc' ? b.count - a.count : a.count - b.count)
+  return {
+    labels: arr.map(x => x.condition),
+    datasets: [
+      { label: 'Predicted Cases', data: arr.map(x => x.count), backgroundColor: palette.orange, borderColor: palette.orangeDark, borderWidth: 1 }
+    ]
+  }
+})
+
+// Illness forecast chart options
+const archiveIllnessForecastOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  indexAxis: 'y' as const,
+  scales: {
+    x: { title: { display: true, text: 'Predicted Cases (count)' }, ticks: { precision: 0, callback: (v: number | string) => `${Math.round(Number(v))}` } },
+    y: { title: { display: true, text: 'Illness Type' } }
+  },
+  plugins: {
+    legend: { position: 'top' as const },
+    title: { display: true, text: 'Illness Forecast', font: { size: 16, weight: 'bold' as const } },
+    tooltip: { callbacks: { label: (ctx: TooltipItem<'bar'>) => {
+      const parsedUnknown = ctx.parsed as unknown;
+      let val = 0;
+      if (typeof parsedUnknown === 'number') {
+        val = parsedUnknown;
+      } else if (typeof parsedUnknown === 'object' && parsedUnknown !== null) {
+        const p = parsedUnknown as { x?: number; y?: number };
+        val = typeof p.x === 'number' ? p.x : typeof p.y === 'number' ? p.y : 0;
+      }
+      return `Predicted: ${Math.round(val)} cases`;
+    } } }
+  }
+}
+
+// Gender distribution from decrypted assessment
+const archiveGenderData = computed(() => {
+  const map: Record<string, number> = {}
+  for (const rec of archivedRecords.value) {
+    const g = getAssessmentField('gender', rec)
+    if (typeof g === 'string' && g) {
+      map[g] = (map[g] || 0) + 1
+    }
+  }
+  return {
+    labels: Object.keys(map),
+    datasets: [
+      { data: Object.values(map), backgroundColor: [palette.blue, '#e91e63'], borderColor: [palette.blueDark, '#c2185b'], borderWidth: 2 }
+    ]
+  }
+})
+const doughnutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { position: 'bottom' as const },
+    title: { display: true, text: 'Gender Distribution', font: { size: 14, weight: 'bold' as const } },
+    tooltip: {
+      callbacks: {
+        label: (ctx: TooltipItem<'doughnut'>) => {
+          const total = ctx.dataset.data.reduce((s: number, n: number) => s + n, 0)
+          const val = ctx.parsed
+          const pct = total ? Math.round((val / total) * 100) : 0
+          return `${ctx.label}: ${val} (${pct}%)`
+        }
+      }
+    }
+  }
+}
+
+// Medication analysis from decrypted data
+const archiveMedicationData = computed(() => {
+  const map: Record<string, number> = {}
+  type MedicationItem = string | { name?: string }
+  type AssessmentData = Record<string, unknown> & { medications?: MedicationItem[] }
+  for (const rec of archivedRecords.value) {
+    const meds = (rec.decrypted_assessment_data as AssessmentData | undefined)?.medications
+    if (Array.isArray(meds)) {
+      for (const m of meds) {
+        const name = typeof m === 'string' ? m : (typeof (m as { name?: unknown }).name === 'string' ? (m as { name?: unknown }).name as string : '')
+        if (name) map[name] = (map[name] || 0) + 1
+      }
+    }
+  }
+  const arr = Object.entries(map).map(([name, count]) => ({ name, count }))
+  arr.sort((a, b) => b.count - a.count)
+  const top = arr.slice(0, topMedCount.value)
+  return {
+    labels: top.map(x => x.name),
+    datasets: [
+      { label: 'Total Dispensed', data: top.map(x => x.count), backgroundColor: [palette.purple, palette.blue, palette.green, palette.orange, palette.red], borderColor: [palette.purpleDark, palette.blueDark, palette.greenDark, palette.orangeDark, palette.redDark], borderWidth: 1 }
+    ]
+  }
+})
+const barOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { position: 'top' as const } },
 }
 </script>
 

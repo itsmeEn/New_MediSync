@@ -1,0 +1,123 @@
+/* Global responsive utilities and mobile-first adjustments */
+
+/* Breakpoints aligned with modal behavior */
+:root {
+  --bp-xs: 320px;
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --touch-target-min: 48px;
+  --touch-padding: 8px;
+}
+
+/* Mobile viewport height fix utility */
+.full-height-vh {
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+/* Touch-friendly targets: apply to common Quasar components */
+/* These rules are intentionally global to raise baseline usability on mobile */
+@media (max-width: 768px) {
+  .q-btn,
+  .q-item,
+  .q-toggle,
+  .q-checkbox,
+  .q-radio,
+  .q-field,
+  .q-input {
+    min-height: var(--touch-target-min);
+  }
+  .q-btn .q-btn__content,
+  .q-item__section,
+  .q-field__control,
+  .q-input__control {
+    padding: var(--touch-padding);
+  }
+  .q-icon {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+    font-size: 24px;
+  }
+}
+
+/* Dialogs and modals: consistent sizing and safe area handling */
+/* Matches existing modal implementation behavior across breakpoints */
+.q-dialog__inner {
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .q-dialog__inner {
+    align-items: flex-start;
+    padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom) 12px;
+  }
+  .q-dialog__inner > .q-card,
+  .q-dialog__inner > .q-banner,
+  .q-dialog__inner > .q-page {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .q-dialog__inner > .q-card,
+  .q-dialog__inner > .q-banner,
+  .q-dialog__inner > .q-page {
+    border-radius: 10px;
+  }
+}
+
+/* Utility classes for stacking/wrapping on small screens */
+.stack-sm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 768px) {
+  .stack-sm {
+    flex-direction: column;
+  }
+}
+
+.wrap-sm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Global typography: ensure legible font sizes on mobile */
+@media (max-width: 768px) {
+  html { font-size: 16px; }
+  body { line-height: 1.5; }
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Calendar/action bars common layout helpers (used by DoctorAppointment) */
+.calendar-nav-responsive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+@media (max-width: 768px) {
+  .calendar-nav-responsive .left-section,
+  .calendar-nav-responsive .right-section {
+    width: 100%;
+  }
+  .calendar-nav-responsive .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}

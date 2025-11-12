@@ -49,6 +49,10 @@
             <button type="submit" :disabled="loading" class="login-btn">
               {{ loading ? 'Signing In...' : 'Sign In' }}
             </button>
+
+            <div class="terms-link-container">
+              <a href="#" class="terms-link" @click.prevent="goToTerms">Terms and Conditions</a>
+            </div>
           </form>
         </div>
 
@@ -80,6 +84,7 @@ const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
 const loading = ref(false);
+const termsAccepted = ref<boolean>(localStorage.getItem('termsAccepted') === 'true');
 
 // Performance optimization: Cache network info
 let cachedNetworkInfo: unknown = null;
@@ -105,6 +110,19 @@ onMounted(async () => {
     } catch {
       // Network pre-warming failed silently
     }
+  }
+  // Check acceptance status when page loads
+  termsAccepted.value = localStorage.getItem('termsAccepted') === 'true';
+
+  // Show top toast when terms are not yet accepted
+  if (!termsAccepted.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Terms not accepted. Please read and accept the Terms and Conditions.',
+      position: 'top',
+      timeout: 5000,
+      actions: [{ icon: 'close', color: 'white' }],
+    });
   }
 });
 
@@ -142,6 +160,19 @@ const onLogin = () => {
 const performLogin = async () => {
   loading.value = true;
 
+  // Enforce Terms acceptance before login
+  if (!termsAccepted.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please read and accept the Terms and Conditions',
+      position: 'top',
+      timeout: 5000,
+      actions: [{ icon: 'close', color: 'white' }],
+    });
+    loading.value = false;
+    return;
+  }
+
   // Mobile-specific platform detection
   const isMobile = !!(window as { Capacitor?: unknown }).Capacitor;
 
@@ -175,7 +206,26 @@ const performLogin = async () => {
 
     const response = await loginPromise;
 
-    // Validate response structure
+    // Handle OTP-required flow for doctor/nurse with 2FA enabled
+    if (response.data && response.data.requires_otp) {
+      try {
+        localStorage.setItem('pending_otp_email', response.data.email || email.value);
+      } catch (e) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Storing pending_otp_email failed', e);
+        }
+      }
+      $q.notify({
+        type: 'info',
+        message: 'A verification code has been sent to your email.',
+        position: 'top',
+        timeout: isIOS.value ? 1500 : 2500,
+      });
+      await router.push('/otp-verify');
+      return;
+    }
+
+    // Validate response structure for standard login
     if (!response.data.access || !response.data.refresh) {
       throw new Error('Invalid response: missing authentication tokens');
     }
@@ -343,6 +393,10 @@ const performLogin = async () => {
     loading.value = false;
   }
 };
+
+const goToTerms = () => {
+  void router.push({ name: 'TermsAndConditions' });
+};
 </script>
 
 <style>
@@ -505,6 +559,33 @@ body::before {
   cursor: not-allowed;
 }
 
+.terms-link-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.terms-link {
+  color: #1e7668;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.terms-link:hover {
+  color: #286660;
+}
+
+.terms-status {
+  display: none;
+}
+
+.terms-status.accepted {
+  display: none;
+}
+
 .login-footer {
   text-align: center;
   padding-top: 20px;
@@ -597,6 +678,14 @@ body::before {
 
   .link-btn {
     font-size: 13px;
+  }
+
+  .terms-link {
+    font-size: 13px;
+  }
+
+  .terms-status {
+    display: none;
   }
 }
 </style>

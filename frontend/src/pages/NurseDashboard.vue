@@ -36,7 +36,7 @@
       <div class="dashboard-cards-section">
         <div class="dashboard-cards-grid">
           <!-- Today's Tasks Card -->
-          <q-card class="dashboard-card tasks-card" clickable aria-label="Today's Tasks">
+          <q-card class="dashboard-card app-card tasks-card" clickable aria-label="Today's Tasks">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Today's Tasks</div>
@@ -53,7 +53,7 @@
           </q-card>
 
           <!-- Patients Under Care Card -->
-          <q-card class="dashboard-card patients-card" clickable aria-label="Patients Under Care">
+          <q-card class="dashboard-card app-card patients-card" clickable aria-label="Patients Under Care">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Patients Under Care</div>
@@ -70,7 +70,7 @@
           </q-card>
 
           <!-- Vitals Checked Card -->
-          <q-card class="dashboard-card vitals-card" clickable aria-label="Vitals Checked">
+          <q-card class="dashboard-card app-card vitals-card" clickable aria-label="Vitals Checked">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Vitals Checked</div>
@@ -87,7 +87,7 @@
           </q-card>
 
           <!-- Medications Given Card -->
-          <q-card class="dashboard-card medications-card" clickable aria-label="Medications Given">
+          <q-card class="dashboard-card app-card medications-card" clickable aria-label="Medications Given">
             <q-card-section class="card-content">
               <div class="card-text">
                 <div class="card-title">Medications Given</div>
@@ -242,6 +242,12 @@
             <q-banner v-if="!isEditingSchedule && duplicateDeptScheduleExists" class="q-mb-md" rounded dense color="negative" text-color="white">
               A schedule already exists for {{ getDepartmentLabel(queueForm.department as DepartmentValue) }}. Please edit the existing schedule instead.
             </q-banner>
+            <q-banner v-if="departmentMismatch" class="q-mb-md" rounded dense color="warning" text-color="black">
+              You are assigned to {{ getDepartmentLabel(nurseAssignedDepartment as DepartmentValue) }}. Create schedules only in your assigned department.
+            </q-banner>
+            <q-banner v-if="hasOverlapConflict" class="q-mb-md" rounded dense color="orange-9" text-color="white">
+              The selected time overlaps with an existing schedule for this department.
+            </q-banner>
             <!-- Current Schedule Display -->
             <div v-if="currentSchedule" class="current-schedule-container">
               <div class="schedule-info">
@@ -283,6 +289,8 @@
               emit-value 
               map-options 
               outlined
+              :error="departmentMismatch"
+              error-message="Department must match your assignment"
               class="form-field"
             />
             <div class="row q-col-gutter-md">
@@ -326,6 +334,8 @@
             :label="isEditingSchedule ? 'Save Changes' : 'Create Schedule'" 
             @click="saveQueueSchedule" 
             :loading="savingSchedule"
+            :disable="!canSaveSchedule"
+            title="Resolve validation issues to enable saving"
             class="save-btn"
             unelevated
           />
@@ -510,8 +520,6 @@ const locationData = ref<{
 } | null>(null);
 const locationLoading = ref(false);
 const locationError = ref(false);
-
-// Dialog states (modals removed for dashboard cards); keep other dialogs
 const showNotifications = ref(false);
 const showStockAlerts = ref(false);
 const showQueueScheduleDialog = ref(false);
@@ -633,21 +641,117 @@ const schedules = ref<Array<{
   is_active: boolean;
   is_open?: boolean;
 }>>([]);
+
 const schedulesLoading = ref(false);
 const isEditingSchedule = ref(false);
 const editingScheduleId = ref<number | null>(null);
 const duplicateDeptScheduleExists = computed(() => {
   if (!queueForm.value.department) return false;
-  return schedules.value.some(s => s.department === queueForm.value.department);
+  // Exclude current item while editing
+  return schedules.value.some(s => {
+    if (isEditingSchedule.value && editingScheduleId.value != null) {
+      return s.department === queueForm.value.department && s.id !== editingScheduleId.value
+    }
+    return s.department === queueForm.value.department
+  });
 });
 
+// Department-based tracking and restriction indicators
+const departmentScheduleMap = computed(() => {
+  const map: Record<string, typeof schedules.value> = {}
+  for (const s of schedules.value) {
+    const key = s.department
+    if (!map[key]) map[key] = []
+    map[key].push(s)
+  }
+  return map
+})
+
+const nurseAssignedDepartment = computed(() => {
+  const dept = userProfile.value?.department
+  return (dept === 'OPD' || dept === 'Pharmacy') ? (dept as DepartmentValue) : null
+})
+
+const departmentMismatch = computed(() => {
+  return !!(queueForm.value.department && nurseAssignedDepartment.value && queueForm.value.department !== nurseAssignedDepartment.value)
+})
+
+// Helpers to parse times (robust against undefined/invalid input)
+const toMinutesFrom24 = (time24: string | null | undefined): number => {
+  if (!time24 || typeof time24 !== 'string') return 0
+  const parts = time24.split(':')
+  const hStr = parts[0] ?? '0'
+  const mStr = parts[1] ?? '0'
+  const h = parseInt(hStr, 10)
+  const m = parseInt(mStr, 10)
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0
+  return h * 60 + m
+}
+
+const toMinutesFrom12 = (time12: string | null | undefined): number => {
+  // Expect format "HH:MM AM/PM"
+  if (!time12 || typeof time12 !== 'string') return 0
+  const parts = time12.trim().split(/\s+/)
+  if (parts.length !== 2) return 0
+  const time = parts[0]!
+  const period = parts[1]!
+  const timeParts = time.split(':')
+  const hStr = timeParts[0] ?? '0'
+  const mStr = timeParts[1] ?? '0'
+  let h = parseInt(hStr, 10)
+  const m = parseInt(mStr, 10)
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0
+  const periodUpper = (period || '').toUpperCase()
+  if (periodUpper === 'PM' && h !== 12) h += 12
+  if (periodUpper === 'AM' && h === 12) h = 0
+  return h * 60 + m
+}
+
+// Non-overlapping schedule validation within department and selected days
+const hasOverlapConflict = computed(() => {
+  const dept = queueForm.value.department
+  if (!dept) return false
+  const startNew = toMinutesFrom12(queueForm.value.start_time || '00:00 AM')
+  const endNew = toMinutesFrom12(queueForm.value.end_time || '00:00 AM')
+  if (!startNew || !endNew || endNew <= startNew) return false // handled elsewhere as invalid
+  const selectedDays = new Set((queueForm.value.days_of_week || []).map(d => Number(d)))
+  const existing = departmentScheduleMap.value[dept] || []
+  for (const s of existing) {
+    if (isEditingSchedule.value && editingScheduleId.value != null && s.id === editingScheduleId.value) continue
+    const sStart = toMinutesFrom24(s.start_time)
+    const sEnd = toMinutesFrom24(s.end_time)
+    // Check for any day overlap
+    const dayOverlap = (s.days_of_week || []).some(d => selectedDays.has(Number(d)))
+    if (!dayOverlap) continue
+    // Check time overlap: [startNew, endNew) intersects [sStart, sEnd)
+    const overlap = startNew < sEnd && sStart < endNew
+    if (overlap) return true
+  }
+  return false
+})
+
+const canSaveSchedule = computed(() => {
+  // Disable save if restrictions are violated
+  // 1) Duplicate department schedule while creating
+  const duplicateWhileCreating = !isEditingSchedule.value && duplicateDeptScheduleExists.value
+  // 2) Mismatch with nurse's assigned department
+  // If a nurse has an assigned department, enforce matching
+  const assignmentViolation = departmentMismatch.value
+  // 3) Non-overlapping constraint violated
+  const overlapViolation = hasOverlapConflict.value
+  // Basic form completeness (times, days) checked in save function, but reflect here
+  const hasDept = !!queueForm.value.department
+  const hasTimes = !!queueForm.value.start_time && !!queueForm.value.end_time
+  const hasDays = !!queueForm.value.days_of_week && queueForm.value.days_of_week.length > 0
+  return hasDept && hasTimes && hasDays && !duplicateWhileCreating && !assignmentViolation && !overlapViolation
+})
+
 // Queue schedule form
-type DepartmentValue = 'OPD' | 'Pharmacy' | 'Appointment'
+type DepartmentValue = 'OPD' | 'Pharmacy' 
 
 const departmentOptions = [
   { label: 'Out Patient Department', value: 'OPD' },
-  { label: 'Pharmacy', value: 'Pharmacy' },
-  { label: 'Appointment', value: 'Appointment' }
+  { label: 'Out Patient Pharmacy', value: 'Pharmacy' },
 ]
 
 const dayOptions = [
@@ -806,8 +910,6 @@ const dashboardStats = ref({
   vitalsChecked: 0,
   medicationsGiven: 0,
 });
-
-// Queue management (removed duplicate declarations)
 
 // Load dashboard statistics
 const loadDashboardStats = async () => {
@@ -1309,6 +1411,21 @@ const deleteSchedule = async (s: { id: number; department: DepartmentValue; }) =
 const saveQueueSchedule = async () => {
   if (!queueForm.value.department) {
     $q.notify({ type: 'negative', message: 'Please select a department' })
+    return
+  }
+  // Check nurse department assignment restriction
+  if (nurseAssignedDepartment.value && queueForm.value.department !== nurseAssignedDepartment.value) {
+    $q.notify({ type: 'negative', message: `You are assigned to ${getDepartmentLabel(nurseAssignedDepartment.value)}. Choose the assigned department.` })
+    return
+  }
+  // Prevent creating multiple schedules for same department
+  if (!isEditingSchedule.value && duplicateDeptScheduleExists.value) {
+    $q.notify({ type: 'negative', message: `A schedule already exists for ${getDepartmentLabel(queueForm.value.department)}. Please edit the existing schedule.` })
+    return
+  }
+  // Prevent overlapping schedules in the same department
+  if (hasOverlapConflict.value) {
+    $q.notify({ type: 'negative', message: 'Time range overlaps with an existing schedule for this department.' })
     return
   }
   
@@ -1993,8 +2110,6 @@ onMounted(() => {
     void fetchUserProfile();
   }, 10000);
 });
-
-// Removed profile picture storage sync: initials-only avatar
 
 // Cleanup on component unmount
 onUnmounted(() => {

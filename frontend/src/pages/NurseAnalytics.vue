@@ -58,8 +58,7 @@
               </q-card-section>
             </q-card>
           </div>
-          <q-card class="analytics-card main-analytics-card" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
-            <q-card-section class="analytics-content">
+  <div class="analytics-content" :class="{ 'disabled-content': userProfile.verification_status !== 'approved' }">
               <div class="analytics-panels-container structured-grid">
                 <div class="analytics-panel medication-panel">
                   <h4 class="panel-title">Medication Analysis</h4>
@@ -82,20 +81,10 @@
                         </div>
                       </div>
                     </div>
-                    <div v-if="analyticsData.medication_analysis?.medication_pareto_data?.length" class="chart-container">
+                    <div v-if="(analyticsData.medication_analysis?.medication_pareto_data?.length || analyticsData.medication_analysis?.medication_usage?.length)" class="chart-container">
                       <Bar 
-                        :data="medicationChartData" 
-                        :options="{
-                          ...chartOptions,
-                          plugins: {
-                            ...chartOptions.plugins,
-                            title: {
-                              display: true,
-                              text: 'Most Prescribed Medications',
-                              font: { size: 16, weight: 'bold' }
-                            }
-                          }
-                        }" 
+                        :data="medicationParetoChartData" 
+                        :options="medicationParetoOptions"
                       />
                     </div>
                     <div v-else class="empty-data">
@@ -118,17 +107,7 @@
                         <div class="chart-container">
                           <Bar 
                             :data="ageChartData" 
-                            :options="{
-                              ...chartOptions,
-                              plugins: {
-                                ...chartOptions.plugins,
-                                title: {
-                                  display: true,
-                                  text: 'Patients by Age Group',
-                                  font: { size: 14, weight: 'bold' }
-                                }
-                              }
-                            }" 
+                            :options="ageBarOptions"
                           />
                         </div>
                       </div>
@@ -178,18 +157,7 @@
                     <div v-if="analyticsData.health_trends?.top_illnesses_by_week?.length" class="chart-container">
                       <Bar 
                         :data="healthTrendsChartData" 
-                        :options="{
-                          ...chartOptions,
-                          indexAxis: 'y' as const,
-                          plugins: {
-                            ...chartOptions.plugins,
-                            title: {
-                              display: true,
-                              text: 'Top Medical Conditions',
-                              font: { size: 16, weight: 'bold' }
-                            }
-                          }
-                        }" 
+                        :options="healthTrendsBarOptions"
                       />
                     </div>
                     <div v-else class="empty-data">
@@ -205,45 +173,30 @@
                 <div class="analytics-panel volume-panel prediction-panel">
                   <h4 class="panel-title">Patient Volume Prediction</h4>
                   <div class="panel-content">
-                    <!-- Filter Bar: time range selector -->
-                    <div class="filter-bar q-mb-sm">
-                      <div class="row items-center q-gutter-sm">
-                        <div class="col-auto text-subtitle2">Time Range</div>
-                        <div class="col-auto">
-                          <q-btn-toggle
-                            v-model="timeRangeNurse"
-                            toggle-color="primary"
-                            size="sm"
-                            :options="[
-                              { label: '3M', value: '3m' },
-                              { label: '6M', value: '6m' },
-                              { label: '12M', value: '12m' },
-                              { label: 'All', value: 'all' }
-                            ]"
-                          />
-                        </div>
-                      </div>
-                    </div>
                     <div v-if="analyticsData.volume_prediction" class="volume-prediction-content">
                       <div class="chart-container">
                         <Line 
-                          :data="volumePredictionChartData" 
-                          :options="{
-                            ...chartOptions,
-                            plugins: {
-                              ...chartOptions.plugins,
-                              title: {
-                                display: true,
-                                text: 'Predicted vs Actual Patient Volume',
-                                font: { size: 16, weight: 'bold' }
-                              },
-                              legend: {
-                                display: true,
-                                position: 'bottom'
-                              }
-                            }
-                          }" 
+                          :data="volumeForecastChartData" 
+                          :options="volumeLineOptions"
                         />
+                      </div>
+                      <div class="row q-col-gutter-md q-mt-sm">
+                        <div class="col-12 col-md-6">
+                          <q-card outlined>
+                            <q-card-section class="text-center">
+                              <div class="text-subtitle1">Predicted Volume (next month)</div>
+                              <div class="text-h6">{{ formatNumber(volumeTotals.predicted) }}</div>
+                            </q-card-section>
+                          </q-card>
+                        </div>
+                        <div class="col-12 col-md-6">
+                          <q-card outlined>
+                            <q-card-section class="text-center">
+                              <div class="text-subtitle1">Actual Volume (next month)</div>
+                              <div class="text-h6">{{ volumeTotals.actual > 0 ? formatNumber(volumeTotals.actual) : 'N/A' }}</div>
+                            </q-card-section>
+                          </q-card>
+                        </div>
                       </div>
                     </div>
                     <div v-else class="empty-data">
@@ -256,8 +209,7 @@
                   </div>
                 </div>
               </div>
-            </q-card-section>
-          </q-card>
+            </div>
         </div>
 
         <div class="dashboard-sidebar-section">
@@ -308,6 +260,9 @@ import {
   PointElement,
   LineElement,
 } from 'chart.js';
+import type { TooltipItem, ChartOptions, ChartData } from 'chart.js';
+import { buildVolumeForecastChart } from '../utils/volumeForecast';
+import type { ForecastPoint } from '../utils/volumeForecast';
 
 ChartJS.register(
   CategoryScale,
@@ -318,36 +273,25 @@ ChartJS.register(
   Legend,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
 );
 
 const $q = useQuasar();
 
 const rightDrawerOpen = ref(false);
-
-// Filters
-const timeRangeNurse = ref<'3m' | '6m' | '12m' | 'all'>('3m');
 const topMedCount = ref<number>(5);
-
-const limitByRange = (len: number): number => {
-  switch (timeRangeNurse.value) {
-    case '3m':
-      return Math.min(3, len);
-    case '6m':
-      return Math.min(6, len);
-    case '12m':
-      return Math.min(12, len);
-    case 'all':
-    default:
-      return len;
-  }
-};
 
 interface MedicationAnalysis {
   medication_pareto_data?: Array<{
     medication: string;
     frequency: number;
     cumulative_percentage: number;
+  }>;
+  // Fallback/alt shape seeded by demo: monthly prescriptions per medication
+  medication_usage?: Array<{
+    medication: string;
+    prescriptions: number;
+    month?: string;
   }>;
 }
 
@@ -370,6 +314,11 @@ interface VolumePrediction {
     rmse: number;
   };
   forecasted_data?: Array<{
+    date: string;
+    predicted_volume: number;
+    actual_volume?: number;
+  }>;
+  comparison_data?: Array<{
     date: string;
     predicted_volume: number;
     actual_volume?: number;
@@ -483,23 +432,50 @@ const nurseSummaryText = computed(() => {
 
 // REMOVED: zoomedData ref
 
-const medicationChartData = computed(() => {
-  if (!analyticsData.value.medication_analysis?.medication_pareto_data) {
+// Pareto chart (monthly frequency distribution) with dual axes and cumulative percentage
+type ParetoItem = { medication: string; frequency: number; cumulative_percentage?: number; month?: string };
+type UsageItem = { medication: string; prescriptions: number; month?: string };
+
+const medicationParetoChartData = computed<ChartData<'bar'>>(() => {
+  const medAnalysis = analyticsData.value.medication_analysis || {};
+  const rawPareto: ParetoItem[] = medAnalysis.medication_pareto_data || [];
+  const rawUsage: UsageItem[] = medAnalysis.medication_usage || [];
+  const raw: Array<ParetoItem | UsageItem> = rawPareto.length ? rawPareto : rawUsage;
+
+  if (!Array.isArray(raw) || raw.length === 0) {
     return { labels: [], datasets: [] };
   }
-  
-  const medsAll = analyticsData.value.medication_analysis.medication_pareto_data;
-  const medications = medsAll
-    .slice()
-    .sort((a, b) => Number(b.frequency || 0) - Number(a.frequency || 0))
-    .slice(0, topMedCount.value);
-  
+
+  // Normalize keys to support either `frequency` or `prescriptions`
+  const normalized = raw.map((item) => {
+    const freq = 'frequency' in item ? item.frequency : item.prescriptions;
+    return {
+      medication: String(item.medication || 'Unknown'),
+      freq: Number(freq ?? 0),
+    };
+  });
+
+  // Sort by frequency desc and pick top N
+  const sorted = normalized.slice().sort((a, b) => b.freq - a.freq);
+  const total = normalized.reduce((sum, it) => sum + (Number.isFinite(it.freq) ? it.freq : 0), 0) || 1; // avoid divide-by-zero
+  const top = sorted.slice(0, topMedCount.value);
+
+  // Compute cumulative percentage across the whole distribution, reported for the top subset
+  let running = 0;
+  const labels = top.map((it) => it.medication);
+  const frequencies = top.map((it) => it.freq);
+  const percentages = top.map((it) => {
+    running += it.freq;
+    return Math.round((running / total) * 100);
+  });
+
   return {
-    labels: medications.map(med => med.medication),
+    labels,
     datasets: [
       {
-        label: 'Prescriptions',
-        data: medications.map(med => med.frequency),
+        type: 'bar',
+        label: 'Frequency',
+        data: frequencies,
         backgroundColor: [
           '#9c27b0',
           '#2196f3',
@@ -515,6 +491,17 @@ const medicationChartData = computed(() => {
           '#d32f2f',
         ],
         borderWidth: 1,
+        yAxisID: 'y',
+      },
+      {
+        // Keep type as 'bar' to satisfy ChartData<'bar'> typing; mapped to percentage axis
+        type: 'bar',
+        label: 'Cumulative %',
+        data: percentages,
+        backgroundColor: '#e91e63',
+        borderColor: '#c2185b',
+        borderWidth: 1,
+        yAxisID: 'y1',
       },
     ],
   };
@@ -582,83 +569,75 @@ const healthTrendsChartData = computed(() => {
   };
 });
 
-const volumePredictionChartData = computed(() => {
-  if (!analyticsData.value.volume_prediction) {
-    return { labels: [], datasets: [] };
-  }
-  
-  const data = analyticsData.value.volume_prediction;
-  
-  if (data.forecasted_data && Array.isArray(data.forecasted_data)) {
-    const count = limitByRange(data.forecasted_data.length);
-    const sliced = data.forecasted_data.slice(0, count);
-    const labels = sliced.map((item) => item.date);
-    const predictedVolume = sliced.map((item) => item.predicted_volume);
-    const actualVolume = sliced.map((item) => item.actual_volume !== undefined ? item.actual_volume : null);
-    
-    return {
-      labels,
-      datasets: [
-        {
-          label: 'Predicted Volume',
-          data: predictedVolume,
-          borderColor: '#2196f3',
-          backgroundColor: 'rgba(33, 150, 243, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointBackgroundColor: '#2196f3',
-        },
-        {
-          label: 'Actual Volume',
-          data: actualVolume,
-          borderColor: '#4caf50',
-          backgroundColor: 'rgba(76, 175, 80, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointBackgroundColor: '#4caf50',
-        },
-      ],
-    };
-  }
-  
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  const predictedVolume = [45, 52, 48, 55, 60, 58];
-  const actualVolume = [42, 50, 46, 52, 58, 56];
-  
+// Next-month filtering helpers for volume prediction
+interface NextMonthVolumeShape {
+  labels: string[];
+  predicted: number[];
+  actual: Array<number | null>;
+}
+
+const nextMonthVolume = computed<NextMonthVolumeShape>(() => {
+  const fd = analyticsData.value.volume_prediction?.forecasted_data ?? [];
+  const now = new Date();
+  const targetMonth = (now.getMonth() + 1) % 12;
+  const targetYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+  const filtered = fd.filter((item) => {
+    const d = new Date(item.date);
+    return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+  });
+  const slice = filtered.length ? filtered : fd.slice(0, Math.min(30, fd.length));
   return {
-    labels: months,
-    datasets: [
-      {
-        label: 'Predicted Volume',
-        data: predictedVolume,
-        borderColor: '#2196f3',
-        backgroundColor: 'rgba(33, 150, 243, 0.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointBackgroundColor: '#2196f3',
-      },
-      {
-        label: 'Actual Volume',
-        data: actualVolume,
-        borderColor: '#4caf50',
-        backgroundColor: 'rgba(76, 175, 80, 0.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.4,
-        pointRadius: 4,
-        pointBackgroundColor: '#4caf50',
-      },
-    ],
+    labels: slice.map((item) => String(item.date)),
+    predicted: slice.map((item) => Number(item.predicted_volume)),
+    actual: slice.map((item) => (typeof item.actual_volume === 'number' ? Number(item.actual_volume) : null)),
   };
 });
 
-const chartOptions = {
+
+// Unified monthly forecast data (3-month window)
+
+const volumeForecastChartData = computed(() => {
+  const forecast = (analyticsData.value.volume_prediction || {}).forecasted_data || [];
+  const rows: ForecastPoint[] = forecast
+    .map((f: { date: string; predicted_volume?: number; actual_volume?: number | null }) => {
+      const base: ForecastPoint = {
+        date: String(f.date),
+        predicted_volume: Number(f.predicted_volume || 0),
+      };
+      if (typeof f.actual_volume === 'number') {
+        base.actual_volume = Number(f.actual_volume);
+      }
+      return base;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return buildVolumeForecastChart(rows);
+});
+
+const volumeTotals = computed<{ predicted: number; actual: number }>(() => {
+  const p = nextMonthVolume.value.predicted.reduce((sum: number, v) => sum + (typeof v === 'number' ? v : 0), 0);
+  const actualNumbers = nextMonthVolume.value.actual.filter((v): v is number => typeof v === 'number');
+  let a = actualNumbers.reduce((sum: number, v) => sum + v, 0);
+  // Fallback: use the latest available month with actuals if next-month actuals are missing
+  if (a === 0) {
+    const fd = analyticsData.value.volume_prediction?.forecasted_data ?? [];
+    const actualItems = fd.filter((it) => typeof it.actual_volume === 'number');
+    if (actualItems.length) {
+      const sorted = [...actualItems].sort((x, y) => new Date(x.date).getTime() - new Date(y.date).getTime());
+      const last = sorted[sorted.length - 1];
+      if (last) {
+        const lastDate = new Date(last.date);
+        const monthActuals = actualItems.filter((it) => {
+          const d = new Date(it.date);
+          return d.getMonth() === lastDate.getMonth() && d.getFullYear() === lastDate.getFullYear();
+        });
+        a = monthActuals.reduce((sum: number, it) => sum + Number(it.actual_volume as number), 0);
+      }
+    }
+  }
+  return { predicted: p, actual: a };
+});
+
+const lineChartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -670,6 +649,45 @@ const chartOptions = {
       font: {
         size: 14,
         weight: 'bold' as const,
+      },
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: TooltipItem<'line'>) => {
+          const label = context.dataset.label || '';
+          const value = context.parsed.y;
+          const date = context.label;
+          return `${label}: ${value} on ${date}`;
+        },
+      },
+    },
+  },
+};
+
+const barChartOptions: ChartOptions<'bar'> = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'top' as const,
+    },
+    title: {
+      display: true,
+      font: {
+        size: 14,
+        weight: 'bold' as const,
+      },
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: TooltipItem<'bar'>) => {
+          const label = context.dataset.label || '';
+          // Support both vertical and horizontal bars
+          const parsedY = (context.parsed as { y?: number }).y;
+          const value = typeof parsedY === 'number' ? parsedY : (context.parsed as { x: number }).x;
+          const category = context.label;
+          return `${label}: ${value} (${category})`;
+        },
       },
     },
   },
@@ -691,6 +709,104 @@ const doughnutOptions = {
     },
   },
 };
+
+// Typed options per chart usage in template
+
+// Dual-axis options for Pareto chart (frequency + cumulative percentage)
+const medicationParetoOptions: ChartOptions<'bar'> = {
+  ...barChartOptions,
+  plugins: {
+    ...barChartOptions.plugins,
+    title: {
+      display: true,
+      text: 'Monthly Medication Frequency (Pareto)',
+      font: { size: 16, weight: 'bold' },
+    },
+    legend: {
+      position: 'bottom',
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: TooltipItem<'bar'>) => {
+          const label = context.dataset.label || '';
+          const parsedY = (context.parsed as { y?: number }).y;
+          const value = typeof parsedY === 'number' ? parsedY : (context.parsed as { x: number }).x;
+          const category = context.label;
+          if (label.toLowerCase().includes('%')) {
+            return `${label}: ${value}% (${category})`;
+          }
+          return `${label}: ${value} (${category})`;
+        },
+      },
+    },
+  },
+  scales: {
+    x: { title: { display: true, text: 'Medication' } },
+    y: {
+      beginAtZero: true,
+      title: { display: true, text: 'Frequency' },
+      grid: { drawOnChartArea: true },
+    },
+    y1: {
+      beginAtZero: true,
+      max: 100,
+      position: 'right',
+      title: { display: true, text: 'Cumulative %' },
+      grid: { drawOnChartArea: false },
+      ticks: {
+        callback: (value) => `${value}%`,
+      },
+    },
+  },
+};
+
+const ageBarOptions: ChartOptions<'bar'> = {
+  ...barChartOptions,
+  plugins: {
+    ...barChartOptions.plugins,
+    title: {
+      display: true,
+      text: 'Patients by Age Group',
+      font: { size: 14, weight: 'bold' },
+    },
+  },
+};
+
+const healthTrendsBarOptions: ChartOptions<'bar'> = {
+  ...barChartOptions,
+  indexAxis: 'y',
+  plugins: {
+    ...barChartOptions.plugins,
+    title: {
+      display: true,
+      text: 'Top Medical Conditions',
+      font: { size: 16, weight: 'bold' },
+    },
+  },
+};
+
+const volumeLineOptions: ChartOptions<'line'> = {
+  ...lineChartOptions,
+  plugins: {
+    ...lineChartOptions.plugins,
+    title: {
+      display: true,
+      text: 'Predicted vs Actual Patient Volume',
+      font: { size: 16, weight: 'bold' },
+    },
+    legend: { display: true, position: 'bottom', labels: { boxWidth: 18, boxHeight: 2 } },
+  },
+  scales: {
+    x: { title: { display: true, text: 'Time Period' }, ticks: { maxTicksLimit: 3 } },
+    y: {
+      beginAtZero: true,
+      title: { display: true, text: 'Number of Patients' },
+    },
+  },
+};
+
+// Simple integer formatter for display in summary cards
+const formatNumber = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
 
 const searchText = ref('');
 const searchResults = ref<
@@ -944,6 +1060,21 @@ const fetchNurseAnalytics = async () => {
           { date: '2024-04', predicted_volume: 55, actual_volume: 52 },
           { date: '2024-05', predicted_volume: 60, actual_volume: 58 },
           { date: '2024-06', predicted_volume: 58, actual_volume: 56 },
+        ],
+      };
+    }
+
+    // Fallback: seed Medication Analysis demo data when backend returns none
+    const hasPareto = Array.isArray(data.medication_analysis?.medication_pareto_data) && data.medication_analysis!.medication_pareto_data!.length > 0;
+    const hasUsage = Array.isArray(data.medication_analysis?.medication_usage) && data.medication_analysis!.medication_usage!.length > 0;
+    if (!hasPareto && !hasUsage) {
+      data.medication_analysis = {
+        medication_pareto_data: [
+          { medication: 'Paracetamol', frequency: 45, cumulative_percentage: 32 },
+          { medication: 'Ibuprofen', frequency: 32, cumulative_percentage: 55 },
+          { medication: 'Amoxicillin', frequency: 28, cumulative_percentage: 75 },
+          { medication: 'Aspirin', frequency: 22, cumulative_percentage: 91 },
+          { medication: 'Metformin', frequency: 18, cumulative_percentage: 100 },
         ],
       };
     }
@@ -1371,8 +1502,13 @@ onUnmounted(() => {
   .analytics-panel {
     min-height: 300px;
   }
-  .chart-container {
-    height: 200px;
-  }
+.chart-container {
+  height: 200px;
+}
+
+/* Hover overlay styles for all charts in this component */
+.chart-hover-overlay {
+  transition: opacity 200ms ease, transform 200ms ease, box-shadow 200ms ease, z-index 200ms linear;
+}
 }
 </style>

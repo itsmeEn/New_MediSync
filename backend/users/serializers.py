@@ -153,13 +153,18 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer for updating user profile information including hospital details
+    Serializer for updating user profile information including hospital details,
+    and doctor-specific fields (specialization, license_number) when applicable.
     """
+    specialization = serializers.CharField(required=False, allow_blank=True)
+    license_number = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = User
         fields = [
             'email', 'full_name', 'date_of_birth', 'gender', 
-            'hospital_name', 'hospital_address'
+            'hospital_name', 'hospital_address',
+            'specialization', 'license_number'
         ]
         read_only_fields = ['email']  # Email should not be updated through this endpoint
 
@@ -231,16 +236,17 @@ class TwoFactorLoginSerializer(serializers.Serializer):
     """
     email = serializers.EmailField(required=True)
     otp_code = serializers.CharField(
-        max_length=6,
-        min_length=6,
+        max_length=16,
+        min_length=4,
         required=True,
-        help_text="6-digit OTP code from authenticator app"
+        help_text="Alphanumeric OTP code sent to your email"
     )
 
     def validate_otp_code(self, value):
-        """Validate that OTP code is 6 digits"""
-        if not value.isdigit():
-            raise serializers.ValidationError("OTP code must contain only digits.")
+        """Validate that OTP code is alphanumeric (letters and numbers)."""
+        import re
+        if not re.match(r'^[A-Za-z0-9]+$', value):
+            raise serializers.ValidationError("OTP code must contain only letters and numbers.")
         return value
 
 

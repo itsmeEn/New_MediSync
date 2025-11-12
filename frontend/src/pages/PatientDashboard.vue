@@ -12,7 +12,7 @@
         <q-space />
 
         <!-- Notification Icon -->
-        <q-btn flat round icon="notifications" class="q-mr-sm">
+        <q-btn flat round icon="notifications" class="q-mr-sm" @click="navigateTo('/patient-notifications')">
           <q-badge v-if="unreadCount > 0" color="red" floating rounded>{{ unreadCount }}</q-badge>
         </q-btn>
 
@@ -439,19 +439,16 @@ onUnmounted(() => {
 .card, .status-card {
   border-radius: 0.75rem;
 }
-/* Shared queue status card styles to ensure consistency across cards */
 .queue-card {
   /* identical dimensions across queue cards */
   width: 100%;
-  min-height: 120px; /* desktop/tablet baseline */
-  border-radius: 16px; /* match visual spec with Now Serving */
-  /* matching shadow effect */
+  min-height: 120px; 
+  border-radius: 16px; 
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   display: flex;
   flex-direction: column;
 }
 .queue-card .q-card__section {
-  /* uniform padding across cards */
   padding: 16px;
 }
 /* Ensure cards visually align when stacked as row/column */
@@ -523,8 +520,6 @@ onUnmounted(() => {
 @media (max-width: 600px) {
   .text-h5.status-text-small { font-size: 1rem; }
 }
-</style>
-<style scoped>
 /* Ensure header content respects mobile safe areas and avoids overlap */
 .patient-header {
   box-sizing: border-box;

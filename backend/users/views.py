@@ -15,15 +15,16 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import logging
 from decimal import Decimal
 import pyotp
 import qrcode
 import io
 import base64
+from django.utils import timezone
 
-from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile
+from .models import User, GeneralDoctorProfile, NurseProfile, PatientProfile, LoginOTP
 from .serializers import (
     UserSerializer, UserRegistrationSerializer, VerificationDocumentSerializer, 
     ProfileUpdateSerializer, TwoFactorEnableSerializer,
@@ -213,15 +214,52 @@ def login(request):
         if not user.is_active:
             return Response({'error': 'User is not active.'}, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Check if 2FA is enabled for this user
-        if user.two_factor_enabled:
-            # User has 2FA enabled, require OTP verification
-            # Don't return tokens yet, return a flag indicating 2FA is required
-            print("2FA enabled for user, requiring OTP verification")
+        # Check if 2FA is enabled for this user (doctor/nurse)
+        if user.two_factor_enabled and user.role in ['doctor', 'nurse']:
+            # Generate an alphanumeric OTP (8 chars)
+            import secrets, string
+            alphabet = string.ascii_uppercase + string.digits
+            otp_code = ''.join(secrets.choice(alphabet) for _ in range(8))
+            expires_at = timezone.now() + timedelta(minutes=5)
+
+            # Invalidate previous unconsumed login OTPs
+            LoginOTP.objects.filter(user=user, purpose=LoginOTP.PURPOSE_LOGIN, consumed=False).update(consumed=True)
+
+            # Persist OTP
+            LoginOTP.objects.create(user=user, code=otp_code, purpose=LoginOTP.PURPOSE_LOGIN, expires_at=expires_at)
+
+            # Send OTP to user's email (prefer async Celery task, fallback to synchronous)
+            try:
+                from .tasks import send_login_otp_email
+                send_login_otp_email.delay(user.id, otp_code)
+                email_enqueued = True
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Falling back to sync email for {user.email}: {e}")
+                try:
+                    send_mail(
+                        subject='Your MediSync login verification code',
+                        message=(
+                            f'Hello {user.full_name or user.email},\n\n'
+                            f'Your verification code is: {otp_code}.\n'
+                            f'This code expires in 5 minutes. If you did not attempt to sign in, you can ignore this email.'
+                        ),
+                        from_email=None,
+                        recipient_list=[user.email],
+                        fail_silently=False,
+                    )
+                except Exception as e2:
+                    logging.getLogger(__name__).error(f"Failed to send OTP email to {user.email}: {e2}")
+                    return Response({'error': 'Failed to send verification code. Please try again later.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Log generation event
+            client_ip = request.META.get('REMOTE_ADDR')
+            logging.getLogger(__name__).info(f"Generated login OTP for {user.email}, expires at {expires_at.isoformat()}, ip={client_ip}")
+
+            # Immediate logout semantics: do not issue tokens, require OTP verification
             return Response({
-                'requires_2fa': True,
+                'requires_otp': True,
                 'email': user.email,
-                'message': 'Please enter your 6-digit authentication code.'
+                'message': 'A verification code has been emailed to you. It expires in 5 minutes.'
             }, status=status.HTTP_200_OK)
         
         # No 2FA, proceed with normal login
@@ -1360,8 +1398,8 @@ def calculate_age(birth_date):
 @permission_classes([IsAuthenticated])
 def enable_2fa(request):
     """
-    Initiate 2FA setup for doctors and nurses only.
-    Generates a secret key and returns a QR code for scanning with an authenticator app.
+    Enable 2FA (email-based OTP) for doctors and nurses only.
+    No QR code/secret is required; OTP is emailed during login.
     """
     user = request.user
     
@@ -1376,38 +1414,15 @@ def enable_2fa(request):
         return Response({
             'error': 'Two-factor authentication is already enabled for this account.'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Generate a new secret key
-    secret = pyotp.random_base32()
-    
-    # Save the secret temporarily (it will be finalized upon verification)
-    user.two_factor_secret = secret
-    user.save()
-    
-    # Generate provisioning URI for QR code
-    totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(
-        name=user.email,
-        issuer_name='MediSync'
-    )
-    
-    # Generate QR code
-    qr = qrcode.QRCode(version=1, box_size=10, border=5)
-    qr.add_data(provisioning_uri)
-    qr.make(fit=True)
-    
-    img = qr.make_image(fill_color="black", back_color="white")
-    
-    # Convert QR code to base64 for easy transmission
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
-    
+
+    # Enable email-based OTP 2FA
+    user.two_factor_enabled = True
+    user.two_factor_secret = None
+    user.save(update_fields=['two_factor_enabled', 'two_factor_secret'])
+
     return Response({
-        'message': 'Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.)',
-        'qr_code': f'data:image/png;base64,{qr_code_base64}',
-        'secret': secret,  # Also provide secret for manual entry
-        'next_step': 'Enter the 6-digit code from your authenticator app to verify and activate 2FA'
+        'message': 'Two-factor authentication has been enabled. You will receive a verification code via email when signing in.',
+        'user': UserSerializer(user).data
     }, status=status.HTTP_200_OK)
 
 
@@ -1415,43 +1430,10 @@ def enable_2fa(request):
 @permission_classes([IsAuthenticated])
 def verify_2fa(request):
     """
-    Verify and activate 2FA by checking the OTP code from authenticator app.
+    Deprecated for email-based OTP flow.
+    No action required — OTP is verified at login via email.
     """
-    user = request.user
-    serializer = TwoFactorVerifySerializer(data=request.data)
-    
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Check if 2FA is already enabled
-    if user.two_factor_enabled:
-        return Response({
-            'error': 'Two-factor authentication is already enabled for this account.'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Check if secret exists
-    if not user.two_factor_secret:
-        return Response({
-            'error': 'No 2FA setup found. Please initiate 2FA setup first.'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    otp_code = serializer.validated_data['otp_code']
-    
-    # Verify the OTP code
-    totp = pyotp.TOTP(user.two_factor_secret)
-    if totp.verify(otp_code, valid_window=1):
-        # OTP is valid, enable 2FA
-        user.two_factor_enabled = True
-        user.save()
-        
-        return Response({
-            'message': 'Two-factor authentication has been successfully enabled for your account.',
-            'user': UserSerializer(user).data
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({
-            'error': 'Invalid authentication code. Please try again.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'message': '2FA uses email OTP. Verification happens during login.'}, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -1494,8 +1476,8 @@ def disable_2fa(request):
 @permission_classes([AllowAny])
 def verify_2fa_login(request):
     """
-    Verify OTP code during login for users with 2FA enabled.
-    Returns JWT tokens if OTP is valid.
+    Verify email-based OTP during login for users with 2FA enabled.
+    Returns JWT tokens if OTP is valid and within the validity window.
     """
     serializer = TwoFactorLoginSerializer(data=request.data)
     
@@ -1519,27 +1501,53 @@ def verify_2fa_login(request):
         }, status=status.HTTP_401_UNAUTHORIZED)
     
     # Check if 2FA is enabled
-    if not user.two_factor_enabled or not user.two_factor_secret:
+    if not user.two_factor_enabled:
         return Response({
             'error': 'Two-factor authentication is not enabled for this account.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Verify the OTP code
-    totp = pyotp.TOTP(user.two_factor_secret)
-    if totp.verify(otp_code, valid_window=1):
-        # OTP is valid, generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        
-        # Use full serializer data to keep response consistent with /users/profile/
-        user_data = UserSerializer(user).data
-        
-        return Response({
-            'message': 'Login successful',
-            'user': user_data,
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({
-            'error': 'Invalid authentication code. Please try again.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+    # Find latest unconsumed OTP for login
+    from django.utils import timezone
+    now = timezone.now()
+    otp_record = (LoginOTP.objects
+                  .filter(user=user, purpose=LoginOTP.PURPOSE_LOGIN, consumed=False, expires_at__gte=now)
+                  .order_by('-created_at')
+                  .first())
+
+    client_ip = request.META.get('REMOTE_ADDR')
+
+    if not otp_record:
+        logging.getLogger(__name__).warning(f"OTP verify failed: no active OTP for {user.email}, ip={client_ip}")
+        return Response({'error': 'No active verification code or it has expired.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Basic attempt rate-limiting: block after 5 failed attempts
+    if otp_record.attempt_count >= 5:
+        otp_record.consumed = True
+        otp_record.save(update_fields=['consumed'])
+        logging.getLogger(__name__).warning(f"OTP verify blocked: too many attempts for {user.email}, ip={client_ip}")
+        return Response({'error': 'Too many attempts. Please log in again to receive a new verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Compare codes case-insensitively (normalize to upper)
+    if (otp_record.code or '').upper() != (otp_code or '').upper():
+        otp_record.attempt_count += 1
+        otp_record.save(update_fields=['attempt_count'])
+        logging.getLogger(__name__).warning(f"OTP verify failed: invalid code for {user.email}, ip={client_ip}, attempts={otp_record.attempt_count}")
+        return Response({'error': 'Invalid verification code. Please try again.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Mark OTP as consumed
+    otp_record.consumed = True
+    otp_record.save(update_fields=['consumed'])
+    logging.getLogger(__name__).info(f"OTP verify success for {user.email}, ip={client_ip}")
+
+    # OTP is valid, generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+
+    # Use full serializer data to keep response consistent with /users/profile/
+    user_data = UserSerializer(user).data
+    
+    return Response({
+        'message': 'Login successful',
+        'user': user_data,
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }, status=status.HTTP_200_OK)

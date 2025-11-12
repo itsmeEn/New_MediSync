@@ -300,6 +300,8 @@ import { api } from '../boot/axios';
 import NurseHeader from '../components/NurseHeader.vue';
 import NurseSidebar from 'src/components/NurseSidebar.vue';
 import { showVerificationToastOnce } from 'src/utils/verificationToast';
+import { useRouter } from 'vue-router';
+import { performLogout } from 'src/utils/logout';
 
 // Type definitions
 interface Medicine {
@@ -337,6 +339,7 @@ interface Assessment {
 }
 
 const $q = useQuasar();
+const router = useRouter();
 
 // Header functionality
 const rightDrawerOpen = ref(false);
@@ -618,6 +621,9 @@ const securityForm = ref({
   twoFactorAuth: false,
 });
 
+// Track original backend 2FA status to detect changes and ensure persistence across refresh
+const originalTwoFactor = ref<boolean | null>(null);
+
 const notificationSettings = ref({
   patientAlerts: true,
   medicationReminders: true,
@@ -695,6 +701,103 @@ const saveSettings = async () => {
       securityForm.value.currentPassword = '';
       securityForm.value.newPassword = '';
       securityForm.value.confirmPassword = '';
+    }
+
+    // Two-Factor Authentication enable/disable handling with backend sync
+    try {
+      // Refresh backend state before applying change and log refresh
+      try {
+        const statusResp = await api.get('/users/profile/');
+        const currentFlag = !!statusResp.data?.user?.two_factor_enabled;
+        securityForm.value.twoFactorAuth = currentFlag;
+        if (originalTwoFactor.value === null) {
+          originalTwoFactor.value = currentFlag;
+        }
+        void api.post('/operations/client-log/', {
+          level: 'info',
+          message: '2FA status refreshed',
+          route: 'NurseSettings',
+          context: { two_factor_enabled: currentFlag }
+        });
+      } catch (refreshErr) {
+        console.warn('[NurseSettings] Failed to refresh 2FA status before save:', refreshErr);
+      }
+
+      // Initialize from localStorage if backend unavailable
+      if (originalTwoFactor.value === null) {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        originalTwoFactor.value = !!storedUser.two_factor_enabled;
+      }
+
+      if (originalTwoFactor.value !== securityForm.value.twoFactorAuth) {
+        if (securityForm.value.twoFactorAuth) {
+          // Enable 2FA via backend
+          const { status } = await api.post('/users/2fa/enable/');
+          if (status === 200) {
+            originalTwoFactor.value = true;
+            const userLS = JSON.parse(localStorage.getItem('user') || '{}');
+            userLS.two_factor_enabled = true;
+            localStorage.setItem('user', JSON.stringify(userLS));
+            void api.post('/operations/client-log/', {
+              level: 'info',
+              message: '2FA enabled',
+              route: 'NurseSettings',
+              context: { two_factor_enabled: true }
+            });
+            $q.notify({
+              type: 'positive',
+              message: 'Two-factor authentication enabled. You will be logged out now.',
+              position: 'top',
+            });
+            await performLogout(router);
+            return; // Exit after logout
+          }
+        } else {
+          // Disable 2FA requires current password confirmation
+          const { status } = await api.post('/users/2fa/disable/', {
+            password: securityForm.value.currentPassword,
+          });
+          if (status === 200) {
+            originalTwoFactor.value = false;
+            const userLS = JSON.parse(localStorage.getItem('user') || '{}');
+            userLS.two_factor_enabled = false;
+            localStorage.setItem('user', JSON.stringify(userLS));
+            void api.post('/operations/client-log/', {
+              level: 'info',
+              message: '2FA disabled',
+              route: 'NurseSettings',
+              context: { two_factor_enabled: false }
+            });
+            $q.notify({
+              type: 'positive',
+              message: 'Two-factor authentication disabled.',
+              position: 'top',
+            });
+            // Refresh from backend to ensure UI sync post-change
+            try {
+              const statusResp = await api.get('/users/profile/');
+              const currentFlag = !!statusResp.data?.user?.two_factor_enabled;
+              securityForm.value.twoFactorAuth = currentFlag;
+              originalTwoFactor.value = currentFlag;
+            } catch (refreshErr) {
+              console.warn('[NurseSettings] Post-change 2FA refresh failed:', refreshErr);
+            }
+          }
+        }
+      }
+    } catch (twoFaError) {
+      console.error('2FA update failed:', twoFaError);
+      void api.post('/operations/client-log/', {
+        level: 'error',
+        message: '2FA update failed',
+        route: 'NurseSettings',
+        context: { error: String(twoFaError) }
+      });
+      $q.notify({
+        type: 'negative',
+        message: 'Failed to update two-factor authentication settings.',
+        position: 'top',
+      });
     }
 
     $q.notify({
@@ -977,6 +1080,10 @@ const loadUserProfile = async () => {
       department: userData.nurse_profile?.department || '',
       licenseNumber: userData.nurse_profile?.license_number || '',
     };
+
+    // Initialize 2FA toggle state from backend profile
+    securityForm.value.twoFactorAuth = !!userData.two_factor_enabled;
+    originalTwoFactor.value = securityForm.value.twoFactorAuth;
   } catch (error) {
     console.error('Failed to load user profile:', error);
 
@@ -1018,6 +1125,24 @@ onMounted(() => {
 
   // Refresh user profile every 10 seconds to check for verification status updates
   setInterval(() => void fetchUserProfile(), 10000);
+
+  // Ensure 2FA UI reflects backend state and log the event
+  void (async () => {
+    try {
+      const resp = await api.get('/users/profile/');
+      const flag = !!resp.data?.user?.two_factor_enabled;
+      securityForm.value.twoFactorAuth = flag;
+      originalTwoFactor.value = flag;
+      void api.post('/operations/client-log/', {
+        level: 'info',
+        message: 'NurseSettings mounted; synced 2FA status',
+        route: 'NurseSettings',
+        context: { two_factor_enabled: flag }
+      });
+    } catch (err) {
+      console.warn('[NurseSettings] Failed to sync 2FA on mount:', err);
+    }
+  })();
 });
 
 // Removed profile picture storage sync: initials-only avatar
